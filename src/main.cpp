@@ -58,19 +58,23 @@ volatile uint16_t tftHeight = TFT_WIDTH;
 volatile uint16_t tftWidth = TFT_HEIGHT;
 TaskHandle_t xHandle;
 void __attribute__((weak)) taskInputHandler(void *parameter) {
+  auto timer = millis();
     while (true) { 
       checkPowerSaveTime();
-      NextPress=false;
-      PrevPress=false;
-      UpPress=false;
-      DownPress=false;
-      SelPress=false;
-      EscPress=false;
-      AnyKeyPress=false;
-      touchPoint.pressed=false;
-      KeyStroke.Clear();
-      InputHandler();
-      vTaskDelay(10 / portTICK_PERIOD_MS);
+      if (!AnyKeyPress || millis() - timer > 75) {
+        NextPress=false;
+        PrevPress=false;
+        UpPress=false;
+        DownPress=false;
+        SelPress=false;
+        EscPress=false;
+        AnyKeyPress=false;
+        touchPoint.pressed=false;
+        KeyStroke.Clear();
+        InputHandler();
+        timer = millis();
+      }
+      vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 

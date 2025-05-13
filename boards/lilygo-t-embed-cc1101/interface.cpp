@@ -142,36 +142,31 @@ IRAM_ATTR void checkPosition() {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
+    static unsigned long tm = millis();
     static int _last_dir = 0;
-    _last_dir = (int)encoder->getDirection();
-    if(_last_dir!=0 || digitalRead(SEL_BTN)==BTN_ACT) {
-        if(!wakeUpScreen()) AnyKeyPress = true;
-        else goto END;
-    }    
-    if(_last_dir>0) {
-        _last_dir=0;
-        PrevPress = true;
-    }
-    if(_last_dir<0) {
-        _last_dir=0;
-        NextPress = true;
-    }
-    if(digitalRead(SEL_BTN)==BTN_ACT) {
-        _last_dir=0;
-        SelPress = true;
-    }
+    bool sel = !BTN_ACT;
+    bool esc = !BTN_ACT;
 
+    if (millis() - tm < 200) return;
+    sel = digitalRead(SEL_BTN);
     #ifdef T_EMBED_1101
-    if(digitalRead(BK_BTN)==BTN_ACT) {
-        AnyKeyPress = true;
-        EscPress = true;
-    }
+    esc = digitalRead(BK_BTN);
     #endif
-    END:
-    if(AnyKeyPress) {
-      long tmp=millis();
-      while((millis()-tmp)<200 && (digitalRead(SEL_BTN)==BTN_ACT));
+
+    _last_dir = (int)encoder->getDirection();
+    // pinMode(SEL_BTN, INPUT);
+    if (_last_dir != 0 || sel == BTN_ACT || esc == BTN_ACT) {
+        if (!wakeUpScreen()) AnyKeyPress = true;
+        else return;
     }
+    if (_last_dir > 0) PrevPress = true;
+    if (_last_dir < 0) NextPress = true;
+    if (sel == BTN_ACT) SelPress = true;
+    if (esc == BTN_ACT) EscPress = true;
+
+    if(_last_dir != 0) _last_dir = 0;
+    if (sel == BTN_ACT || esc == BTN_ACT) tm = millis();
+    
 }
 
 void powerOff() {

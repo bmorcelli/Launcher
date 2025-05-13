@@ -524,8 +524,8 @@ Opt_Coord drawOptions(int idx,const std::vector<std::pair<std::string, std::func
             end = ini + (MAX_MENU_SIZE-2);
           }
           #else
-          ini = i*(MAX_MENU_SIZE-1); // index value at the top of the list, index starts at 0
-          end = (i+1)*(MAX_MENU_SIZE-1);
+          ini = i*MAX_MENU_SIZE; // index value at the top of the list, index starts at 0
+          end = ini + MAX_MENU_SIZE;
           #endif
 
           if(index>=ini && index<end) {
@@ -726,7 +726,7 @@ void drawBatteryStatus(uint8_t bat) {
 #if defined(E_PAPER_DISPLAY)  && !defined(GxEPD2_DISPLAY)
   #define MAX_ITEMS 14
 #else
-  #define MAX_ITEMS (int)(tftHeight-20)/(LH*FM)
+  #define MAX_ITEMS (int)((tftHeight-20)/(LH*FM))
 #endif
 Opt_Coord listFiles(int index, String fileList[][3], std::vector<MenuOptions>& opt) {
 
@@ -741,21 +741,22 @@ Opt_Coord listFiles(int index, String fileList[][3], std::vector<MenuOptions>& o
     int arraySize = 0;
     while(fileList[arraySize][2]!="" && arraySize < MAXFILES) arraySize++;
 
-    int num_pages = 1 + arraySize/MAX_ITEMS;
+    int num_pages = 0;
     static int show_page = 0;
     
-    #ifdef HAS_TOUCH  
     // calcula o numero de paginas  
     if(arraySize<=MAX_ITEMS) { num_pages=1; } 
     else {
-      int remains = arraySize - (MAX_ITEMS - 1); // Primeira pagina tem MAX_MENU_SIZE-1 de tamanho, pois substitui o ultimo por "..."
-      int nextPages = remains/(MAX_ITEMS-2); // O restante do menu tem MAX_MENU_SIZE-2 de tamanho, pois substitui o primeiro e o ultimo por "..."
-      int lastPage = (arraySize - remains - nextPages*(MAX_ITEMS-2)) > 0? 1 : 0; // A ultima pagina tem o restante do menu, que pode ser menor que MAX_MENU_SIZE-2
+      uint8_t ofs = 0;
+      #ifdef HAS_TOUCH  
+      ofs = 1;
+      #endif
+      int remains = arraySize - (MAX_ITEMS - ofs); 
+      int nextPages = remains/(MAX_ITEMS-2*ofs); 
+      int lastPage = (arraySize - remains - nextPages*(MAX_ITEMS-2*ofs)) > 0? 1 : 0;
       num_pages = 1 + nextPages + lastPage;
-      //Serial.printf("\rRemain items after 1st page: %d, nextPage: %d, lastPage: %d, arraySize: %d, Const: %d\n",
-      //  remains, nextPages, lastPage, arraySize, MAX_ITEMS);
     }
-    #endif
+    //Serial.printf("arraySize: %d, num_pages: %d, MAX_ITEMS: %d\n----------------------\n", arraySize, num_pages, MAX_ITEMS);
     int start=0;
     if(num_pages>1) {
       for(int i=0; i<=num_pages; i++) { // check for the other pages
@@ -770,14 +771,14 @@ Opt_Coord listFiles(int index, String fileList[][3], std::vector<MenuOptions>& o
           end = ini + (MAX_ITEMS-2);
         }
         #else
-        ini = i*(MAX_ITEMS-1); // index value at the top of the list, index starts at 0
-        end = (i+1)*(MAX_ITEMS-1);
+        ini = i*MAX_ITEMS; // index value at the top of the list, index starts at 0
+        end = ini + MAX_ITEMS;
         #endif
 
+        //Serial.printf("\nnum_pages: %d, show_page: %d, index: %d\n", num_pages, i, index);
+        //Serial.printf("ini: %d, end: %d\n", ini, end);
         if(index>=ini && index<end) {
           start = ini;
-          //Serial.printf("\nnum_pages: %d, show_page: %d, index: %d\n", num_pages, i, index);
-          //Serial.printf("ini: %d, end: %d\n", ini, end);
           if(index==ini || i!=show_page) tft->fillRoundRect(6,6,tftWidth-12,tftHeight-12,5,BGCOLOR);
           show_page = i;
           break;
