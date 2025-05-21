@@ -66,11 +66,13 @@ Things that needs to be done in next updates
 
 ## Changelog
 * 2.4.8:
+     * [x] Port to AWOK Mini v2 and AWOK Touch v2
+     * [x] Port to RabbitLabs Phantom
+     * [x] Ports to [8048S043C, 8048W550C](https://github.com/bmorcelli/Launcher/issues/108) 
+     * [x] Port to Lilygo T-Deck Pro (e-paper display)
      * [x] Enhancements on Touchscreen devices for responsive file lists and menu options
      * [x] New Main menu with all items, with items touchable.
-     * [x] Port to Lilygo T-Deck Pro (e-paper display)
      * [x] fixed ports to [Marauder v4, v6, v7, mini.](https://github.com/bmorcelli/Launcher/issues/146)
-     * [x] Ports to [8048S043C, 8048W550C](https://github.com/bmorcelli/Launcher/issues/108) 
      * [x] fix for [2432s032C misaligned touchscreen ](https://github.com/bmorcelli/Launcher/issues/149)
 
 * 2.4.7:

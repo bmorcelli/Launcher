@@ -573,7 +573,7 @@ Opt_Coord drawOptions(int idx,const std::vector<std::pair<std::string, std::func
       while(i<arraySize && j<visibleCount) {
         if(i>=start) {
             uint16_t c_y = tft->getCursorY()+4;
-            MenuOptions optItem = MenuOptions(String(i), "", nullptr,true,false,tftWidth*0.1,c_y-2,tftWidth*0.8,FM*LH+2);
+            MenuOptions optItem = MenuOptions(String(i), "", nullptr,true,false,tftWidth*0.1,c_y-4,tftWidth*0.8,FM*LH+4);
             tft->setCursor(tftWidth*0.1,c_y);
             if (index==i) { 
               optItem.selected=true;
@@ -588,6 +588,7 @@ Opt_Coord drawOptions(int idx,const std::vector<std::pair<std::string, std::func
             txt+=String(fileList[i].first.c_str()) + "                       ";
             tft->println(txt.substring(0,nchars));
             //Serial.println(txt.substring(0,nchars));
+            // tft->drawRect(optItem.x,optItem.y,optItem.w,optItem.h,BLUE); // debug purpose
             opt.push_back(optItem);
             j++;
         }
@@ -637,7 +638,7 @@ void drawMainMenu(std::vector<MenuOptions>& opt, int index) {
     int h = (tftHeight - (26 + LH * FP + 6)) / rows; // Height of each icon
     
     int f_size = FG;
-    if(tftHeight <= 90) f_size = FM;
+    if(tftHeight <= 135) f_size = FM;
     tft->setTextSize(f_size);
 
     for (int i = 0; i < size; ++i) {
@@ -657,8 +658,9 @@ void drawMainMenu(std::vector<MenuOptions>& opt, int index) {
         
       opt[i].x = x;
       opt[i].y = y;
-      opt[i].w = w - 5;
-      opt[i].h = h - 5;
+      opt[i].w = w;
+      opt[i].h = h;
+      // Serial.printf("Menu Name: %s, x=%d, y=%d, w=%d, h=%d\n", opt[i].name, opt[i].x, opt[i].y, opt[i].w, opt[i].h); // Debug purpose
   
       if (i == index) {
         // Selected item
@@ -678,6 +680,7 @@ void drawMainMenu(std::vector<MenuOptions>& opt, int index) {
         // Draw text in the center of the icon
         tft->drawCentreString(opt[i].name, x + w / 2, y + h / 2 - LH * f_size / 2, 1);
       }
+      // tft->drawRect(opt[i].x,opt[i].y,opt[i].w,opt[i].h,BLUE); // debug purpose
     }
   
     tft->setTextSize(FP);
@@ -899,16 +902,11 @@ void loopOptions(const std::vector<std::pair<std::string, std::function<void()>>
     String txt=options[index].first.c_str();
     displayScrollingText(txt, coord);
 
-    #if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
+  #if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
     if(touchPoint.pressed) {
       for(auto item: list) {
         if(item.contain(touchPoint.x, touchPoint.y)) {
-          SelPress = false;
-          PrevPress = false;
-          NextPress = false;
-          UpPress = false;
-          DownPress = false;
-          EscPress = false;
+          resetGlobals();
           if(item.name=="") {
             if(item.text=="+") index = max_idx + 1;
             if(item.text=="-") index = min_idx - 1;
@@ -925,12 +923,14 @@ void loopOptions(const std::vector<std::pair<std::string, std::function<void()>>
           }
         }
       }
+      touchPoint.pressed=false;
     }
     if(check(PrevPress) || check(UpPress)) {
       if(index==0) index = options.size() - 1;
       else if(index>0) index--;
       redraw = true;
-    #else
+    }
+  #else
     if(LongPress || PrevPress) {
       if(!LongPress) {
         LongPress = true;
@@ -946,12 +946,22 @@ void loopOptions(const std::vector<std::pair<std::string, std::function<void()>>
         }
         if(millis()-LongPressTmp>200) tft->drawArc(tftWidth/2, tftHeight/2, 25,15,0,360*(millis()-(LongPressTmp+200))/500,FGCOLOR-0x1111);
         if(millis()-LongPressTmp>700) { // longpress detected to exit
+          LongPress=false;
+          check(PrevPress);
           exit=true;
+          break;
         } else goto WAITING;
 
       }
-    #endif
     }
+    #if defined(HAS_5_BUTTONS)
+      if(check(UpPress)) {
+        if(index==0) index = options.size() - 1;
+        else if(index>0) index--;
+        redraw = true;
+      }
+    #endif
+  #endif
     WAITING:
     /* DW Btn to next item */
     if(check(NextPress) || check(DownPress)) { 

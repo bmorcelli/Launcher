@@ -44,8 +44,12 @@ bool CYD28_TouchR::begin()
   pinMode(CYD28_TouchR_CS, OUTPUT);
   digitalWrite(CYD28_TouchR_CLK, LOW);
   digitalWrite(CYD28_TouchR_CS, HIGH);
+  #if CYD28_TouchR_IRQ >=0 
   pinMode(CYD28_TouchR_IRQ, INPUT);
   attachInterrupt(digitalPinToInterrupt(CYD28_TouchR_IRQ), isrPin, FALLING);
+  #else 
+  isrWake = true;
+  #endif
   isrPinptr = this;
   return true;
 }
@@ -56,8 +60,12 @@ bool CYD28_TouchR::begin(SPIClass *wspi)
   //_pspi->begin();
   pinMode(CYD28_TouchR_CS, OUTPUT);
   digitalWrite(CYD28_TouchR_CS, HIGH);
+  #if CYD28_TouchR_IRQ >=0 
   pinMode(CYD28_TouchR_IRQ, INPUT );
   attachInterrupt(digitalPinToInterrupt(CYD28_TouchR_IRQ), isrPin, FALLING);
+  #else 
+  isrWake = true;
+  #endif
   isrPinptr = this;
 
   return true;
@@ -220,7 +228,9 @@ void CYD28_TouchR::update()
     zraw = 0;
     if (z < CYD28_TouchR_Z_THRES_INT)
     { 
+      #if CYD28_TouchR_IRQ >=0 
       isrWake = false;
+      #endif
     }
     return;
   }

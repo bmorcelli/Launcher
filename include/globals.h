@@ -99,6 +99,18 @@ extern volatile bool SelPress;
 extern volatile bool EscPress;
 extern volatile bool AnyKeyPress;
 
+inline void resetGlobals(void) {
+    NextPress=false;
+    PrevPress=false;
+    UpPress=false;
+    DownPress=false;
+    SelPress=false;
+    EscPress=false;
+    AnyKeyPress=false;
+    touchPoint.Clear();
+    KeyStroke.Clear();
+}
+
 extern volatile uint16_t tftHeight;
 extern volatile uint16_t tftWidth;
 
@@ -113,7 +125,12 @@ extern inline bool check(volatile bool &btn) {
   vTaskResume( xHandle );
   return true;
 #else
-    InputHandler();
+static uint8_t count = 0;
+    if(count>5) { 
+        InputHandler();
+        count = 0;
+    }
+    count++;
     if(!btn) return false;
     btn=false;
     AnyKeyPress=false;

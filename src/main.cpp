@@ -62,16 +62,10 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
     while (true) { 
       checkPowerSaveTime();
       if (!AnyKeyPress || millis() - timer > 75) {
-        NextPress=false;
-        PrevPress=false;
-        UpPress=false;
-        DownPress=false;
-        SelPress=false;
-        EscPress=false;
-        AnyKeyPress=false;
-        touchPoint.pressed=false;
-        KeyStroke.Clear();
+        resetGlobals();
+        #ifndef DONT_USE_INPUT_TASK
         InputHandler();
+        #endif
         timer = millis();
       }
       vTaskDelay(pdMS_TO_TICKS(10));
@@ -354,7 +348,6 @@ void setup() {
 
 
   // This task keeps running all the time, will never stop
-  #ifndef DONT_USE_INPUT_TASK
   xTaskCreate(
         taskInputHandler,   // Task function
         "InputHandler",     // Task Name
@@ -363,7 +356,7 @@ void setup() {
         2,                  // Task priority (0 to 3), loopTask has priority 2.
         &xHandle            // Task handle (not used)
     );  
-  #endif
+ 
   //Start Bootscreen timer
   int i = millis();
   int j = 0;
@@ -428,13 +421,31 @@ void loop() {
   getBrightness();
   if(!sdcardMounted) index=1; //if SD card is not present, paint SD square grey and auto select OTA
   std::vector<MenuOptions> menuItems = {
-    { "SD", "Launch from or mng SDCard",[=]() { loopSD(false);}, sdcardMounted },
+    {  
+      #if TFT_HEIGHT < 135
+      "SD","Launch from SDCard",
+      #else
+      "SD","Launch from or mng SDCard",
+      #endif
+      [=]() { loopSD(false);}, sdcardMounted },
     #ifndef NO_OTA
     { "OTA", "Online Installer",        [=]() { ota_function();}},
     #endif
-    { "WUI", "Start Web User Interface",[=]() { loopOptionsWebUi();}},
+    { 
+      #if TFT_HEIGHT < 135
+      "WUI", "Start WebUI",
+      #else
+      "WUI", "Start Web User Interface",
+      #endif
+      [=]() { loopOptionsWebUi();}},
     #ifdef ARDUINO_USB_MODE
-    { "USB", "SD->USB Interface",       [=]() { 
+    { 
+      #if TFT_HEIGHT < 135
+      "USB", "SD->USB",
+      #else
+      "USB", "SD->USB Interface",
+      #endif
+      [=]() { 
       if(setupSdCard()) { 
         MassStorage(); 
         tft->drawPixel(0,0,0);
@@ -446,7 +457,13 @@ void loop() {
       }
     }, sdcardMounted},
     #endif
-    { "CFG", "Change Launcher settings.",[=]() { settings_menu();} }
+    { 
+      #if TFT_HEIGHT < 135
+      "CFG", "Change Settings.",
+      #else
+      "CFG", "Change Launcher Settings.",
+      #endif
+      [=]() { settings_menu();} }
   };
   opt=menuItems.size(); // number of options in the menu
   update_sd = sdcardMounted;
@@ -464,6 +481,7 @@ void loop() {
       TouchFooter();
       #endif      
       redraw = false; 
+      LongPress=false;
       returnToMenu = false;
       #ifdef E_PAPER_DISPLAY
         tft->display(false); 
@@ -474,6 +492,7 @@ void loop() {
       int i=0;
       for(auto item : menuItems) {
         if(item.contain(touchPoint.x,touchPoint.y)) {
+          resetGlobals();
           #ifndef E_PAPER_DISPLAY
           if(i==index) { 
             item.action();
@@ -494,6 +513,7 @@ void loop() {
         }
         i++;
       }
+      touchPoint.Clear();
     }
     if(check(PrevPress)) {
       if(index==0) index = opt - 1;

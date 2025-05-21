@@ -14,14 +14,18 @@ CYD28_TouchR touch(320,240);
 ** Location: main.cpp
 ** Description:   initial setup for the device
 ***************************************************************************************/
-void _setup_gpio() { 
-  pinMode(TFT_BL,OUTPUT);
-  ledcSetup(TFT_BRIGHT_CHANNEL,TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits); //Channel 0, 10khz, 8bits
-  ledcAttachPin(TFT_BL, TFT_BRIGHT_CHANNEL);
-  ledcWrite(TFT_BRIGHT_CHANNEL,255);
+void _setup_gpio() { }
 
-  touch.begin(&SPI);
-
+/***************************************************************************************
+** Function name: _post_setup_gpio()
+** Location: main.cpp
+** Description:   second stage gpio setup to make a few functions work
+***************************************************************************************/
+void _post_setup_gpio() { 
+    if(!touch.begin(&SPI)) {
+            Serial.println("Touch IC not Started");
+            log_i("Touch IC not Started");
+        } else Serial.println("Touch IC Started");
 }
 
 /*********************************************************************
@@ -29,17 +33,7 @@ void _setup_gpio() {
 ** location: settings.cpp
 ** set brightness value
 **********************************************************************/
-void _setBrightness(uint8_t brightval) { 
-  int dutyCycle;
-  if (bright==100) dutyCycle=255;
-  else if (bright==75) dutyCycle=130;
-  else if (bright==50) dutyCycle=70;
-  else if (bright==25) dutyCycle=20;
-  else if (bright==0) dutyCycle=0;
-  else dutyCycle = ((bright*255)/100);
-  Serial.printf("dutyCycle for bright 0-255: %d",dutyCycle);
-  ledcWrite(TFT_BRIGHT_CHANNEL,dutyCycle); // Channel 0
-}
+void _setBrightness(uint8_t brightval) { }
 
 /*********************************************************************
 ** Function: InputHandler
@@ -47,7 +41,7 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
   static long tm=millis();
-  if(millis()-tm>200 || LongPress) { // don´t allow multiple readings in less than 200ms
+  if(millis()-tm>300 || LongPress) { // don´t allow multiple readings in less than 200ms
     if(touch.touched()) { 
       auto t = touch.getPointScaled();
       t = touch.getPointScaled();
@@ -66,6 +60,7 @@ void InputHandler(void) {
             t.x = t.y;
             t.y = (tftHeight+20)-tmp;
         }
+        //Serial.printf("Touched at x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
 
         if(!wakeUpScreen()) AnyKeyPress = true;
         else return;
