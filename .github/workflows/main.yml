@@ -475,8 +475,8 @@
             - {
                 vendor: "CUSTOM",
                 name: "Awok Dual Mini v2",
-                description: "https://awokdynamics.com/products/dual-mini-v2",
-                link: "",
+                description: "",
+                link: "https://awokdynamics.com/products/dual-mini-v2",
                 family: "ESP32",
                 env: "Awok-Mini",
                 partitions: {
