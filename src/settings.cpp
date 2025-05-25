@@ -69,7 +69,7 @@ void settings_menu()
   options.push_back({"Orientation", [=]()
                      { gsetRotation(true);         saveConfigs(); }});
 #endif
-#if !defined(CORE_4MB)
+#if !defined(CORE_4MB) && defined(M5STACK)
   options.push_back({"Partition Change", [=]()
                      { partitioner(); }});
   options.push_back({"List of Partitions", [=]()
