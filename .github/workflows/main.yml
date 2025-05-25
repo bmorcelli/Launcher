@@ -111,17 +111,6 @@
               }
             - {
                 vendor: "Espressif",
-                name: "Smoochie Board",
-                description: "",
-                link: "",
-                family: "ESP32-S3",
-                env: "smoochiee-board",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
-              }
-            - {
-                vendor: "Espressif",
                 name: "ESP32-S3-4mb",
                 description: "",
                 link: "",
@@ -424,6 +413,17 @@
                 link: "https://lilygo.cc/products/t-display-s3-amoled",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-amoled",
+                partitions: {
+                  bootloader_addr: "0x0",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Smoochie Board",
+                description: "",
+                link: "",
+                family: "ESP32-S3",
+                env: "smoochiee-board",
                 partitions: {
                   bootloader_addr: "0x0",
                 },
