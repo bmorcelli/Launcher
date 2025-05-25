@@ -645,7 +645,7 @@
             lilygo="\n"
             esp32="\n"
             cyd="\n"
-            marauder="\n"
+            custom="\n"
             wip="\n"
             elecrow="\n"
 
@@ -667,8 +667,8 @@
                   "Launcher-CYD.html")
                     cyd+="$content\n"
                     ;;
-                  "Launcher-Marauder.html")
-                    marauder+="$content\n"
+                  "Launcher-CUSTOM.html")
+                    custom+="$content\n"
                     ;;
                   "Launcher-WIP.html")
                     wip+="$content\n"
@@ -691,8 +691,8 @@
             html+="<ul class='device-list cyd'>"
             html+="$cyd"
             html+="</ul>"
-            html+="<ul class='device-list marauder'>"
-            html+="$marauder"
+            html+="<ul class='device-list custom'>"
+            html+="$custom"
             html+="</ul>"
             html+="<ul class='device-list esp32'>"
             html+="$esp32"
