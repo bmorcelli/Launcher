@@ -166,8 +166,8 @@
               }
             - {
                 vendor: "CYD",
-                name: "CYD-2432S028",
-                description: "(Resistive)",
+                name: "CYD-2432S028R",
+                description: "(OTA)",
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S028",
@@ -177,8 +177,8 @@
               }
             - {
                 vendor: "CYD",
-                name: "CYD-2432S028_inv",
-                description: "(Resistive) Inverted Colors",
+                name: "CYD-2432S028R",
+                description: "(OTA) Inverted Colors",
                 link: "",
                 family: "ESP32",
                 env: "CYD-2-USB",
@@ -188,8 +188,8 @@
               }
             - {
                 vendor: "CYD",
-                name: "CYD-2432W328C_inv",
-                description: "(Capacitive) Inverted Colors and 2.4in",
+                name: "CYD-2432W328C",
+                description: "(Capacitive)(OTA) Inverted Colors and 2.4in",
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432W328C_2",
@@ -200,7 +200,7 @@
             - {
                 vendor: "CYD",
                 name: "CYD-2432W328C",
-                description: "(Capacitive)",
+                description: "(Capacitive)(OTA)",
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432W328C",
@@ -211,7 +211,7 @@
             - {
                 vendor: "CYD",
                 name: "CYD-2432W328R",
-                description: "(Resistive)",
+                description: "(Resistive)(OTA)",
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432W328R",
@@ -222,7 +222,7 @@
             - {
                 vendor: "CYD",
                 name: "CYD-2432S024R",
-                description: "(Resistive)",
+                description: "(Resistive)(OTA)",
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S024R",
