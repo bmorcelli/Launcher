@@ -23,9 +23,6 @@ def generate_build_flags(board_config):
     """Gera as build_flags dinamicamente baseado no JSON da board."""
     flags = []
 
-    # Definições gerais
-    flags.append("-DDISABLE_OTA")
-
     # Configurações de hardware
     flags.append("-DROTATION=3")
     flags.append("-DHAS_BTN=0")
@@ -119,7 +116,7 @@ def generate_build_flags(board_config):
         flags.append("-DTFT_ROW_OFS1=0")
         flags.append("-DTFT_COL_OFS2=0")
         flags.append("-DTFT_ROW_OFS2=0")
-    
+
 
     elif any("DISPLAY_ST7789_I80" in flag for flag in extra_flags):
         flags.append("-DLOVYAN_BUS=Bus_Parallel8")
@@ -164,7 +161,7 @@ def generate_build_flags(board_config):
         flags.append("-DTFT_WIDTH=DISPLAY_WIDTH")
         flags.append("-DTFT_HEIGHT=DISPLAY_HEIGHT")
 
-    
+
     else:
         flags.append("-DILI9341_DRIVER=1")
         flags.append("-DTFT_MISO=12")
@@ -196,7 +193,7 @@ def generate_build_flags(board_config):
         flags.append("-DSDCARD_SCK=TF_SPI_SCLK")
         flags.append("-DSDCARD_MISO=TF_SPI_MISO")
         flags.append("-DSDCARD_MOSI=TF_SPI_MOSI")
-    else:   
+    else:
         flags.append("-DSDCARD_CS=5")
         flags.append("-DSDCARD_SCK=18")
         flags.append("-DSDCARD_MISO=19")

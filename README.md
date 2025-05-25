@@ -19,8 +19,8 @@ Application Launcher for M5Stack, Lilygo, CYDs, Marauder and ESP32 devices.
 - Copy and paste files,
 - Install binaries
 
-### *WUI* Web User Interface 
-- 
+### *WUI* Web User Interface
+-
 
 ### *CFG* Configurations (Customization)
 - Charge Mode
@@ -39,7 +39,7 @@ Application Launcher for M5Stack, Lilygo, CYDs, Marauder and ESP32 devices.
 - Restore FAT vfs
 
 ## tips
-* Having an SD card is good for better experience, but not really needed. [SDCard Hat for M5StickCs](https://www.thingiverse.com/thing:6459069) 
+* Having an SD card is good for better experience, but not really needed. [SDCard Hat for M5StickCs](https://www.thingiverse.com/thing:6459069)
 * You can learn more about how it works o [Launcher Wiki](https://github.com/bmorcelli/Launcher/wiki/Explaining-the-project).
 * Where/How do I find Binaries to launch -> [Obtaining binaries to launch](https://github.com/bmorcelli/Launcher/wiki/Obtaining-binaries-to-launch)
 * Now you can download binaries from [HERE!](https://bmorcelli.github.io/Launcher/m5lurner.html)
@@ -66,9 +66,10 @@ Things that needs to be done in next updates
 
 ## Changelog
 * 2.4.8:
-     * [x] Port to AWOK Mini v2 and AWOK Touch v2
-     * [x] Port to RabbitLabs Phantom
-     * [x] Ports to [8048S043C, 8048W550C](https://github.com/bmorcelli/Launcher/issues/108) 
+     * [x] Enabled OTA function to: CYD 2432S028R, 2-USB, S024R, W328C/R, Marauder boards, Awok boards, Phantom, Lilygo T-Embed CC1101 and T-Deck (regular and plus)
+     * [x] Port to [AWOK Mini v2](https://awokdynamics.com/products/dual-mini-v2) and [AWOK Touch v2](https://awokdynamics.com/products/dual-touch-v2)
+     * [x] Port to [RabbitLabs Phantom](https://rabbit-labs.com/product/the-phantom-by-rabbit-labs/?v=dc634e207282)
+     * [x] Ports to [8048S043C, 8048W550C](https://github.com/bmorcelli/Launcher/issues/108)
      * [x] Port to Lilygo T-Deck Pro (e-paper display)
      * [x] Enhancements on Touchscreen devices for responsive file lists and menu options
      * [x] New Main menu with all items, with items touchable.
@@ -80,13 +81,13 @@ Things that needs to be done in next updates
      * [x] StickC blackscreen fix
      * [x] [T-Dongle-S3 (tft)](https://lilygo.cc/products/t-dongle-s3?srsltid=AfmBOopwCcPQTTC4wTNi3rNZHn8W6g8Yo_ShcrfDiAfECS6tGq59vWo7) port
      * [x] [T-Display-S3](https://lilygo.cc/products/t-display-s3?variant=42284559827125) port
-* 2.4.6: 
+* 2.4.6:
      * [x] UiFlow2 v2.2.3 and restored StickCPlus2 compatibility
      * [x] split webui files
      * [x] USB Interface to manage SD files on ESP32S3 devices (ESP32 can't do it)
      * [x] Compressed WebUI with gzip
      * [x] Port to CYD-3248S035C and CYD-3248S035R https://github.com/bmorcelli/Launcher/issues/125
-     * [x] Interfaces skipping options (multiple clicks) https://github.com/bmorcelli/Launcher/issues/127 https://github.com/bmorcelli/Launcher/issues/126 [comment](https://github.com/bmorcelli/Launcher/issues/125#issuecomment-2705628306) 
+     * [x] Interfaces skipping options (multiple clicks) https://github.com/bmorcelli/Launcher/issues/127 https://github.com/bmorcelli/Launcher/issues/126 [comment](https://github.com/bmorcelli/Launcher/issues/125#issuecomment-2705628306)
      * [x] Fixed StickCPlus keyboard colors
      * [x] Fixed Back to list on OTA (will be enhanced when having multiple lists)
      * [x] (rollback) Use http download/update for OTA to reduce flash memory.
@@ -98,7 +99,7 @@ Things that needs to be done in next updates
      * [x] Now using ArduinoGFX as main graphics lib, with support to TFT_eSPI and LovyanGFX
 * 2.4.4:
      * [x] Disabled OTA menu for non M5 Stack Devices (save flash memory for CYD and Marauder, mostly), creating a new partition scheme for these devices
-     * [x] Fixed T-Embed CC1101 battery value     
+     * [x] Fixed T-Embed CC1101 battery value
 
 * 2.4.3:
      * [x] Fixed buttons on Core devices
@@ -113,8 +114,8 @@ Things that needs to be done in next updates
      * [x] Changed porting system, reading inputs on a background task (same as Bruce)
      * [x] Enhanced Keyboard
      * [x] Added Portrait rotation for bigger screens (bigger than 200x200px, such as CYD, Core devices)
-     
-* 2.4.1: 
+
+* 2.4.1:
      * [x] T-Deck SD Card fix (Disable LoRa Chip, CS pin to High state, to avoid conflicts) https://github.com/bmorcelli/Launcher/issues/86
      * [x] Lilygo T-Display-S3-Pro port https://github.com/bmorcelli/Launcher/issues/73
 
@@ -126,22 +127,22 @@ Things that needs to be done in next updates
      * [x] Dim Screen now turns the screen off
      * [x] Renamed project to "Launcher" and add my nickname in the boot animation
      * [x] Changed interfacing code, preparing for new ports https://github.com/bmorcelli/Launcher/issues/83
-* 2.3.2: 
+* 2.3.2:
      * [x] T-Embed CC1101 power chip management fix
 * 2.3.1:
      * [x] Fox for https://github.com/bmorcelli/Launcher/issues/77
      * [x] Fixed screen direction for T-Deck devices
      * [x] Fixed Json handling and config.conf random fails
 * 2.3.0:
-     * [x] Ported to Lilygo T-Embed CC1101 
+     * [x] Ported to Lilygo T-Embed CC1101
      * [x] Ported to Lilygo T-Embed
      * [x] Ported to Lilygo T-Deck
      * [x] Headless version for ESP32 and ESP32-S3
      * [x] StickCs Power Btn and Prev butn now act to go upwards on Menus... long press to exit menu
-* 2.2.5: 
+* 2.2.5:
      * [x] Changed framework to remove all Watchdog Timers https://github.com/bmorcelli/Launcher/issues/61 https://github.com/bmorcelli/Launcher/issues/63 and solve some SD related issues
      * [x] Set Grove pins to LOW state on StickCs and Cardputer to avoid 433Mhz jamming while RF433T is connected
-* 2.2.4: 
+* 2.2.4:
      * [x] Finally ported to CoreS3 and CoreS3-SE
      * [x] Added reset to watchdog on WebUI and check for free memory when loading files to WebUI, to avoid crashes.
 * 2.2.3:
@@ -153,7 +154,7 @@ Things that needs to be done in next updates
 * 2.2.1:
      * [x] Port for [Lilygo T-Display S3 Touch](https://www.lilygo.cc/products/t-display-s3?variant=42351558590645)
      * [x] Fixed JSON read/write
-* 2.2.0: 
+* 2.2.0:
      * [x] M5Launcher 2.2+ now can be updated OverTheAir or Using SD Card
      * [x] Ui Color settings (can be customized on /config.conf file)
      * [x] Reduced flickering on SD files navigation
@@ -162,7 +163,7 @@ Things that needs to be done in next updates
      * [x] Added Dim time to lower brightness and CPU freq while idle
      * [x] Added "Chage Mode" on settings, reducing CPU fre to 80Mhz and brightness to 5%, https://github.com/bmorcelli/Launcher/issues/40
      * [x] Fixed Download progressbar https://github.com/bmorcelli/Launcher/issues/41
-     * [x] Change default folder for download (manually on /config.conf) https://github.com/bmorcelli/Launcher/issues/15     
+     * [x] Change default folder for download (manually on /config.conf) https://github.com/bmorcelli/Launcher/issues/15
      * [x] Save more SSIDs and pwd, connect automatically if is a known network (config.conf) https://github.com/bmorcelli/Launcher/issues/30
      * [x] Slightlty increased Wifi Download/OTA Speed, using a customized framework.
 * 2.1.2:
@@ -193,7 +194,7 @@ Things that needs to be done in next updates
      * OTA (Over-The-Air update): Added feature to list the programs available in M5Burner and install it fro the internet.
      * WebUI: Added a WebUI where you can manage your SD Card and install new binaries wirelessly
      * Some other minnor features
-     * 
+     *
 * 1.3.0:
      * Added support to Micropython based binaries (MicroHydra), with 1Mb FAT partition to Cardputer and StickCPlus2 and 64kb to StickC and Plus1.1
 * 1.2.1:
@@ -209,12 +210,12 @@ Things that needs to be done in next updates
      * Added auto orientation to M5StickCs
      * Laucher does not create .bak files anymore!!
      * .bin file handling to avoid some errors: File is too big, file is not valid, etc etc..
-     
+
 * 1.1.3:
      * Fixed menu files that ware occasionally hiding files and folders.
 * 1.1.2:
      * Adjusted Magic numbers to work with some apps (Volos Watch).
-* 1.1.1: 
+* 1.1.1:
      * Changed OTA_0 Partition size from 3Mb to 6Mb on Cardputer and M5StickCPlus2
      * ~~Added verification to identify MicroPython binaries and don't corrupt them with the cropping process (these apps still don't work, need more work...)~~
 * 1.1.0:

@@ -8,6 +8,7 @@
       "extra_flags": [
         "-DARDUINO_M5STACK_CARDPUTER",
         "-DARDUINO_USB_CDC_ON_BOOT",
+        "-DM5STACK",
         "-DARDUINO_USB_MODE=1",
         "-DARDUINO_RUNNING_CORE=1",
         "-DARDUINO_EVENT_RUNNING_CORE=1"

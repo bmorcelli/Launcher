@@ -12,7 +12,7 @@
       tags:
         - "*"
     workflow_dispatch:
-          
+
   jobs:
     compile_sketch:
       name: Build ${{ matrix.board.name }}
@@ -75,7 +75,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }                
+              }
             - {
                 vendor: "M5Stack",
                 name: "Core16mb",
@@ -86,7 +86,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }       
+              }
             - {
                 vendor: "M5Stack",
                 name: "Core4mb",
@@ -97,7 +97,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }   
+              }
             - {
                 vendor: "M5Stack",
                 name: "CoreS3",
@@ -108,7 +108,7 @@
                 partitions: {
                   bootloader_addr: "0x0",
                 },
-              } 
+              }
             - {
                 vendor: "Espressif",
                 name: "Smoochie Board",
@@ -185,7 +185,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              } 
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-2432S028_inv",
@@ -207,7 +207,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              } 
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-2432W328C",
@@ -218,7 +218,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              } 
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-2432W328R",
@@ -229,7 +229,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }  
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-2432S024R",
@@ -240,7 +240,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }  
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-2432S022C",
@@ -262,7 +262,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }              
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-2432S032R",
@@ -273,7 +273,7 @@
                 partitions: {
                   bootloader_addr: "0x1000",
                 },
-              }  
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-3248S035R",
@@ -317,7 +317,7 @@
                 partitions: {
                   bootloader_addr: "0x0",
                 },
-              }     
+              }
             - {
                 vendor: "CYD",
                 name: "CYD-3248W535C",
@@ -330,50 +330,6 @@
                 },
               }
             - {
-                vendor: "Marauder",
-                name: "V4-OG and V6",
-                description: "",
-                link: "",
-                family: "ESP32",
-                env: "Marauder-v4-OG",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
-              }
-            - {
-                vendor: "Marauder",
-                name: "V6.x",
-                description: "",
-                link: "",
-                family: "ESP32",
-                env: "Marauder-v61",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
-              }
-            - {
-                vendor: "Marauder",
-                name: "V7",
-                description: "",
-                link: "",
-                family: "ESP32",
-                env: "Marauder-v7",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
-              } 
-            - {
-                vendor: "Marauder",
-                name: "Mini",
-                description: "",
-                link: "",
-                family: "ESP32",
-                env: "Marauder-Mini",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
-              }     
-            - {
                 vendor: "Lilygo",
                 name: "T-Dongle S3 (tft)",
                 description: "(single press, double press and long press logic)",
@@ -383,7 +339,7 @@
                 partitions: {
                   bootloader_addr: "0x0",
                 },
-              } 
+              }
             - {
                 vendor: "Lilygo",
                 name: "T-Display-S3",
@@ -394,7 +350,7 @@
                 partitions: {
                   bootloader_addr: "0x0",
                 },
-              } 
+              }
             - {
                 vendor: "Lilygo",
                 name: "T-Display_S3_PRO",
@@ -405,18 +361,7 @@
                 partitions: {
                   bootloader_addr: "0x0",
                 },
-              } 
-            - {
-                vendor: "WIP",
-                name: "T-Display-S3 AMOLED Plus",
-                description: "",
-                link: "https://lilygo.cc/products/t-display-s3-amoled",
-                family: "ESP32-S3",
-                env: "lilygo-t-display-S3-amoled",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
-              } 
+              }
             - {
                 vendor: "Lilygo",
                 name: "T-Embed",
@@ -427,7 +372,7 @@
                 partitions: {
                   bootloader_addr: "0x0",
                 },
-              }  
+              }
             - {
                 vendor: "Lilygo",
                 name: "T-Embed_CC1101",
@@ -451,7 +396,7 @@
                 },
               }
             - {
-                vendor: "WIP",
+                vendor: "Lilygo",
                 name: "T-Deck Pro",
                 description: "e-Paper display",
                 link: "https://lilygo.cc/products/t-deck-pro",
@@ -470,6 +415,94 @@
                 env: "lilygo-t5-epaper-s3-pro",
                 partitions: {
                   bootloader_addr: "0x0",
+                },
+              }
+            - {
+                vendor: "WIP",
+                name: "T-Display-S3 AMOLED Plus",
+                description: "",
+                link: "https://lilygo.cc/products/t-display-s3-amoled",
+                family: "ESP32-S3",
+                env: "lilygo-t-display-S3-amoled",
+                partitions: {
+                  bootloader_addr: "0x0",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Marauder V4-OG and V6",
+                description: "",
+                link: "https://github.com/justcallmekoko/ESP32Marauder/wiki/esp32-marauder-kit",
+                family: "ESP32",
+                env: "Marauder-v4-OG",
+                partitions: {
+                  bootloader_addr: "0x1000",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Marauder V6.x",
+                description: "",
+                link: "https://justcallmekokollc.com/products/esp32-marauder-v6",
+                family: "ESP32",
+                env: "Marauder-v61",
+                partitions: {
+                  bootloader_addr: "0x1000",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Marauder V7",
+                description: "",
+                link: "https://justcallmekokollc.com/products/esp32-marauder-v7-pre-order",
+                family: "ESP32",
+                env: "Marauder-v7",
+                partitions: {
+                  bootloader_addr: "0x1000",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Marauder Mini",
+                description: "",
+                link: "https://justcallmekokollc.com/products/marauder-mini",
+                family: "ESP32",
+                env: "Marauder-Mini",
+                partitions: {
+                  bootloader_addr: "0x1000",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Awok Dual Mini v2",
+                description: "https://awokdynamics.com/products/dual-mini-v2",
+                link: "",
+                family: "ESP32",
+                env: "Awok-Mini",
+                partitions: {
+                  bootloader_addr: "0x1000",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "Awok Dual Touch v2",
+                description: "",
+                link: "https://awokdynamics.com/products/dual-touch-v2",
+                family: "ESP32",
+                env: "Awok-Touch",
+                partitions: {
+                  bootloader_addr: "0x1000",
+                },
+              }
+            - {
+                vendor: "CUSTOM",
+                name: "RabbitLabs The Phantom",
+                description: "",
+                link: "https://rabbit-labs.com/product/the-phantom-by-rabbit-labs/?v=dc634e207282",
+                family: "ESP32",
+                env: "Phantom_S024R",
+                partitions: {
+                  bootloader_addr: "0x1000",
                 },
               }
             - {
@@ -525,11 +558,11 @@
             uses: actions/setup-python@v2
             with:
               python-version: "3.x"
-          
+
           - name: Install dependencies
-            run: | 
+            run: |
               pip install requests esptool
-          
+
           - name: Install PlatformIO Core
             run: |
               pip install platformio
@@ -543,11 +576,11 @@
               sed -i "s/-DLAUNCHER=/-DLAUNCHER='\"$version\"' ; /g" ./platformio.ini
 
           - name: Run Compile
-            run: | 
+            run: |
               platformio run -e ${{ matrix.board.env }}
 
           - name: Merge files
-            run: | 
+            run: |
               if [[ "${{ matrix.board.vendor }}" == "M5Stack" ]]; then
               esptool.py --chip esp32s3 merge_bin -o Launcher-${{ matrix.board.env }}.bin \
                 ${{ matrix.board.partitions.bootloader_addr }} .pio/build/${{ matrix.board.env }}/bootloader.bin \
@@ -560,7 +593,7 @@
                 0x8000 .pio/build/${{ matrix.board.env }}/partitions.bin \
                 0x10000 .pio/build/${{ matrix.board.env }}/firmware.bin
               fi
-              
+
                 js_content="{\"name\":\"${{ matrix.board.name }}\",\"new_install_prompt_erase\": true,\"builds\":[{\"chipFamily\":\"${{ matrix.board.family }}\",\"improv\":false,\"parts\":[{\"path\":\"bins/Launcher-${{ matrix.board.env }}.bin\",\"offset\":0}]}]}"
                 echo "$js_content" > "./Manifest-${{ matrix.board.env }}.json"
                 if [[ "${{ matrix.board.link }}" == "" ]]; then
@@ -580,7 +613,7 @@
                 Launcher-*.html
               retention-days: 5
               if-no-files-found: error
-              
+
 
 
     post_compile_steps:
@@ -593,12 +626,12 @@
           with:
           # Configura para garantir que todas as branches sejam buscadas
             fetch-depth: 0
-  
+
         - name: Download all artifacts
           uses: actions/download-artifact@v4
           with:
             path: ~/LauncherArtifacts
-            
+
         - name: Clone Launcher repository and switch to WebPage branch
           run: |
             git fetch origin
@@ -703,11 +736,11 @@
             elif [ "${{ github.ref_type }}" != "tag" ]; then
               cp -f ~/LauncherArtifacts/*/*.bin ./Beta/bins
             fi
-            
+
             cp -f ~/LauncherArtifacts/*/*.json ./Release
             cp -f ~/LauncherArtifacts/*/*.json ./Beta
 
-  
+
         - name: Commit and push changes
           run: |
             git config user.name "GitHub Actions"
@@ -727,8 +760,8 @@
         run: |
           set -x
           version=${{ github.ref_name }}
-          echo "version=${version}" > $GITHUB_OUTPUT     
-               
+          echo "version=${version}" > $GITHUB_OUTPUT
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
