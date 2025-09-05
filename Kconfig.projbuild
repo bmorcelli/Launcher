@@ -1,0 +1,206 @@
+menu "Launcher Configuration"
+  choice PIO_ENV
+    prompt "Select board environment"
+    default PIO_ENV_M5STACK_CARDPUTER
+    config PIO_ENV_AWOK_MINI
+      bool "Awok-Mini"
+      help
+        Select Awok-Mini environment
+    config PIO_ENV_AWOK_TOUCH
+      bool "Awok-Touch"
+      help
+        Select Awok-Touch environment
+    config PIO_ENV_CYD_2_USB
+      bool "CYD-2-USB"
+      help
+        Select CYD-2-USB environment
+    config PIO_ENV_CYD_2432S022C
+      bool "CYD-2432S022C"
+      help
+        Select CYD-2432S022C environment
+    config PIO_ENV_CYD_2432S024R
+      bool "CYD-2432S024R"
+      help
+        Select CYD-2432S024R environment
+    config PIO_ENV_CYD_2432S028
+      bool "CYD-2432S028"
+      help
+        Select CYD-2432S028 environment
+    config PIO_ENV_CYD_2432S032C
+      bool "CYD-2432S032C"
+      help
+        Select CYD-2432S032C environment
+    config PIO_ENV_CYD_2432S032R
+      bool "CYD-2432S032R"
+      help
+        Select CYD-2432S032R environment
+    config PIO_ENV_CYD_2432W328C
+      bool "CYD-2432W328C"
+      help
+        Select CYD-2432W328C environment
+    config PIO_ENV_CYD_2432W328C_2
+      bool "CYD-2432W328C_2"
+      help
+        Select CYD-2432W328C_2 environment
+    config PIO_ENV_CYD_2432W328R
+      bool "CYD-2432W328R"
+      help
+        Select CYD-2432W328R environment
+    config PIO_ENV_CYD_3248S035C
+      bool "CYD-3248S035C"
+      help
+        Select CYD-3248S035C environment
+    config PIO_ENV_CYD_3248S035R
+      bool "CYD-3248S035R"
+      help
+        Select CYD-3248S035R environment
+    config PIO_ENV_CYD_3248W535C
+      bool "CYD-3248W535C"
+      help
+        Select CYD-3248W535C environment
+    config PIO_ENV_CYD_4827S043R
+      bool "CYD-4827S043R"
+      help
+        Select CYD-4827S043R environment
+    config PIO_ENV_CYD_8048S043C
+      bool "CYD-8048S043C"
+      help
+        Select CYD-8048S043C environment
+    config PIO_ENV_CYD_8048W550C
+      bool "CYD-8048W550C"
+      help
+        Select CYD-8048W550C environment
+    config PIO_ENV_MARAUDER_MINI
+      bool "Marauder-Mini"
+      help
+        Select Marauder-Mini environment
+    config PIO_ENV_MARAUDER_V4_OG
+      bool "Marauder-v4-OG"
+      help
+        Select Marauder-v4-OG environment
+    config PIO_ENV_MARAUDER_V61
+      bool "Marauder-v61"
+      help
+        Select Marauder-v61 environment
+    config PIO_ENV_MARAUDER_V7
+      bool "Marauder-v7"
+      help
+        Select Marauder-v7 environment
+    config PIO_ENV__NEW_DEVICE_MODEL
+      bool "_New-Device-Model"
+      help
+        Select _New-Device-Model environment
+    config PIO_ENV_ELECROW_24B
+      bool "elecrow-24B"
+      help
+        Select elecrow-24B environment
+    config PIO_ENV_ELECROW_28B
+      bool "elecrow-28B"
+      help
+        Select elecrow-28B environment
+    config PIO_ENV_ELECROW_35B
+      bool "elecrow-35B"
+      help
+        Select elecrow-35B environment
+    config PIO_ENV_ELECROW_35BV2_2
+      bool "elecrow-35Bv2_2"
+      help
+        Select elecrow-35Bv2_2 environment
+    config PIO_ENV_HEADLESS_ESP32_4MB
+      bool "headless-esp32-4mb"
+      help
+        Select headless-esp32-4mb environment
+    config PIO_ENV_HEADLESS_ESP32_8MB
+      bool "headless-esp32-8mb"
+      help
+        Select headless-esp32-8mb environment
+    config PIO_ENV_HEADLESS_ESP32S3_16MB
+      bool "headless-esp32s3-16mb"
+      help
+        Select headless-esp32s3-16mb environment
+    config PIO_ENV_HEADLESS_ESP32S3_4MB
+      bool "headless-esp32s3-4mb"
+      help
+        Select headless-esp32s3-4mb environment
+    config PIO_ENV_HEADLESS_ESP32S3_8MB
+      bool "headless-esp32s3-8mb"
+      help
+        Select headless-esp32s3-8mb environment
+    config PIO_ENV_LILYGO_T_DECK
+      bool "lilygo-t-deck"
+      help
+        Select lilygo-t-deck environment
+    config PIO_ENV_LILYGO_T_DECK_PRO
+      bool "lilygo-t-deck-pro"
+      help
+        Select lilygo-t-deck-pro environment
+    config PIO_ENV_LILYGO_T_DISPLAY_S3_AMOLED
+      bool "lilygo-t-display-S3-amoled"
+      help
+        Select lilygo-t-display-S3-amoled environment
+    config PIO_ENV_LILYGO_T_DISPLAY_S3_PRO
+      bool "lilygo-t-display-S3-pro"
+      help
+        Select lilygo-t-display-S3-pro environment
+    config PIO_ENV_LILYGO_T_DISPLAY_S3_TOUCH
+      bool "lilygo-t-display-S3-touch"
+      help
+        Select lilygo-t-display-S3-touch environment
+    config PIO_ENV_LILYGO_T_DONGLE_S3_TFT
+      bool "lilygo-t-dongle-s3-tft"
+      help
+        Select lilygo-t-dongle-s3-tft environment
+    config PIO_ENV_LILYGO_T_EMBED
+      bool "lilygo-t-embed"
+      help
+        Select lilygo-t-embed environment
+    config PIO_ENV_LILYGO_T_EMBED_CC1101
+      bool "lilygo-t-embed-cc1101"
+      help
+        Select lilygo-t-embed-cc1101 environment
+    config PIO_ENV_LILYGO_T_LORA_PAGER
+      bool "lilygo-t-lora-pager"
+      help
+        Select lilygo-t-lora-pager environment
+    config PIO_ENV_LILYGO_T5_EPAPER_S3_PRO
+      bool "lilygo-t5-epaper-s3-pro"
+      help
+        Select lilygo-t5-epaper-s3-pro environment
+    config PIO_ENV_M5STACK_C
+      bool "m5stack-c"
+      help
+        Select m5stack-c environment
+    config PIO_ENV_M5STACK_CARDPUTER
+      bool "m5stack-cardputer"
+      help
+        Select m5stack-cardputer environment
+    config PIO_ENV_M5STACK_CORE
+      bool "m5stack-core"
+      help
+        Select m5stack-core environment
+    config PIO_ENV_M5STACK_CORE_4MB
+      bool "m5stack-core-4Mb"
+      help
+        Select m5stack-core-4Mb environment
+    config PIO_ENV_M5STACK_CORE2
+      bool "m5stack-core2"
+      help
+        Select m5stack-core2 environment
+    config PIO_ENV_M5STACK_CORES3
+      bool "m5stack-cores3"
+      help
+        Select m5stack-cores3 environment
+    config PIO_ENV_M5STACK_CPLUS1_1
+      bool "m5stack-cplus1_1"
+      help
+        Select m5stack-cplus1_1 environment
+    config PIO_ENV_M5STACK_CPLUS2
+      bool "m5stack-cplus2"
+      help
+        Select m5stack-cplus2 environment
+    config PIO_ENV_SMOOCHIEE_BOARD
+      bool "smoochiee-board"
+      help
+        Select smoochiee-board environment
+  endchoice
+endmenu

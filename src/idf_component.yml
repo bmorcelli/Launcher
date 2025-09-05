@@ -1,0 +1,13 @@
+dependencies:
+  espressif/arduino-esp32: "^3.0.0"
+  AsyncTCP:
+    git: https://github.com/me-no-dev/AsyncTCP.git
+  ESPAsyncWebServer:
+    git: https://github.com/me-no-dev/ESPAsyncWebServer.git
+  ArduinoJson:
+    git: https://github.com/bblanchon/ArduinoJson.git
+  ArduinoGFX:
+    git: https://github.com/moononournation/GFX_Library_for_Arduino.git
+idf_version: ">=5.5.1"
+options:
+  skip_component_git_revision_check: true
