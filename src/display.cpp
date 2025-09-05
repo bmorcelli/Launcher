@@ -1175,7 +1175,6 @@ void loopVersions() {
             redraw = true;
         }
     }
-Sucesso:
     if (!returnToMenu) esp_restart();
 
 // quando sair, redesenhar a tela
