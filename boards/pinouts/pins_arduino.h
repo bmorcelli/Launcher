@@ -46,4 +46,6 @@
 #include "esp32dev.h"
 #elif ELECROW
 #include "elecrow-esp32-24B.h"
+#elif ARDUINO_M5STACK_TAB5
+#include "m5stack-tab5.h"
 #endif

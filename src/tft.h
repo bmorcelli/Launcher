@@ -190,6 +190,26 @@ public:
         setPanel(&_panel_instance);
     }
 };
+#elif USE_M5GFX
+#include <M5GFX.h>
+#include <M5Unified.h>
+class Ard_eSPI : public M5GFX {
+public:
+    // Driver initilizer
+    Ard_eSPI() : M5GFX() {};
+    inline void begin() { M5GFX::init(); };
+    inline int getTextsize() { return _text_style.size_x; };
+    inline uint16_t getTextcolor() { return _text_style.fore_rgb888; };
+    inline uint16_t getTextbgcolor() { return _text_style.back_rgb888; };
+
+    inline void drawChar2(int16_t x, int16_t y, char c, int16_t a, int16_t b) {
+        M5GFX::drawChar(x, y, c, a, b, _text_style.size_x);
+    }
+    inline void drawCentreString(String s, uint16_t x, uint16_t y, int f) {
+        M5GFX::drawCentreString(s, x, y);
+    };
+    inline void drawRightString(String s, uint16_t x, uint16_t y, int f) { M5GFX::drawRightString(s, x, y); };
+};
 
 #else
 

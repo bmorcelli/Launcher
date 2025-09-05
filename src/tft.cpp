@@ -8,6 +8,8 @@
 
 #elif defined(USE_TFT_ESPI)
 
+#elif defined(USE_M5GFX)
+
 #else
 void Ard_eSPI::drawCentreString(String s, uint16_t x, uint16_t y, int f) {
     uint16_t _x = cursor_x;

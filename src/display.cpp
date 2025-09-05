@@ -7,7 +7,8 @@
 
 #if defined(HEADLESS)
 SerialDisplayClass *tft = new SerialDisplayClass();
-#elif defined(E_PAPER_DISPLAY) || defined(USE_TFT_ESPI) || defined(USE_LOVYANGFX) || defined(GxEPD2_DISPLAY)
+#elif defined(E_PAPER_DISPLAY) || defined(USE_TFT_ESPI) || defined(USE_LOVYANGFX) ||                         \
+    defined(GxEPD2_DISPLAY) || defined(USE_M5GFX)
 Ard_eSPI *tft = new Ard_eSPI();
 #else
 #ifdef TFT_PARALLEL_8_BIT
@@ -60,7 +61,6 @@ Arduino_DataBus *bus = new Arduino_ESP32QSPI(TFT_CS, TFT_SCLK, TFT_D0, TFT_D1, T
 #else // SPI Data Bus shared with SDCard and other SPIClass devices
 Arduino_DataBus *bus = new Arduino_HWSPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, TFT_MISO, &SPI);
 #endif
-
 Ard_eSPI *tft = new Ard_eSPI(
     bus, TFT_RST, ROTATION, TFT_IPS, TFT_WIDTH, TFT_HEIGHT, TFT_COL_OFS1, TFT_ROW_OFS1, TFT_COL_OFS2,
     TFT_ROW_OFS2
