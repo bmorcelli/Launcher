@@ -5,7 +5,7 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": {
-			"DOCKER_TAG": "v5.3-rc1"
+			"DOCKER_TAG": "v5.5.1"
 		}
 	},
 	"customizations": {
