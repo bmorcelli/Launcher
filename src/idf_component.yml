@@ -6,8 +6,8 @@ dependencies:
     git: https://github.com/me-no-dev/ESPAsyncWebServer.git
   ArduinoJson:
     git: https://github.com/bblanchon/ArduinoJson.git
-  ArduinoGFX:
-    git: https://github.com/moononournation/GFX_Library_for_Arduino.git
+  XPowersLib:
+    git: https://github.com/lewisxhe/XPowersLib.git
 idf_version: ">=5.5.1"
 options:
   skip_component_git_revision_check: true

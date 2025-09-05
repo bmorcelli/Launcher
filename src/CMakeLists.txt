@@ -9,4 +9,4 @@ endif()
 
 idf_component_register(SRCS ${app_sources}
                       INCLUDE_DIRS "." "../include" ${extra_includes}
-                      REQUIRES arduino)
+                      REQUIRES arduino-esp32 ArduinoGFX RotaryEncoder XPowersLib)
