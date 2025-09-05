@@ -24,4 +24,4 @@ endif()
 
 idf_component_register(SRCS ${app_sources}
                       INCLUDE_DIRS "." "../include" ${extra_includes}
-                      REQUIRES arduino-esp32 ArduinoGFX RotaryEncoder XPowersLib)
+                      REQUIRES arduino-esp32 ArduinoGFX RotaryEncoder XPowersLib AsyncTCP ESPAsyncWebServer ArduinoJson wear_levelling)

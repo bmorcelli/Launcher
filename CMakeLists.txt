@@ -21,6 +21,5 @@ if(PIO_FLAGS)
   add_compile_options(${PIO_FLAG_LIST})
 endif()
 
-set(COMPONENTS src)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(Launcher)
