@@ -184,7 +184,7 @@ def generate_build_flags(board_config):
         flags.append("-DCYD28_TouchR_IRQ=XPT2046_TOUCH_CONFIG_INT_GPIO_NUM")
         flags.append("-DCYD28_TouchR_MISO=XPT2046_SPI_BUS_MISO_IO_NUM")
         flags.append("-DCYD28_TouchR_MOSI=XPT2046_SPI_BUS_MOSI_IO_NUM")
-        flags.append("-DCYD28_TouchR_CSK=XPT2046_SPI_BUS_SCLK_IO_NUM")
+        flags.append("-DCYD28_TouchR_CLK=XPT2046_SPI_BUS_SCLK_IO_NUM")
         flags.append("-DCYD28_TouchR_CS=XPT2046_SPI_CONFIG_CS_GPIO_NUM")
 
     # Verifica suporte a cartão SD

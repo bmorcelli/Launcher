@@ -1,5 +1,4 @@
 #include "powerSave.h"
-#include <SD_MMC.h>
 #include <interface.h>
 
 #include <Button.h>
@@ -18,9 +17,12 @@ Button *btn1;
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
-    // PWM backlight setup
-    // setup buttons
+    //  PWM backlight setup
+    //  setup buttons
+    gpio_pulldown_dis(GPIO_NUM_21);
+    gpio_pullup_dis(GPIO_NUM_21);
+    gpio_pulldown_dis(GPIO_NUM_17);
+    gpio_pullup_dis(GPIO_NUM_17);
     button_config_t bt1 = {
         .type = BUTTON_TYPE_GPIO,
         .long_press_time = 600,

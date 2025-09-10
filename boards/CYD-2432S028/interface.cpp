@@ -128,7 +128,9 @@ void _setup_gpio() {
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
 #endif
 #if !defined(HAS_CAPACITIVE_TOUCH) && defined(CYD)
-    pinMode(33, OUTPUT);
+    pinMode(33, OUTPUT); // CS Pin
+#elif defined(CYDS3)
+    pinMode(38, OUTPUT); // CS Pin
 #endif
 }
 

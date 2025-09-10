@@ -69,10 +69,10 @@ Things that needs to be done in next updates
      * [x] Moving to pioarduino 3.3 based framework (ESP-IDF 5.5)
      * [] Tests Needed:
           * [] Enable USB Mass Storage to SD_MMC devices
-          * [] Partition changes
-          * [] Firmware updates
-          * [] OTA lists and install
-          
+          * [x] Partition changes
+          * [x] Firmware updates
+          * [x] OTA lists and install
+
 * 2.4.11 (Beta):
      * [x] Added keyboard support to T-Deck Pro https://github.com/bmorcelli/Launcher/issues/180
      * [x] Added CSS, JS, Html online minifier
