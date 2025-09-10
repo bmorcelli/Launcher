@@ -77,6 +77,7 @@ Things that needs to be done in next updates
      * [x] Added keyboard support to T-Deck Pro https://github.com/bmorcelli/Launcher/issues/180
      * [x] Added CSS, JS, Html online minifier
      * [x] Moved to ESP32Async/ESPAsyncWebServer official repo
+     * [x] Port to [Cardputer ADV](https://shop.m5stack.com/products/m5stack-cardputer-adv-version-esp32-s3?ref=Pirata) thanks to [@n0xa](https://github.com/n0xa)
      * [x] Port to [Lilygo Lora Pager](https://lilygo.cc/products/t-lora-pager) by @emericklaw
      * [x] Port to [CYD-4827S043R](https://github.com/bmorcelli/Launcher/issues/186)
      * [x] Fixed first line [filelist](https://github.com/bmorcelli/Launcher/issues/166)

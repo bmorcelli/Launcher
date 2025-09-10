@@ -391,7 +391,8 @@ void setup() {
             j++;
         }
 
-        if (check(SelPress)) {
+        // Direct input check for startup - bypass check() function to avoid task suspension
+        if (SelPress || AnyKeyPress) {
             tft->fillScreen(BGCOLOR);
             goto Launcher;
         }
@@ -400,9 +401,9 @@ void setup() {
         keyStroke key = _getKeyPress();
         if (key.pressed && !key.enter)
 #elif defined(STICK_C_PLUS2) || defined(STICK_C_PLUS)
-        if (check(NextPress))
+        if (NextPress)
 #else
-        if (check(NextPress) || check(PrevPress))
+        if (NextPress || PrevPress)
 #endif
         {
             tft->fillScreen(BLACK);

@@ -2,20 +2,17 @@ import os
 
 Import("env")   # type: ignore
 
-merge_path = os.path.join(env['PROJECT_DIR'], 'support_files', 'prep_web_files.py')
-with open(merge_path) as f:
-    exec(f.read())
+def set_nvs():
+    flag_path = os.path.join(env['PROJECT_DIR'], '.pio', 'build', env['PIOENV'], 'nvs_flag.txt')
+    os.makedirs(os.path.dirname(flag_path), exist_ok=True)
+    with open(flag_path, 'w') as f:
+        f.write("NVS flag created!\n")
+    print(f"[INFO] NVS Flag created at: {flag_path}")
 
 def before_upload(source, target, env):
     bin_path = os.path.join(env['PROJECT_DIR'], 'support_files', 'UiFlow2_nvs.bin')
+    print("[NVS file] NVS flag set to upload")
     env.Append(UPLOADERFLAGS=[0x9000, bin_path])
 
-def after_upload(source, target, env):
-    bin_path2 = os.path.join(env['PROJECT_DIR'], 'support_files', 'UiFlow1_phi.bin')
-    command = (
-        f'esptool.py --chip esp32 --port {env.subst("$UPLOAD_PORT")} --baud {env.subst("$UPLOAD_SPEED")} '
-        f'write_flash 0xf000 {bin_path2}'
-    )
-    os.system(command)
-
 env.AddPreAction("upload", before_upload)
+set_nvs()

@@ -28,9 +28,14 @@
                 link: "https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3?ref=Pirata",
                 family: "ESP32-S3",
                 env: "m5stack-cardputer",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
+              }
+            - {
+                vendor: "M5Stack",
+                name: "Cardputer ADV",
+                description: "",
+                link: "https://shop.m5stack.com/products/m5stack-cardputer-adv-version-esp32-s3?ref=Pirata",
+                family: "ESP32-S3",
+                env: "m5stack-cardputer-adv",
               }
             - {
                 vendor: "M5Stack",
@@ -39,9 +44,6 @@
                 link: "https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit?ref=Pirata",
                 family: "ESP32",
                 env: "m5stack-cplus2",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "M5Stack",
@@ -50,9 +52,6 @@
                 link: "https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit?ref=Pirata",
                 family: "ESP32",
                 env: "m5stack-cplus1_1",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "M5Stack",
@@ -61,9 +60,6 @@
                 link: "https://shop.m5stack.com/collections/m5-controllers?ref=Pirata",
                 family: "ESP32",
                 env: "m5stack-c",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "M5Stack",
@@ -72,9 +68,6 @@
                 link: "https://shop.m5stack.com/products/m5stack-core2-esp32-iot-development-kit?ref=Pirata",
                 family: "ESP32",
                 env: "m5stack-core2",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "M5Stack",
@@ -83,9 +76,6 @@
                 link: "https://shop.m5stack.com/products/esp32-basic-core-lot-development-kit-v2-7?ref=Pirata",
                 family: "ESP32",
                 env: "m5stack-core",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "M5Stack",
@@ -94,9 +84,6 @@
                 link: "https://shop.m5stack.com/products/esp32-basic-core-lot-development-kit-v2-7?ref=Pirata",
                 family: "ESP32",
                 env: "m5stack-core-4Mb",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "M5Stack",
@@ -105,9 +92,6 @@
                 link: "https://shop.m5stack.com/products/m5stack-cores3-esp32s3-lotdevelopment-kit?ref=Pirata",
                 family: "ESP32-S3",
                 env: "m5stack-cores3",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Espressif",
@@ -116,9 +100,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "headless-esp32s3-4mb",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Espressif",
@@ -127,9 +108,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "headless-esp32s3-8mb",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Espressif",
@@ -138,9 +116,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "headless-esp32s3-16mb",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Espressif",
@@ -149,9 +124,6 @@
                 link: "",
                 family: "ESP32",
                 env: "headless-esp32-4mb",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "Espressif",
@@ -160,9 +132,6 @@
                 link: "",
                 family: "ESP32",
                 env: "headless-esp32-8mb",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -171,9 +140,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S028",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -182,9 +148,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2-USB",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -193,9 +156,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432W328C_2",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -204,9 +164,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432W328C",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -215,9 +172,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432W328R",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -226,9 +180,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S024R",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -237,9 +188,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S022C",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -248,9 +196,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S032C",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -259,9 +204,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-2432S032R",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -270,9 +212,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-3248S035R",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -281,9 +220,6 @@
                 link: "",
                 family: "ESP32",
                 env: "CYD-3248S035C",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CYD",
@@ -292,9 +228,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "CYD-8048S043C",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "CYD",
@@ -303,9 +236,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "CYD-8048W550C",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "CYD",
@@ -314,9 +244,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "CYD-3248W535C",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "WIP",
@@ -325,9 +252,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "CYD-4827S043R",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -336,9 +260,6 @@
                 link: "https://lilygo.cc/products/t-dongle-s3?srsltid=AfmBOopwCcPQTTC4wTNi3rNZHn8W6g8Yo_ShcrfDiAfECS6tGq59vWo7",
                 family: "ESP32-S3",
                 env: "lilygo-t-dongle-s3-tft",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -347,9 +268,6 @@
                 link: "https://lilygo.cc/products/t-display-s3?_pos=1&_sid=d7b2ebc22&_ss=r&variant=42589373268149",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-touch",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -358,9 +276,6 @@
                 link: "https://lilygo.cc/products/t-display-s3?_pos=1&_sid=d7b2ebc22&_ss=r&variant=42589373268149",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-pro",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -369,9 +284,6 @@
                 link: "https://lilygo.cc/products/t-embed",
                 family: "ESP32-S3",
                 env: "lilygo-t-embed",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -380,9 +292,6 @@
                 link: "https://lilygo.cc/products/t-embed-cc1101",
                 family: "ESP32-S3",
                 env: "lilygo-t-embed-cc1101",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -391,9 +300,6 @@
                 link: "https://lilygo.cc/products/t-lora-pager",
                 family: "ESP32-S3",
                 env: "lilygo-t-lora-pager",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -402,9 +308,6 @@
                 link: "https://lilygo.cc/products/t-deck",
                 family: "ESP32-S3",
                 env: "lilygo-t-deck",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -413,9 +316,6 @@
                 link: "https://lilygo.cc/products/t-deck-pro",
                 family: "ESP32-S3",
                 env: "lilygo-t-deck-pro",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "Lilygo",
@@ -424,9 +324,6 @@
                 link: "https://lilygo.cc/products/t5-e-paper-s3-pro",
                 family: "ESP32-S3",
                 env: "lilygo-t5-epaper-s3-pro",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "WIP",
@@ -435,9 +332,6 @@
                 link: "https://lilygo.cc/products/t-display-s3-amoled",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-amoled",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -446,9 +340,6 @@
                 link: "",
                 family: "ESP32-S3",
                 env: "smoochiee-board",
-                partitions: {
-                  bootloader_addr: "0x0",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -457,9 +348,6 @@
                 link: "https://github.com/justcallmekoko/ESP32Marauder/wiki/esp32-marauder-kit",
                 family: "ESP32",
                 env: "Marauder-v4-OG",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -468,9 +356,6 @@
                 link: "https://justcallmekokollc.com/products/esp32-marauder-v6",
                 family: "ESP32",
                 env: "Marauder-v61",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -479,9 +364,6 @@
                 link: "https://justcallmekokollc.com/products/esp32-marauder-v7-pre-order",
                 family: "ESP32",
                 env: "Marauder-v7",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -490,9 +372,6 @@
                 link: "https://justcallmekokollc.com/products/marauder-mini",
                 family: "ESP32",
                 env: "Marauder-Mini",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -501,9 +380,6 @@
                 link: "https://awokdynamics.com/products/dual-mini-v2",
                 family: "ESP32",
                 env: "Awok-Mini",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -512,9 +388,6 @@
                 link: "https://awokdynamics.com/products/dual-touch-v2",
                 family: "ESP32",
                 env: "Awok-Touch",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "CUSTOM",
@@ -523,9 +396,6 @@
                 link: "https://rabbit-labs.com/product/the-phantom-by-rabbit-labs/?v=dc634e207282",
                 family: "ESP32",
                 env: "Phantom_S024R",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "WIP",
@@ -534,9 +404,6 @@
                 link: "https://www.elecrow.com/wiki/esp32-display-242727-intelligent-touch-screen-wi-fi26ble-240320-hmi-display.html",
                 family: "ESP32",
                 env: "elecrow-24B",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "WIP",
@@ -545,9 +412,6 @@
                 link: "https://www.elecrow.com/wiki/esp32-display-282727-intelligent-touch-screen-wi-fi26ble-240320-hmi-display.html",
                 family: "ESP32",
                 env: "elecrow-28B",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "WIP",
@@ -556,9 +420,6 @@
                 link: "https://www.elecrow.com/wiki/esp32-display-352727-intelligent-touch-screen-wi-fi26ble-320480-hmi-display.html",
                 family: "ESP32",
                 env: "elecrow-35B",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
             - {
                 vendor: "WIP",
@@ -567,9 +428,6 @@
                 link: "https://www.elecrow.com/wiki/esp32-display-352727-intelligent-touch-screen-wi-fi26ble-320480-hmi-display.html",
                 family: "ESP32",
                 env: "elecrow-35Bv2_2",
-                partitions: {
-                  bootloader_addr: "0x1000",
-                },
               }
 
       steps:
@@ -601,20 +459,8 @@
             run: |
               platformio run -e ${{ matrix.board.env }}
 
-          - name: Merge files
+          - name: Prepare JSON and HTML
             run: |
-              if [[ "${{ matrix.board.vendor }}" == "M5Stack" ]]; then
-              esptool.py --chip esp32s3 merge_bin -o Launcher-${{ matrix.board.env }}.bin \
-                ${{ matrix.board.partitions.bootloader_addr }} .pio/build/${{ matrix.board.env }}/bootloader.bin \
-                0x8000 .pio/build/${{ matrix.board.env }}/partitions.bin \
-                0x9000 support_files/UiFlow2_nvs.bin \
-                0x10000 .pio/build/${{ matrix.board.env }}/firmware.bin
-              else
-                esptool.py --chip esp32s3 merge_bin -o Launcher-${{ matrix.board.env }}.bin \
-                ${{ matrix.board.partitions.bootloader_addr }} .pio/build/${{ matrix.board.env }}/bootloader.bin \
-                0x8000 .pio/build/${{ matrix.board.env }}/partitions.bin \
-                0x10000 .pio/build/${{ matrix.board.env }}/firmware.bin
-              fi
 
                 js_content="{\"name\":\"${{ matrix.board.name }}\",\"new_install_prompt_erase\": true,\"builds\":[{\"chipFamily\":\"${{ matrix.board.family }}\",\"improv\":false,\"parts\":[{\"path\":\"bins/Launcher-${{ matrix.board.env }}.bin\",\"offset\":0}]}]}"
                 echo "$js_content" > "./Manifest-${{ matrix.board.env }}.json"
@@ -646,18 +492,13 @@
       steps:
         - uses: actions/checkout@v4
           with:
-          # Configura para garantir que todas as branches sejam buscadas
-            fetch-depth: 0
+            ref: WebPage
+            fetch-depth: 1
 
         - name: Download all artifacts
           uses: actions/download-artifact@v4
           with:
             path: ~/LauncherArtifacts
-
-        - name: Clone Launcher repository and switch to WebPage branch
-          run: |
-            git fetch origin
-            git checkout WebPage || git checkout -b WebPage origin/WebPage
 
         - name: Generate HTML and manifests from Boards
           run: |
@@ -741,35 +582,119 @@
             echo "$html" > ~/file.html
             cat ~/file.html
 
-            rm ./index.html
-            cp ./support_files/flasher ./index.html
-            python ./support_files/merge_html.py ./index.html ~/file.html
-
-
-
         - name: Move artifacts to the correct folders
           run: |
             set -x
             pwd
-            ls -all
+            mkdir -p artifacts
+            cp -f ~/LauncherArtifacts/*/*.bin artifacts
+            cp -f ~/LauncherArtifacts/*/*.json artifacts
+            cp -f ~/file.html artifacts
             tree
-            if [ "${{ github.ref_type }}" == "tag" ]; then
-              cp -f ~/LauncherArtifacts/*/*.bin ./Release/bins
-            elif [ "${{ github.ref_type }}" != "tag" ]; then
-              cp -f ~/LauncherArtifacts/*/*.bin ./Beta/bins
-            fi
 
-            cp -f ~/LauncherArtifacts/*/*.json ./Release
-            cp -f ~/LauncherArtifacts/*/*.json ./Beta
+        - name: Ensure releases exist and get IDs
+          id: get_release
+          uses: actions/github-script@v7
+          with:
+            script: |
+              const ensureByTag = async (tag, prerelease=true) => {
+                try {
+                  const { data } = await github.rest.repos.getReleaseByTag({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    tag
+                  });
+                  return data.id;
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                  const { data } = await github.rest.repos.createRelease({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    tag_name: tag,
+                    name: tag,
+                    prerelease
+                  });
+                  return data.id;
+                }
+              };
 
+              const betaId = await ensureByTag('beta');
+              const lastId = await ensureByTag('last');
 
-        - name: Commit and push changes
+              core.setOutput('beta', String(betaId));
+              core.setOutput('last', String(lastId));
+
+        - name: Get current sha
+          id: get_sha
           run: |
-            git config user.name "GitHub Actions"
-            git config user.email "actions@github.com"
-            git add .
-            git commit -m "Update artifacts from build"
-            git push origin WebPage
+            echo "GITHUB_SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+        - name: Delete old betaRelease assets
+          uses: actions/github-script@v6
+          with:
+            script: |
+              const release_id = ${{ steps.get_release.outputs.beta }};
+              const assets = await github.rest.repos.listReleaseAssets({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release_id
+              });
+              for (const asset of assets.data) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: asset.id
+                });
+              }
+
+        - name: Upload new beta asset
+          uses: softprops/action-gh-release@v2
+          with:
+            name: betaRelease commit (${{ steps.get_sha.outputs.GITHUB_SHA_SHORT }})
+            tag_name: beta
+            files: artifacts/**
+            fail_on_unmatched_files: false
+            make_latest: false
+            generate_release_notes: false
+
+        - name: Delete old lastRelease assets
+          uses: actions/github-script@v6
+          if: github.ref_type == 'tag'
+          with:
+            script: |
+              const release_id = ${{ steps.get_release.outputs.last }};
+              const assets = await github.rest.repos.listReleaseAssets({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release_id
+              });
+              for (const asset of assets.data) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: asset.id
+                });
+              }
+
+        - name: Upload new last asset
+          uses: softprops/action-gh-release@v2
+          if: github.ref_type == 'tag'
+          with:
+            name: lastRelease commit (${{ steps.get_sha.outputs.GITHUB_SHA_SHORT }})
+            tag_name: last
+            prerelease: true
+            files: ~/artifacts/**
+            fail_on_unmatched_files: false
+            make_latest: false
+            generate_release_notes: false
+
+        - name: Trigger WebPage deploy (workflow_dispatch)
+          if: ${{ success() }}
+          env:
+            GH_TOKEN: ${{ github.token }}
+          run: |
+            gh workflow list
+            gh workflow run .github/workflows/deploy.yml --ref WebPage
 
     create_release:
       runs-on: ubuntu-latest

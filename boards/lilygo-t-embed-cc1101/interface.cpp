@@ -49,6 +49,10 @@ void _setup_gpio() {
     pinMode(CC1101_SS_PIN, OUTPUT);
     digitalWrite(CC1101_SS_PIN, HIGH);
 
+    // Set NRF24 CS pin to HIGH
+    pinMode(44, OUTPUT); 
+    digitalWrite(44, HIGH);
+
     // Power chip pin
     pinMode(PIN_POWER_ON, OUTPUT);
     digitalWrite(PIN_POWER_ON, HIGH); // Power on CC1101 and LED
