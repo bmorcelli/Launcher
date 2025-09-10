@@ -79,7 +79,7 @@ def prepare_www_files():
         files_to_gzip.extend(glob.glob(join(data_src_dir, "*." + extension)))
 
     files_checksum = hash_files(files_to_gzip)
-    if files_checksum == checksum:
+    if files_checksum == checksum and exists(HEADER_FILE):
         print("[GZIP & EMBED INTO HEADER] - Nothing to process.")
         return
 
