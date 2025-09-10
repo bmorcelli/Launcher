@@ -101,7 +101,7 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     static long tmp = 0;
     static unsigned long lastCheck = 0;
-    bool G0Pressed = (digitalRead(0) == LOW);
+    bool G0Pressed = digitalRead(0);
     if (UseTCA8418) {
         // Poll TCA8418 every 100ms for key events
         if (millis() - lastCheck > 100) {
