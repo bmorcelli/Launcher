@@ -252,7 +252,7 @@ const KeyValue_t _key_value_map[KB_ROWS][KB_COLS] = {
      {'g', 'G', '/'},
      {'h', 'H', ':'},
      {'j', 'J', ';'},
-     {'k', 'K', '´'},
+     {'k', 'K', '\''},
      {'l', 'L', '"'},
      {KEY_BACKSPACE, KEY_BACKSPACE, KEY_BACKSPACE}   },
 
