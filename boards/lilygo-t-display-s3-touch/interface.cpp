@@ -99,20 +99,11 @@ void _post_setup_gpio() {
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
 int getBattery() {
-    int percent = 0;
-    esp_adc_cal_characteristics_t adc_chars;
+    uint8_t percent;
+    uint32_t volt = analogReadMilliVolts(GPIO_NUM_38);
 
-    // Get the internal calibration value of the chip
-    esp_adc_cal_value_t val_type =
-        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &adc_chars);
-    uint32_t raw = analogRead(BAT_PIN);
-    uint32_t v1 = esp_adc_cal_raw_to_voltage(raw, &adc_chars) * 2; // The partial pressure is one-half
-    if (v1 < 4300) {
-        float mv = v1 * 2;
-        percent = (mv - 3300) * 100 / (float)(4150 - 3350);
-    } else {
-        percent = 0;
-    }
+    float mv = volt;
+    percent = (mv - 3300) * 100 / (float)(4150 - 3350);
 
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }

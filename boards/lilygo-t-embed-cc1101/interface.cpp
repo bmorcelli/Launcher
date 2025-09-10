@@ -14,11 +14,6 @@ IRAM_ATTR void checkPosition();
 #include <XPowersLib.h>
 #include <esp32-hal-dac.h>
 XPowersPPM PPM;
-#elif defined(T_EMBED)
-#include <driver/adc.h>
-#include <esp_adc_cal.h>
-#include <soc/adc_channel.h>
-#include <soc/soc_caps.h>
 #endif
 
 #ifdef USE_BQ27220_VIA_I2C
@@ -50,7 +45,7 @@ void _setup_gpio() {
     digitalWrite(CC1101_SS_PIN, HIGH);
 
     // Set NRF24 CS pin to HIGH
-    pinMode(44, OUTPUT); 
+    pinMode(44, OUTPUT);
     digitalWrite(44, HIGH);
 
     // Power chip pin
@@ -103,22 +98,11 @@ int getBattery() {
                                         // 1083, that is why i'm dividing by 12.5 (var/1250)*100
 
 #elif defined(T_EMBED)
-    uint8_t _batAdcCh = ADC1_GPIO4_CHANNEL;
-    uint8_t _batAdcUnit = 1;
-    adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten((adc1_channel_t)_batAdcCh, ADC_ATTEN_DB_12);
-    static esp_adc_cal_characteristics_t *adc_chars = nullptr;
-    static constexpr int BASE_VOLATAGE = 3600;
-    adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
-    esp_adc_cal_characterize(
-        (adc_unit_t)_batAdcUnit, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, BASE_VOLATAGE, adc_chars
-    );
-    int raw;
-    raw = adc1_get_raw((adc1_channel_t)_batAdcCh);
-    uint32_t volt = esp_adc_cal_raw_to_voltage(raw, adc_chars);
+    uint32_t volt = analogReadMilliVolts(GPIO_NUM_4);
 
-    float mv = volt * 2;
+    float mv = volt;
     percent = (mv - 3300) * 100 / (float)(4150 - 3350);
+
 #endif
 
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
