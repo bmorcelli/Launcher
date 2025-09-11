@@ -1,7 +1,7 @@
 #include "powerSave.h"
-#include <interface.h>
-
 #include <Button.h>
+#include <SD_MMC.h>
+#include <interface.h>
 volatile bool nxtPress = false;
 volatile bool prvPress = false;
 volatile bool slPress = false;
@@ -17,6 +17,7 @@ Button *btn1;
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
+    SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
     //  PWM backlight setup
     //  setup buttons
     gpio_pulldown_dis(GPIO_NUM_21);

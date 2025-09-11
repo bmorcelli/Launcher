@@ -6,7 +6,7 @@
 
 #define USB_VID 0x303a
 #define USB_PID 0x1001
-
+#define SDM SD_MMC
 #define HAS_3_BUTTONS
 
 static const uint8_t TX = 1;

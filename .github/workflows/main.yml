@@ -29,14 +29,6 @@
                 family: "ESP32-S3",
                 env: "m5stack-cardputer",
               }
-            # - {
-            #     vendor: "M5Stack",
-            #     name: "Cardputer ADV",
-            #     description: "",
-            #     link: "https://shop.m5stack.com/products/m5stack-cardputer-adv-version-esp32-s3?ref=Pirata",
-            #     family: "ESP32-S3",
-            #     env: "m5stack-cardputer-adv",
-            #   }
             - {
                 vendor: "M5Stack",
                 name: "StickCPlus2",

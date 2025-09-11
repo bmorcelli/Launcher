@@ -46,8 +46,8 @@ void MassStorage::beginUsb() {
 }
 
 void MassStorage::setupUsbCallback() {
-    uint32_t secSize = SD.sectorSize();
-    uint32_t numSectors = SD.numSectors();
+    uint32_t secSize = SDM.sectorSize();
+    uint32_t numSectors = SDM.numSectors();
 
     msc.vendorID("ESP32");
     msc.productID("Launcher");
@@ -87,20 +87,20 @@ void MassStorage::displayMessage(String message) {
 
 int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize) {
     // Verify freespace
-    uint64_t freeSpace = SD.totalBytes() - SD.usedBytes();
+    uint64_t freeSpace = SDM.totalBytes() - SDM.usedBytes();
     if (bufsize > freeSpace) {
         return -1; // no space available
     }
 
     // Verify sector size
-    const uint32_t secSize = SD.sectorSize();
+    const uint32_t secSize = SDM.sectorSize();
     if (secSize == 0) return -1; // disk error
 
     // Write blocs
     for (uint32_t x = 0; x < bufsize / secSize; ++x) {
         uint8_t blkBuffer[secSize];
         memcpy(blkBuffer, buffer + secSize * x, secSize);
-        if (!SD.writeRAW(blkBuffer, lba + x)) {
+        if (!SDM.writeRAW(blkBuffer, lba + x)) {
             return -1; // write error
         }
     }
@@ -109,12 +109,12 @@ int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_
 
 int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
     // Verify sector size
-    const uint32_t secSize = SD.sectorSize();
+    const uint32_t secSize = SDM.sectorSize();
     if (secSize == 0) return -1; // disk error
 
     // Read blocs
     for (uint32_t x = 0; x < bufsize / secSize; ++x) {
-        if (!SD.readRAW(reinterpret_cast<uint8_t *>(buffer) + (x * secSize), lba + x)) {
+        if (!SDM.readRAW(reinterpret_cast<uint8_t *>(buffer) + (x * secSize), lba + x)) {
             return -1; // read error
         }
     }
