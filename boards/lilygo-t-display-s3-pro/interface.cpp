@@ -132,7 +132,7 @@ void InputHandler(void) {
     static long tm = 0;
     TouchPointPro t;
     if (millis() - tm > 200 || LongPress) {
-        if (touch.getPoint(t.x, t.y, touch.getSupportTouchPoint()) && touch.isPressed()) {
+        if (touch.getPoint(t.x, t.y) && touch.isPressed()) {
             tm = millis();
             if (rotation == 1) { t.y[0] = TFT_WIDTH - t.y[0]; }
             if (rotation == 3) { t.x[0] = TFT_HEIGHT - t.x[0]; }
