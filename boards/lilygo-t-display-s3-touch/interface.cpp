@@ -10,6 +10,7 @@
 
 #include <esp_adc_cal.h>
 TouchLib touch(Wire, 18, 17, CTS820_SLAVE_ADDRESS, 21);
+bool readTouch = false;
 
 #include <Button.h>
 volatile bool nxtPress = false;
@@ -42,9 +43,6 @@ void _setup_gpio() {
     delay(500);
     digitalWrite(21, HIGH); // PIN_TOUCH_RES
     Wire.begin(18, 17);     // SDA, SCL
-    if (!touch.init()) { Serial.println("Touch IC not found"); }
-
-    touch.setRotation(1);
     // PWM backlight setup
     // setup buttons
     button_config_t bt1 = {
@@ -90,7 +88,17 @@ void _setup_gpio() {
 void _post_setup_gpio() {
     // PWM backlight setup
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BRIGHT_CHANNEL, 255);
+    ledcWrite(TFT_BL, 250);
+
+    Serial.println("Prepraring Touchscreen");
+    delay(3000);
+    if (!touch.init()) Serial.println("Touch IC not found");
+    else {
+        Serial.println("Touch started successfully");
+        readTouch = true;
+    }
+
+    touch.setRotation(1);
 }
 
 /***************************************************************************************
@@ -115,15 +123,20 @@ int getBattery() {
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
     int dutyCycle;
-    if (brightval == 100) dutyCycle = 255;
+    if (brightval == 100) dutyCycle = 250;
     else if (brightval == 75) dutyCycle = 130;
     else if (brightval == 50) dutyCycle = 70;
     else if (brightval == 25) dutyCycle = 20;
     else if (brightval == 0) dutyCycle = 5;
-    else dutyCycle = ((brightval * 255) / 100);
+    else dutyCycle = ((brightval * 250) / 100);
 
-    Serial.printf("dutyCycle for bright 0-255: %d", dutyCycle);
-    ledcWrite(TFT_BRIGHT_CHANNEL, dutyCycle); // Channel 0
+    Serial.printf("dutyCycle for bright 0-255: %d\n", dutyCycle);
+    if (!ledcWrite(TFT_BL, dutyCycle)) {
+        Serial.println("Failed to set brightness");
+        ledcDetach(TFT_BL);
+        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+        ledcWrite(TFT_BL, dutyCycle);
+    }
 }
 
 /*********************************************************************
@@ -136,7 +149,22 @@ void InputHandler(void) {
     if (nxtPress || prvPress || ecPress || slPress) btn_pressed = true;
 
     if (millis() - tm > 200) {
-        if (touch.read() || LongPress) { // touch.tirqTouched() &&
+        if (btn_pressed) {
+            btn_pressed = false;
+            if (!wakeUpScreen()) AnyKeyPress = true;
+            else return;
+            SelPress = slPress;
+            EscPress = ecPress;
+            NextPress = nxtPress;
+            PrevPress = prvPress;
+
+            nxtPress = false;
+            prvPress = false;
+            ecPress = false;
+            slPress = false;
+        }
+        if (!readTouch) return; // dont read touchscreen
+        if (touch.read() || LongPress) {
             auto t = touch.getPoint(0);
             tm = millis();
             if (rotation == 1) {
@@ -170,20 +198,6 @@ void InputHandler(void) {
             touchPoint.y = t.y;
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
-        }
-        if (btn_pressed) {
-            btn_pressed = false;
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-            SelPress = slPress;
-            EscPress = ecPress;
-            NextPress = nxtPress;
-            PrevPress = prvPress;
-
-            nxtPress = false;
-            prvPress = false;
-            ecPress = false;
-            slPress = false;
         }
     }
 }

@@ -51,7 +51,7 @@ void _setup_gpio() {
 void _post_setup_gpio() {
     // PWM backlight setup
     ledcAttach(GFX_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BRIGHT_CHANNEL, 0);
+    ledcWrite(GFX_BL, 0);
 }
 
 /***************************************************************************************
@@ -72,11 +72,16 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 75) dutyCycle = 5;
     else if (brightval == 50) dutyCycle = 20;
     else if (brightval == 25) dutyCycle = 135;
-    else if (brightval == 0) dutyCycle = 255;
-    else dutyCycle = 255 - ((brightval * 255) / 100);
+    else if (brightval == 0) dutyCycle = 250;
+    else dutyCycle = 250 - ((brightval * 250) / 100);
 
     Serial.printf("dutyCycle for bright 0-255: %d", dutyCycle);
-    ledcWrite(TFT_BRIGHT_CHANNEL, dutyCycle); // Channel 0
+    if (!ledcWrite(GFX_BL, dutyCycle)) {
+        Serial.println("Failed to set brightness");
+        ledcDetach(GFX_BL);
+        ledcAttach(GFX_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+        ledcWrite(GFX_BL, dutyCycle);
+    }
 }
 
 /*********************************************************************

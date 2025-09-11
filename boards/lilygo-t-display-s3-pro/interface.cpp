@@ -82,7 +82,7 @@ void _setup_gpio() {
 void _post_setup_gpio() {
     // PWM backlight setup
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BRIGHT_CHANNEL, 255);
+    ledcWrite(TFT_BL, 255);
 }
 
 /***************************************************************************************
@@ -104,15 +104,20 @@ int getBattery() {
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
     int dutyCycle;
-    if (brightval == 100) dutyCycle = 255;
+    if (brightval == 100) dutyCycle = 250;
     else if (brightval == 75) dutyCycle = 130;
     else if (brightval == 50) dutyCycle = 70;
     else if (brightval == 25) dutyCycle = 20;
     else if (brightval == 0) dutyCycle = 5;
-    else dutyCycle = ((brightval * 255) / 100);
+    else dutyCycle = ((brightval * 250) / 100);
 
     Serial.printf("dutyCycle for bright 0-255: %d", dutyCycle);
-    ledcWrite(TFT_BRIGHT_CHANNEL, dutyCycle); // Channel 0
+    if (!ledcWrite(TFT_BL, dutyCycle)) {
+        Serial.println("Failed to set brightness");
+        ledcDetach(TFT_BL);
+        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+        ledcWrite(TFT_BL, dutyCycle);
+    }
 }
 
 struct TouchPointPro {

@@ -75,6 +75,7 @@ Things that needs to be done in next updates
 
 * 2.4.11 (Beta):
      * [x] Added keyboard support to T-Deck Pro https://github.com/bmorcelli/Launcher/issues/180
+     * [x] Fixed compatibility with UIFlow 2.3.x https://github.com/bmorcelli/Launcher/issues/192
      * [x] Added CSS, JS, Html online minifier
      * [x] Moved to ESP32Async/ESPAsyncWebServer official repo
      * [x] Port to [Cardputer ADV](https://shop.m5stack.com/products/m5stack-cardputer-adv-version-esp32-s3?ref=Pirata) thanks to [@n0xa](https://github.com/n0xa)
