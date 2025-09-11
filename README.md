@@ -6,23 +6,43 @@ Application Launcher for M5Stack, Lilygo, CYDs, Marauder and ESP32 devices.
     <img src="https://github.com/bmorcelli/Launcher/blob/main/M5Launcher.png?raw=true"> <img src="https://github.com/bmorcelli/Launcher/blob/main/New Launcher.jpg?raw=true" width="240" height="135"> <img src="https://github.com/bmorcelli/Launcher/blob/main/Launcher_anim.webp?raw=true" width="auto" height="135">
 </p>
 
+## How to Install
+* Use the Flasher: [Launcher Flasher](https://bmorcelli.github.io/Launcher/).
+* Use M5Burner, or
+* Download the .bin file from Releases for your device and use https://web.esphome.io/ or esptool.py and flash the file: `Launcher-{ver}-{YourDevice}.bin` into your device.
+
+## How to Use
+* Turn your Device on
+* Press M5 (Enter) in the Launcher Start Screen to start Launcher
+* Choose OTA to install new binaries from M5Burner repo
+* After installed, when turn on the device, if you don't press anything, the installed program will be launched.
+
 ## With Launcher you'll be able to:
-### *OTA* OTA Update
+<details>
+  <summary><h3>OTA - OTA Update</h3></summary>
+
 - Install binaries from M5Burner repository (yes, online, without the need of a USB Cable)
 - Install binaries from a WebUI, that you can start from CFG option, installing binaries you have on your computer or smartphone
 - Install binaries from your SD Card
-
-### *SD* SD Card Management
+</details>
+<details>
+  <summary><h3>SD - SDCard Management</h3></summary>
 - Create new Folders,
 - Delete files and folders,
 - Rename files,
 - Copy and paste files,
 - Install binaries
 
-### *WUI* Web User Interface
--
+</details>
+<details>
+  <summary><h3>WUI - Web User Interface</h3></summary>
+- Manage files on the SD Card
+- Install Binaries wirelessly using OTA Update option
+- Deploy instalation through the file list
 
-### *CFG* Configurations (Customization)
+</details>
+<details>
+  <summary><h3>CFG - Configurations (Customization)</h3></summary>
 - Charge Mode
 - Change brightness
 - Change Dim Time
@@ -37,23 +57,14 @@ Application Launcher for M5Stack, Lilygo, CYDs, Marauder and ESP32 devices.
 - Save FAT vfs (Save a copy of the FAT partition to restore when needed)
 - Restore SPIFFS
 - Restore FAT vfs
+</details>
 
-## tips
+<details>
+  <summary><h3>Tips</h3></summary>
 * Having an SD card is good for better experience, but not really needed. [SDCard Hat for M5StickCs](https://www.thingiverse.com/thing:6459069)
 * You can learn more about how it works o [Launcher Wiki](https://github.com/bmorcelli/Launcher/wiki/Explaining-the-project).
 * Where/How do I find Binaries to launch -> [Obtaining binaries to launch](https://github.com/bmorcelli/Launcher/wiki/Obtaining-binaries-to-launch)
 * Now you can download binaries from [HERE!](https://bmorcelli.github.io/Launcher/m5lurner.html)
-
-## How to Install
-* Use the Flasher: [Launcher Flasher](https://bmorcelli.github.io/Launcher/).
-* Use M5Burner, or
-* Download the .bin file from Releases for your device and use https://web.esphome.io/ or esptool.py and flash the file: `Launcher-{ver}-{YourDevice}.bin` into your device.
-
-## How to Use
-* Turn your Device on
-* Press M5 (Enter) in the Launcher Start Screen to start Launcher
-* Choose OTA to install new binaries from M5Burner repo
-* After installed, when turn on the device, if you don't press anything, the installed program will be launched.
 
 
 ## Known Issues
@@ -63,11 +74,12 @@ Application Launcher for M5Stack, Lilygo, CYDs, Marauder and ESP32 devices.
 Things that needs to be done in next updates
      * [ ] OTA Pagination (multiple firmware list files)
      * [ ] LVGL for e-paper displays
+     * [ ] Move to ESP-IDF Platform
 
-## Changelog
+<details>
+  <summary><h2>Changelog</h2></summary>
 * 2.5.0:
      * [x] Moving to pioarduino 3.3 based framework (ESP-IDF 5.5)
-     * [x] Tests done:
           * [x] Enable USB Mass Storage to SD_MMC devices (T-Display-S3 and touch and T-Dongle S3 tft)
           * [x] Partition changes
           * [x] Firmware updates
@@ -78,7 +90,7 @@ Things that needs to be done in next updates
      * [x] Moved to ESP32Async/ESPAsyncWebServer official repo
      * [x] Port to [Cardputer ADV](https://shop.m5stack.com/products/m5stack-cardputer-adv-version-esp32-s3?ref=Pirata) thanks to [@n0xa](https://github.com/n0xa)
      * [x] Port to [Lilygo Lora Pager](https://lilygo.cc/products/t-lora-pager) by @emericklaw
-     * [x] Port to [CYD-4827S043R](https://github.com/bmorcelli/Launcher/issues/186)
+     * [x] Port to [CYD-4827S043R](https://github.com/bmorcelli/Launcher/issues/186) -> WIP
      * [x] Fixed first line [filelist](https://github.com/bmorcelli/Launcher/issues/166)
 
 * 2.4.10:
@@ -247,3 +259,4 @@ Things that needs to be done in next updates
      * Fixed issues that prevented M5Launcher to launch apps on Cardputer
 * 1.0.1:
      * Fixed blackscreen and keyboard capture on Cardputer.
+</details>
