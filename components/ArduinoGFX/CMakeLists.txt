@@ -16,7 +16,7 @@ endif()
 file(GLOB_RECURSE ARDUINO_GFX_SOURCES ${ARDUINO_GFX_DIR}/src/*.c* )
 idf_component_register(SRCS ${ARDUINO_GFX_SOURCES}
                       INCLUDE_DIRS ${ARDUINO_GFX_DIR}/src
-                      REQUIRES arduino-esp32 esp_lcd)
+                      REQUIRES arduino-esp32 esp_lcd esp_mm)
 
 # ArduinoGFX uses designated initialisers that trigger "-Werror=narrowing"
 # when assigning signed integers to unsigned fields. The upstream sources are
