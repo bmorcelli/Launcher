@@ -359,7 +359,145 @@ retry:
     }
     wakeUpScreen();
 }
+/***************************************************************************************
+** Function name: installExtFirmware
+** Description:   installs External Firmware using OTA grabbing file information from url
+***************************************************************************************/
+bool installExtFirmware(String url) {
+    size_t file_size;
+    bool spiffs = 0;
+    uint32_t spiffs_offset = 0;
+    uint32_t spiffs_size = 0;
+    bool nb = 1; // File without bootloader an partitions
+    bool fat = 0;
+    uint32_t fat_offset[2] = {0};
+    uint32_t fat_size[2] = {0};
+    uint8_t bytes[16];
+    if (!url.startsWith("https://")) {
+        displayRedStripe("Invalid link");
+        return false;
+    }
+    displayRedStripe("Getting file info");
+    WiFiClientSecure *client = new WiFiClientSecure;
+    client->setInsecure();
+    if (!client) return false;
 
+    HTTPClient http;
+    http.begin(*client, url);
+    http.addHeader("Range", "bytes=32768-33183");          // Get the partition table
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // Github links need it
+    http.useHTTP10(true);
+    const char *headerKeys[] = {"Content-Range"};
+    const size_t headerKeysCount = sizeof(headerKeys) / sizeof(headerKeys[0]);
+    http.collectHeaders(headerKeys, headerKeysCount);
+    if (http.GET() != 206) {
+        displayRedStripe("File not found");
+        http.end();
+        return false;
+    }
+    String _fileSize = http.header("Content-Range");
+    _fileSize = _fileSize.substring(_fileSize.lastIndexOf("/") + 1);
+    file_size = _fileSize.toInt();
+
+    WiFiClient *stream = http.getStreamPtr();
+    int size_av = stream->available();
+    stream->readBytes(buff, size_av < bufSize ? size_av : bufSize);
+    http.end();
+    // Check if it is a valid partition table
+    size_t PartitionSize = 0;
+    if (buff[0] == 0xAA) {
+        nb = 0;                                    // File with bootloader an partitions
+        for (int i = 0x0; i <= 0x1A0; i += 0x20) { // Partition
+            memcpy(bytes, &buff[i], 16);
+
+            // https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/partition-tables.html ->
+            // spiffs (0x82) is for SPIFFS Filesystem.
+
+            // if (bytes[3] == 0xFF) Serial.println(": ------- END of Table ------- |");
+            if (bytes[3] == 0x00 || (bytes[3] >= 0x10 && bytes[3] <= 0x1F)) {
+                Serial.println(": Ota or Factory partition |");
+                if (bytes[0x0A] > 0 && PartitionSize == 0) {
+                    PartitionSize = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) |
+                                    bytes[0x0C]; // Write the size of app0 partition
+                }
+            }
+            // if (bytes[3] == 0x01) Serial.println(": PHY inicialization partition |");
+            //  if (bytes[3] == 0x02) Serial.println(": NVS partition                |");
+            //  if (bytes[3] == 0x03) Serial.println(": Coredump partition           |");
+            //  if (bytes[3] == 0x04) Serial.println(": NVSkeys partition            |");
+            //  if (bytes[3] == 0x05) Serial.println(": Efuse partition              |");
+            //  if (bytes[3] == 0x06) Serial.println(": Undefined partition          |");
+            // if (bytes[3] >= 0x10 && bytes[3] <= 0x1F)
+            //     Serial.println(": OTA partition                |");
+            // if (bytes[3] == 0x20) Serial.println(": TEST partition               |");
+            if (bytes[3] == 0x81) {
+                Serial.println(": FAT partition                |");
+                int a = 0;
+                if (fat_offset[0] != 0) a = 1;
+                fat_offset[a] = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
+                                bytes[0x08]; // Write the offset of FAT partition
+                bytes[0x0C] = 0;
+                fat_size[a] =
+                    (bytes[0x0A] << 16) | (bytes[0x0B] << 8) | bytes[0x0C]; // Write the size of FAT partition
+            }
+            if (bytes[3] == 0x82 || bytes[3] == 0x83) {
+                Serial.println(": Spiffs/LittleFs partition    |");
+                spiffs_offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
+                                bytes[0x08]; // Write the offset of spiffs partition
+                bytes[0x0C] = 0;
+                spiffs_size = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) |
+                              bytes[0x0C]; // Write the size of spiffs partition
+            }
+        }
+        size_t temp_size = 0;
+        if (file_size < MAX_APP || PartitionSize <= MAX_APP) {
+            temp_size = PartitionSize;
+            temp_size += 0x10000;
+            if (file_size <= temp_size) {  // Check if the file is smaller than the app0 partition
+                PartitionSize = file_size; // gets file size
+                PartitionSize -= 0x10000;  // subtracts bootloader, partitions and other junks
+            } else {
+                PartitionSize = PartitionSize; // if file is greater then app0 partition+junk, it will
+                                               // limit to app0 partition size
+            }
+        }
+        // Check if there is room for spiffs in the file
+        if (file_size < spiffs_offset) {
+            Serial.printf(
+                "\nError: file doesn't reach spiffs offset %d, to read spiffs.", spiffs_offset, HEX
+            );
+        } else {
+            Serial.println("Preparing to copy spiffs...");
+            // check size of the Spiffs Partition, if it fits in the launcher
+            // If it is larger the the Launcher Spiffs Partition, cut it to the limit
+            if (spiffs_size > MAX_SPIFFS) {
+                spiffs_size = MAX_SPIFFS;
+                temp_size = spiffs_offset + spiffs_size;
+                if (file_size <= temp_size) { spiffs_size = file_size - spiffs_offset; }
+                Serial.print("\nTotal spiffs size after crop: ");
+                Serial.println(spiffs_size, HEX);
+            }
+        }
+    }
+    Serial.printf(
+        "url: %s\nPartitionSize: %d, spiffs: %d, spiffs_offset: %d, spiffs_size: %d, nb: %d, fat: %d, "
+        "fat_offset: "
+        "%d, fat_size: %d",
+        url.c_str(),
+        PartitionSize,
+        spiffs,
+        spiffs_offset,
+        spiffs_size,
+        nb,
+        fat,
+        fat_offset,
+        fat_size
+    );
+    installFirmware(
+        "", url, PartitionSize, spiffs, spiffs_offset, spiffs_size, nb, fat, fat_offset, fat_size
+    );
+    return true;
+}
 /***************************************************************************************
 ** Function name: installFirmware
 ** Description:   installs Firmware using OTA

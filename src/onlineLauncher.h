@@ -9,6 +9,8 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
+bool installExtFirmware(String url);
+
 void installFirmware(
     String fid, String file, uint32_t app_size, bool spiffs, uint32_t spiffs_offset, uint32_t spiffs_size,
     bool nb, bool fat, uint32_t fat_offset[2], uint32_t fat_size[2]
