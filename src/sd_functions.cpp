@@ -330,13 +330,14 @@ RESTART:
     }
     index = loopOptions(options, false, FGCOLOR, BGCOLOR, false, index);
     // Saídas prematuras
-    if (filePicker) return fileToUse;
-    if (index < 0) goto BACK_FOLDER;
-    // Verificar se é pasta ou Operador (> Back)
     if (options[index].color == uint16_t(FGCOLOR - 0x1111)) isFolder = true;
     else isFolder = false;
     if (options[index].color == uint16_t(ALCOLOR)) isOperator = true;
     else isOperator = false;
+    if (filePicker && !isFolder && !isOperator) return fileToUse;
+    if (index < 0) goto BACK_FOLDER;
+    // Verificar se é pasta ou Operador (> Back)
+
     // Detecçao de long press
     LongPressDetected = false;
 #ifndef E_PAPER_DISPLAY

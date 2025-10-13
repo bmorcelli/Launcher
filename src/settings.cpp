@@ -94,13 +94,11 @@ void settings_menu() {
 #endif
 
     if (MAX_SPIFFS > 0)
-        options.push_back({"Backup SPIFFS", [=]() { dumpPartition("spiffs", "/bkp/spiffs.bin"); }});
+        options.push_back({"Backup SPIFFS", [=]() { dumpPartition("spiffs", "/bkp/spiffs"); }});
     if (MAX_FAT_sys > 0 && dev_mode)
-        options.push_back({"Backup FAT sys", [=]() {
-                               dumpPartition("sys", "/bkp/FAT_sys.bin");
-                           }}); // Test only
+        options.push_back({"Backup FAT sys", [=]() { dumpPartition("sys", "/bkp/FAT_sys"); }}); // Test only
     if (MAX_FAT_vfs > 0)
-        options.push_back({"Backup FAT vfs", [=]() { dumpPartition("vfs", "/bkp/FAT_vfs.bin"); }});
+        options.push_back({"Backup FAT vfs", [=]() { dumpPartition("vfs", "/bkp/FAT_vfs"); }});
     if (MAX_SPIFFS > 0) options.push_back({"Restore SPIFFS", [=]() { restorePartition("spiffs"); }});
     if (MAX_FAT_sys > 0 && dev_mode)
         options.push_back({"Restore FAT Sys", [=]() { restorePartition("sys"); }}); // Test only

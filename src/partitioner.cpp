@@ -261,7 +261,15 @@ void dumpPartition(const char *partitionLabel, const char *outputPath) {
     setupSdCard();
     if (!SDM.exists("/bkp")) SDM.mkdir("/bkp");
 
-    File outputFile = SDM.open(outputPath, FILE_WRITE, true);
+    String output = outputPath;
+    output += ".bin";
+    int i = 0;
+    while (SDM.exists(output)) {
+        i++;
+        output = String(outputPath) + String(i) + ".bin";
+    }
+
+    File outputFile = SDM.open(output.c_str(), FILE_WRITE, true);
     if (!outputFile) {
         Serial.printf("Falha ao abrir o arquivo %s no cartão SD\n", outputPath);
         return;
@@ -293,9 +301,20 @@ void dumpPartition(const char *partitionLabel, const char *outputPath) {
     }
     outputFile.close();
     displayRedStripe("    Complete!    ");
-    delay(2500);
-
+    delay(500);
     Serial.printf("Dump da partição %s para o arquivo %s concluído\n", partitionLabel, outputPath);
+
+    bool attach = false;
+    options = {
+        {"Attach to a file", [&]() { attach = true; }      },
+        {"Main Menu",        [=]() { returnToMenu = true; }}
+    };
+    loopOptions(options);
+
+    if (attach) {
+        String to = loopSD(true);
+        attachPartition(output, to);
+    }
 }
 
 void restorePartition(const char *partitionLabel) {
@@ -418,4 +437,108 @@ void partitionCrawler() {
         EEPROM.write(EEPROMSIZE - 13, 0xFF);
         esp_restart();
     }
+}
+
+bool attachPartition(String _from, String _to) {
+    size_t offset = 0;
+    uint8_t bytes[16];
+    Serial.printf("From: %s\nTo: %s\n", _from.c_str(), _to.c_str());
+    File to = SDM.open(_to, FILE_READ);
+    if (!to) {
+        displayRedStripe("Can't open target");
+        delay(2500);
+        return false;
+    }
+
+    // look fot FAT/SPIFFS/LittleFS partition offset
+    to.seek(0x8000);
+    to.read(bytes, 16);
+    if (bytes[0] != 0xAA || bytes[1] != 0x50 || bytes[2] != 0x01) {
+        displayRedStripe("Has no partition table");
+        delay(2500);
+        return false; // couldn't find a valid position
+    }
+    for (int i = 0x0; i <= 0x1A0; i += 0x20) {
+        if (!to.seek(0x8000 + i)) {
+            Serial.println("Error: Could not move cursor to read partition info");
+            to.close();
+            return false;
+        }
+        to.read(bytes, 16);
+
+        if (bytes[3] == 0x81 || bytes[3] == 0x82 || bytes[3] == 0x83) {
+            // Calculate offset (big endian)
+            offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) | bytes[0x08];
+            Serial.printf("offset=%d\n", offset);
+        }
+    }
+    to.close();
+
+    if (!offset) {
+        displayRedStripe("Invalid target");
+        delay(2500);
+        return false; // couldn't find a valid position
+    }
+
+    File target = SDM.open(_to, FILE_WRITE);
+    if (!target) {
+        displayRedStripe("Can't reopen target");
+        delay(2500);
+        return false;
+    }
+
+    // Adjust the target file size
+    if (target.size() > offset) {
+        // Erases the old partition with 0xFF
+        target.seek(offset);
+        while (target.position() < target.size()) {
+            int angle = (360 * (target.position() - offset)) / (target.size() - offset);
+            tft->drawArc(tftWidth / 2, tftHeight / 2, 50, 45, 0, angle, FGCOLOR);
+            target.write(0xFF);
+        }
+    } else if (target.size() < offset) {
+        // fill with 0xFF until offset
+        target.seek(target.size());
+        size_t fillLen = offset - target.size();
+        const size_t chunk = 512;
+        uint8_t buf[chunk];
+        memset(buf, 0xFF, chunk);
+        while (fillLen > 0) {
+            int angle = (360 * (offset - fillLen)) / offset;
+            tft->drawArc(tftWidth / 2, tftHeight / 2, 40, 35, 0, angle, FGCOLOR);
+            size_t w = min(chunk, fillLen);
+            target.write(buf, w);
+            fillLen -= w;
+        }
+    }
+
+    // copy data from source file
+    File from = SDM.open(_from, FILE_READ);
+    if (!from) {
+        displayRedStripe("Can't open source");
+        delay(2500);
+        target.close();
+        return false;
+    }
+
+    target.seek(offset);
+    while (true) {
+        int angle = (360 * (target.position() - offset)) / from.size();
+        tft->drawArc(tftWidth / 2, tftHeight / 2, 35, 30, 0, angle, ALCOLOR);
+        size_t bytesRead = from.read(buff, sizeof(buff));
+        if (!bytesRead) break;
+        target.write(buff, bytesRead);
+    }
+
+    from.close();
+    target.close();
+
+    Serial.printf(
+        "Partition data from '%s' attached at offset 0x%X into '%s'\n",
+        _from.c_str(),
+        (unsigned int)offset,
+        _to.c_str()
+    );
+
+    return true;
 }
