@@ -143,13 +143,45 @@ void connectWifi() {
 ***************************************************************************************/
 void ota_function() {
 #ifndef DISABLE_OTA
+    bool fav = false;
     if (WiFi.status() != WL_CONNECTED) connectWifi();
-    if (WiFi.status() == WL_CONNECTED)
-        if (GetJsonFromLauncherHub()) loopFirmware();
+    if (WiFi.status() == WL_CONNECTED) {
+        // Debug
+        // Serial.printf("Favorite size: %d\n", favorite.size());
+        // serializeJsonPretty(favorite, Serial);
+        // Debug
+        if (favorite.size() > 0) {
+            options = {
+                {"OTA List",      [&]() { fav = false; }        },
+                {"Favorite List", [&]() { fav = true; }         },
+                {"Main Menu",     [=]() { returnToMenu = true; }}
+            };
+            loopOptions(options);
+        }
+        if (returnToMenu) return;
+        if (fav) {
+            int idx = 0;
+        RELOAD:
+            options.clear();
+            for (JsonObject item : favorite) {
+                if (item["fid"].as<String>().length() > 0) {
+                    options.push_back({item["name"].as<String>(), [=]() {
+                                           loopVersions(item["fid"].as<String>());
+                                       }});
+                } else {
+                    options.push_back({item["name"].as<String>(), [=]() {
+                                           installExtFirmware(item["link"].as<String>());
+                                       }});
+                }
+            }
+            options.push_back({"Main Menu", [=]() { returnToMenu = true; }, ALCOLOR});
+            idx = loopOptions(options, false, FGCOLOR, BGCOLOR, false, idx);
+            if (!returnToMenu) goto RELOAD;
+        } else {
+            if (GetJsonFromLauncherHub()) loopFirmware();
+        }
+    }
     tft->fillScreen(BGCOLOR);
-#else
-    displayRedStripe("Not M5 Device");
-    delay(3000);
 #endif
 }
 
@@ -328,7 +360,7 @@ retry:
                 }
                 // Checks if the file was preatically not downloaded and try one more time (size <=
                 // bufSize)
-                delay(50);
+                vTaskDelay(pdTICKS_TO_MS(50));
                 file = SDM.open(folder + fileName + ".bin");
                 if (file.size() <= bufSize & tries < 1) {
                     tries++;
@@ -350,7 +382,7 @@ retry:
                 break;
             } else {
                 http.end();
-                delay(500);
+                vTaskDelay(pdTICKS_TO_MS(500));
             }
         }
         http.end();
@@ -647,7 +679,7 @@ bool installFAT_OTA(
             performFATUpdate(*stream, size, label);
         }
         http.end();
-        delay(1000);
+        vTaskDelay(pdTICKS_TO_MS(500));
         return true;
     } else {
         displayRedStripe("Couldn't Connect");

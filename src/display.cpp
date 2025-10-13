@@ -249,10 +249,10 @@ END:
 void initDisplayLoop() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);
-    delay(250);
+    vTaskDelay(pdTICKS_TO_MS(250));
     while (!check(AnyKeyPress)) {
         initDisplay();
-        delay(50);
+        vTaskDelay(pdTICKS_TO_MS(50));
     }
     returnToMenu = true;
 }
@@ -653,7 +653,7 @@ Opt_Coord drawOptions(
 #ifdef E_PAPER_DISPLAY
     tft->display(false);
     tft->startCallback();
-    delay(200);
+    vTaskDelay(pdTICKS_TO_MS(200));
 #endif
 
     return coord;
@@ -897,8 +897,8 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
 **  Function: loopVersions
 **  Where you choose which version to install/download **
 **********************************************************************/
-void loopVersions() {
-    JsonDocument item = getVersionInfo(doc["items"][currentIndex]["fid"].as<String>());
+void loopVersions(String _fid) {
+    JsonDocument item = getVersionInfo(_fid);
 
     int versionIndex = 0;
     const char *name = item["name"];
@@ -946,7 +946,7 @@ void loopVersions() {
             redraw = false;
 #ifdef E_PAPER_DISPLAY
             tft->display(false);
-            delay(200);
+            vTaskDelay(pdTICKS_TO_MS(200));
 #endif
         }
         /* DW Btn to next item */
@@ -1016,8 +1016,7 @@ void loopVersions() {
 
             // Definição da matriz "Options"
             options = {
-                {"OTA Install",
-                 [=]() {
+                {"OTA Install", [=]() {
                      installFirmware(
                          String(fid),
                          String(file),
@@ -1030,18 +1029,27 @@ void loopVersions() {
                          (uint32_t *)FAT_offset,
                          (uint32_t *)FAT_size
                      );
-                 }                                             },
-                {"Download->SD",
-                 [=]() {
-                     downloadFirmware(
-                         String(fid),
-                         String(file),
-                         String(name) + "." + String(version).substring(0, 10),
-                         dwn_path
-                     );
-                 }                                             },
-                {"Back to List", [=]() { returnToMenu = true; }},
+                 }}
             };
+            if (sdcardMounted) {
+                options.push_back({"Download->SD", [=]() {
+                                       downloadFirmware(
+                                           String(fid),
+                                           String(file),
+                                           String(name) + "." + String(version).substring(0, 10),
+                                           dwn_path
+                                       );
+                                   }});
+                options.push_back({"Add to Favorite", [=] {
+                                       JsonObject fav = favorite.add<JsonObject>();
+                                       fav["name"] = String(name) + "-" + String(author);
+                                       fav["fid"] = _fid;
+                                       fav["link"] = "";
+                                       saveConfigs();
+                                   }});
+            }
+            options.push_back({"Back to List", [=]() { returnToMenu = true; }});
+
             loopOptions(options);
             // On fail installing will run the following line
             redraw = true;
@@ -1100,7 +1108,7 @@ RESTART:
 
     tft->fillScreen(BGCOLOR);
     index = loopOptions(options, false, FGCOLOR, BGCOLOR, false, index);
-    if (currentIndex >= 0) loopVersions();
+    if (currentIndex >= 0) loopVersions(doc["items"][currentIndex]["fid"].as<String>());
     if (refine) {
         refine = false;
         std::vector<Option> opt = {

@@ -30,7 +30,7 @@ void MassStorage::setup() {
 
     beginUsb();
 
-    delay(500);
+    vTaskDelay(pdTICKS_TO_MS(500));
     return loop();
 }
 

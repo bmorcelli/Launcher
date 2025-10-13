@@ -294,7 +294,7 @@ HTTPUpdateResult HTTPUpdate::handleUpdate(
                     // To do?                WiFiUDP::stopAll();
                     // To do?                WiFiClient::stopAllExcept(tcp);
 
-                    delay(100);
+                    vTaskDelay(pdTICKS_TO_MS(100));
 
                     int command;
 

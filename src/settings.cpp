@@ -1,31 +1,31 @@
 
 #include "settings.h"
 #include "display.h"
+#include "esp_mac.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
 #include "partitioner.h"
 #include "sd_functions.h"
 #include <globals.h>
-
 /**************************************************************************************
 EEPROM ADDRESSES MAP
 
 
-0	N Rot 	    16		      32	Pass	  48	Pass	64	Pass	80	Pass	96		112
-1	N Dim	      17		      33	Pass	  49	Pass	65	Pass	81	Pass	97		113
-2	N Bri       18		      34	Pass  	50	Pass	66	Pass	82	Pass	98		114
-3	N	          19		      35	Pass	  51	Pass	67	Pass	83	Pass	99		115	(L- Brigh)
-4	N	          20	Pass  	36	Pass	  52	Pass	68	Pass	84	Pass	100		116	(L- Dim)
-5	N	          21	Pass  	37	Pass  	53	Pass	69	Pass	85		    101		117	(L- Rotation)
-6	 	          22	Pass  	38	Pass  	54	Pass	70	Pass	86		    102		118	(L-odd)
-7	 	          23	Pass  	39	Pass  	55	Pass	71	Pass	87		    103		119	(L-odd)
-8	 	          24	Pass  	40	Pass  	56	Pass	72	Pass	88		    104		120	(L-even)
-9	 	          25	Pass  	41	Pass  	57	Pass	73	Pass	89		    105		121	(L-even)
-10  	        26	Pass  	42	Pass  	58	Pass	74	Pass	90 miso   106		122	(L-BGCOLOR)
-11  	        27	Pass  	43	Pass  	59	Pass	75	Pass	91 mosi   107		123	(L-BGCOLOR)
-12  	        28	Pass  	44	Pass  	60	Pass	76	Pass	92 sck    108		124	(L-FGCOLOR)
+0	N Rot 	    16		    32	Pass	48	Pass	64	Pass	80	Pass	96		112
+1	N Dim	    17		    33	Pass	49	Pass	65	Pass	81	Pass	97		113
+2	N Bri       18		    34	Pass  	50	Pass	66	Pass	82	Pass	98		114
+3	N	        19		    35	Pass	51	Pass	67	Pass	83	Pass	99		115	(L- Brigh)
+4	N	        20	Pass  	36	Pass	52	Pass	68	Pass	84	Pass    100		116	(L- Dim)
+5	N	        21	Pass  	37	Pass  	53	Pass	69	Pass	85		    101		117	(L- Rotation)
+6	 	        22	Pass  	38	Pass  	54	Pass	70	Pass	86		    102		118	(L-odd)
+7	 	        23	Pass  	39	Pass  	55	Pass	71	Pass	87		    103		119	(L-odd)
+8	 	        24	Pass  	40	Pass  	56	Pass	72	Pass	88		    104		120	(L-even)
+9	 	        25	Pass  	41	Pass  	57	Pass	73	Pass	89		    105		121	(L-even)
+10  	        26	Pass  	42	Pass  	58	Pass	74	Pass	90 miso     106		122	(L-BGCOLOR)
+11  	        27	Pass  	43	Pass  	59	Pass	75	Pass	91 mosi     107		123	(L-BGCOLOR)
+12  	        28	Pass  	44	Pass  	60	Pass	76	Pass	92 sck      108		124	(L-FGCOLOR)
 13		        29	Pass  	45	Pass  	61	Pass	77	Pass	93 cs	    109		125	(L-FGCOLOR)
-14		        30	Pass	  46	Pass  	62	Pass	78	Pass	94		    110		126	(L-AskSpiffs)
+14		        30	Pass	46	Pass  	62	Pass	78	Pass	94		    110		126	(L-AskSpiffs)
 15		        31	Pass  	47	Pass  	63	Pass	79	Pass	95		    111		127	(L-OnlyBins)
 
 From 1 to 5: Nemo shared addresses
@@ -106,13 +106,7 @@ void settings_menu() {
         options.push_back({"Restore FAT Sys", [=]() { restorePartition("sys"); }}); // Test only
     if (MAX_FAT_vfs > 0) options.push_back({"Restore FAT Vfs", [=]() { restorePartition("vfs"); }});
     if (dev_mode) options.push_back({"Boot Animation", [=]() { initDisplayLoop(); }});
-#ifndef DISABLE_OTA
-    if (dev_mode)
-        options.push_back({"Direct Link install", [=]() {
-                               if (WiFi.status() != WL_CONNECTED) connectWifi();
-                               if (WiFi.status() == WL_CONNECTED) installExtFirmware(direct_link);
-                           }});
-#endif
+    if (dev_mode) options.push_back({"Deactivate Dev", [=]() { dev_mode = false; }});
     options.push_back({"Restart", [=]() { FREE_TFT ESP.restart(); }});
 #if defined(STICK_C_PLUS2) || defined(T_EMBED) || defined(STICK_C_PLUS) || defined(T_LORA_PAGER)
     options.push_back({"Turn-off", [=]() { powerOff(); }});
@@ -410,7 +404,7 @@ void setdimmerSet() {
 void chargeMode() {
     setCpuFrequencyMhz(80);
     setBrightness(5, false);
-    delay(500);
+    vTaskDelay(pdTICKS_TO_MS(500));
     tft->fillScreen(BGCOLOR);
     unsigned long tmp = 0;
     while (!check(SelPress)) {
@@ -422,29 +416,32 @@ void chargeMode() {
     setCpuFrequencyMhz(240);
     setBrightness(bright, false);
 }
-
+String get_efuse_mac_as_string() {
+    uint8_t mac[6] = {0};
+    String str = "";
+    esp_efuse_mac_get_default(mac);
+    for (int i = 0; i < 6; i++) {
+        if (i > 0) str += ":";
+        str += String(mac[i], 16);
+    }
+    return str;
+}
 bool config_exists() {
     if (!SDM.exists(CONFIG_FILE)) {
         File conf = SDM.open(CONFIG_FILE, FILE_WRITE, true);
+        ;
         if (conf) {
-#if ROTATION > 1
-            conf.print(
-                "[{\"rot\":3,\"dimmerSet\":10,\"onlyBins\":1,\"bright\":100,\"askSpiffs\":1,\"wui_usr\":"
+            conf.printf(
+                "[{\"%s\":%d,\"dimmerSet\":10,\"onlyBins\":1,\"bright\":100,\"askSpiffs\":1,\"wui_usr\":"
                 "\"admin\",\"wui_pwd\":\"launcher\",\"dwn_path\":\"/downloads/"
                 "\",\"FGCOLOR\":2016,\"BGCOLOR\":0,\"ALCOLOR\":63488,\"even\":13029,\"odd\":12485,\",\"dev\":"
-                "0,\"wifi\":[{\"ssid\":\"myNetSSID\",\"pwd\":\"myNetPassword\",\"direct_link\":\"\"}]}]"
+                "0,\"wifi\":[{\"ssid\":\"myNetSSID\",\"pwd\":\"myNetPassword\"}], \"favorite\":[]}]",
+                get_efuse_mac_as_string().c_str(),
+                ROTATION
             );
-#else
-            conf.print(
-                "[{\"rot\":1,\"dimmerSet\":10,\"onlyBins\":1,\"bright\":100,\"askSpiffs\":1,\"wui_usr\":"
-                "\"admin\",\"wui_pwd\":\"launcher\",\"dwn_path\":\"/downloads/"
-                "\",\"FGCOLOR\":2016,\"BGCOLOR\":0,\"ALCOLOR\":63488,\"even\":13029,\"odd\":12485,\",\"dev\":"
-                "0,\"wifi\":[{\"ssid\":\"myNetSSID\",\"pwd\":\"myNetPassword\",\"direct_link\":\"\"}]}]"
-            );
-#endif
         }
         conf.close();
-        delay(50);
+        vTaskDelay(pdTICKS_TO_MS(50));
         log_i("config_exists: config.conf created with default");
         return false;
     } else {
@@ -497,8 +494,9 @@ void getConfigs() {
                 count++;
                 log_i("Fail");
             }
-            if (setting["rot"].is<int>()) {
-                rotation = setting["rot"].as<int>();
+            char *mac;
+            if (setting[get_efuse_mac_as_string()].is<int>()) {
+                rotation = setting[get_efuse_mac_as_string()].as<int>();
             } else {
                 count++;
                 log_i("Fail");
@@ -557,13 +555,13 @@ void getConfigs() {
                 count++;
                 log_i("Fail");
             }
-            if (setting["direct_link"].is<String>()) {
-                direct_link = setting["direct_link"].as<String>();
-            } else {
-                count++;
+            if (!setting["wifi"].is<JsonArray>()) {
+                ++count;
                 log_i("Fail");
             }
-            if (!setting["wifi"].is<JsonArray>()) {
+            if (setting["favorite"].is<JsonArray>()) {
+                favorite = setting["favorite"].as<JsonArray>();
+            } else {
                 ++count;
                 log_i("Fail");
             }
@@ -638,14 +636,13 @@ void saveConfigs() {
             settingsArray.clear();
             setting = settingsArray.add<JsonObject>();
         }
-        if (setting.isNull()) {
-            settings.garbageCollect();
-            setting = settingsArray.add<JsonObject>();
-        }
+        if (setting.isNull()) { setting = settingsArray.add<JsonObject>(); }
         if (setting.isNull()) {
             log_e("saveConfigs: failed to create root object");
             break;
         }
+        favorite = setting["favorite"].as<JsonArray>();
+        if (favorite.isNull()) favorite = setting.createNestedArray("favorite");
 
         JsonArray wifiList = setting["wifi"].as<JsonArray>();
         if (wifiList.isNull()) { wifiList = setting.createNestedArray("wifi"); }
@@ -655,10 +652,7 @@ void saveConfigs() {
         }
         if (wifiList.size() == 0) {
             JsonObject wifiObj = wifiList.add<JsonObject>();
-            if (wifiObj.isNull()) {
-                settings.garbageCollect();
-                wifiObj = wifiList.add<JsonObject>();
-            }
+            if (wifiObj.isNull()) { wifiObj = wifiList.add<JsonObject>(); }
             if (!wifiObj.isNull()) {
                 wifiObj["ssid"] = ssid.length() == 0 ? "myNetSSID" : ssid;
                 wifiObj["pwd"] = pwd.length() == 0 ? "myNetPassword" : pwd;
@@ -666,13 +660,12 @@ void saveConfigs() {
                 log_e("saveConfigs: failed to allocate default wifi entry");
             }
         }
-
         // Update JSON document with current configuration
         setting["onlyBins"] = onlyBins;
         setting["askSpiffs"] = askSpiffs;
         setting["bright"] = bright;
         setting["dimmerSet"] = dimmerSet;
-        setting["rot"] = rotation;
+        setting[get_efuse_mac_as_string()] = rotation;
         setting["FGCOLOR"] = FGCOLOR;
         setting["BGCOLOR"] = BGCOLOR;
         setting["ALCOLOR"] = ALCOLOR;
@@ -682,7 +675,6 @@ void saveConfigs() {
         setting["wui_usr"] = wui_usr;
         setting["wui_pwd"] = wui_pwd;
         setting["dwn_path"] = dwn_path;
-        setting["direct_link"] = direct_link;
 
         File file = SDM.open(CONFIG_FILE, FILE_WRITE, true);
         if (!file) {

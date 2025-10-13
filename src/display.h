@@ -24,7 +24,7 @@ int loopOptions(
     std::vector<Option> &options, bool bright = false, uint16_t al = RED, uint16_t bg = BLACK,
     bool border = true, int index = 0
 );
-void loopVersions();
+void loopVersions(String fid);
 void loopFirmware();
 void initDisplay(bool doAll = false); // Início da função e mostra bootscreen
 void initDisplayLoop();

@@ -401,7 +401,7 @@ void partitionCrawler() {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to copy partition data");
         displayRedStripe("Use M5Burner!");
-        delay(10000);
+        delay(5000);
         return;
     }
 

@@ -74,15 +74,22 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 
 ## To-Do list
 Things that needs to be done in next updates
-     * [ ] OTA Pagination (multiple firmware list files)
+     * [x] OTA Pagination (multiple firmware list files)
      * [ ] LVGL for e-paper displays
      * [ ] Move to ESP-IDF Platform
 
-<details>
-  <summary><h2>Changelog</h2></summary>
 
-* 2.5.4:
-     * [x] Add support to direct link install (edit config.conf, enable dev_mode, put your firmware bin [without partitions and bootloader] and install from CFG>Direct Link install ). Made to use Github Codespaces open port to test firmware
+## Latest Changelog
+
+* 2.6.0:
+     * [x] Pulling data from my new api, integrating all devices list with m5burner api and counting downloads into the m5burner database
+     * [x] New Feature: Added Filter and ordering to the fimware listings
+     * [x] New Feature: Added *Starred* firmware list, controlled by me.. support the project to have yout firmware into the starred list.
+     * [x] New Feature: Added "Favorite", where you an add the firmwares from the OTA list, or Manually add your binary links from your local server or whatever.
+
+
+<details>
+  <summary><h2>Older Changelogs</h2></summary>
 
 * 2.5.3:
      * [x] Restored T-Deck OTA

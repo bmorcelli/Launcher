@@ -464,7 +464,7 @@ void configureWebServer() {
                 setupSdCard();
                 request->send(200, "text/plain", "Pins configured.");
             error:
-                delay(1);
+                vTaskDelay(pdTICKS_TO_MS(1));
 #else
         request->send(200, "text/plain", "Functionality exclusive for Headless environment (devices with no screen)");
 #endif
@@ -539,7 +539,7 @@ void startWebUi(String ssid, int encryptation, bool mode_ap) {
 
     // startup web server
     server->begin();
-    delay(500);
+    vTaskDelay(pdTICKS_TO_MS(500));
 
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, ALCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
@@ -595,7 +595,7 @@ void startWebUi(String ssid, int encryptation, bool mode_ap) {
     // log_i("Closing Server and turning off WiFi");
     server->reset();
     server->end();
-    delay(100);
+    vTaskDelay(pdTICKS_TO_MS(100));
     delete server;
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true, true);
@@ -626,7 +626,7 @@ void startWebUi(String ssid, int encryptation, bool mode_ap) {
 
     // startup web server
     server->begin();
-    delay(500);
+    vTaskDelay(pdTICKS_TO_MS(500));
 
     String txt;
     if (!mode_ap) txt = WiFi.localIP().toString();
@@ -656,7 +656,7 @@ void startWebUi(String ssid, int encryptation, bool mode_ap) {
     log_i("Closing Server and turning off WiFi, something went wrong?");
     server->reset();
     server->end();
-    delay(100);
+    vTaskDelay(pdTICKS_TO_MS(100));
     delete server;
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true, true);

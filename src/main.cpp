@@ -96,12 +96,12 @@ String pwd;
 String wui_usr = "admin";
 String wui_pwd = "launcher";
 String dwn_path = "/downloads/";
-String direct_link = "";
 uint16_t total_firmware = 0;
 uint8_t current_page = 1;
 uint8_t num_pages = 0;
-DynamicJsonDocument doc(DOC_JSON_CAPACITY);
-DynamicJsonDocument settings(SETTINGS_JSON_CAPACITY);
+JsonDocument doc;
+JsonArray favorite;
+JsonDocument settings;
 std::vector<Option> options;
 const int bufSize = 1024;
 uint8_t buff[1024] = {0};
@@ -467,6 +467,7 @@ void loop() {
     bool update_sd;
     int index = 0;
     int opt = 5; // there are 3 options> 1 list SD files, 2 OTA, 3 USB and 4 Config
+    int pass_by = 0;
     getBrightness();
     if (!sdcardMounted) index = 1; // if SD card is not present, paint SD square grey and auto select OTA
     std::vector<MenuOptions> menuItems = {
@@ -533,6 +534,11 @@ void loop() {
                 }
                 update_sd = sdcardMounted;
             }
+            if (!dev_mode && pass_by == 5) {
+                displayRedStripe("Dev mode Activated");
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
+                dev_mode = true;
+            }
             drawMainMenu(menuItems, index);
 #if defined(HAS_TOUCH)
             TouchFooter();
@@ -542,7 +548,7 @@ void loop() {
             returnToMenu = false;
 #ifdef E_PAPER_DISPLAY
             tft->display(false);
-            delay(200);
+            vTaskDelay(pdTICKS_TO_MS(200));
 #endif
         }
         if (touchPoint.pressed) {
@@ -574,12 +580,16 @@ void loop() {
         if (check(PrevPress)) {
             if (index == 0) index = opt - 1;
             else if (index > 0) index--;
+            pass_by = 0;
             redraw = true;
         }
         // DW Btn to next item
         if (check(NextPress)) {
             index++;
-            if ((index + 1) > opt) index = 0;
+            if ((index + 1) > opt) {
+                index = 0;
+                if (!dev_mode) pass_by++;
+            }
             redraw = true;
         }
 
@@ -588,6 +598,7 @@ void loop() {
             menuItems.at(index).action(); // Call the action associated with the selected menu item
             tft->drawPixel(0, 0, 0);
             tft->fillScreen(BGCOLOR);
+            pass_by = 0;
             returnToMenu = false;
             redraw = true;
         }
@@ -631,7 +642,7 @@ void loop() {
                     int count = 0;
                     Serial.println("Connecting to " + ssid);
                     while (WiFi.status() != WL_CONNECTED) {
-                        delay(500);
+                        vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
                         digitalWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
 #endif
@@ -661,7 +672,7 @@ void loop() {
                 int count = 0;
                 Serial.println("Connecting to " + ssid);
                 while (WiFi.status() != WL_CONNECTED) {
-                    delay(500);
+                    vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
                     digitalWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
 #endif

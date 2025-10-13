@@ -11,8 +11,6 @@
 #include <interface.h>
 #include <pre_compiler.h>
 #include <vector>
-inline constexpr size_t DOC_JSON_CAPACITY = 32768;
-inline constexpr size_t SETTINGS_JSON_CAPACITY = 8192;
 #if !defined(SDM)
 #define SDM SD
 #define SDM_SD
@@ -193,8 +191,6 @@ extern String wui_pwd;
 
 extern String dwn_path;
 
-extern String direct_link;
-
 extern int currentIndex;
 
 extern uint16_t total_firmware; // Number of available firmware on the list
@@ -203,9 +199,11 @@ extern uint8_t current_page; // Current Page
 
 extern uint8_t num_pages; // Number of pages (total fw/fw per page)
 
-extern DynamicJsonDocument doc;
+extern JsonDocument doc;
 
-extern DynamicJsonDocument settings;
+extern JsonArray favorite;
+
+extern JsonDocument settings;
 
 extern String fileToCopy;
 
