@@ -86,7 +86,7 @@
                 env: "m5stack-cores3",
               }
             - {
-                vendor: "WIP", # vendor: "M5Stack",
+                vendor: "M5Stack",
                 name: "Tab5",
                 description: "",
                 link: "https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4?ref=Pirata",

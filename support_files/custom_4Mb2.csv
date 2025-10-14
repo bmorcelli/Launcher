@@ -1,7 +1,0 @@
-# Default, , , , ,
-# Name,   Type, SubType, Offset,   Size, Flags
-nvs,      data, nvs,     0x9000,   0x6000,
-phy_init, data, phy,     0xf000,   4K,
-test,     app,  test,    0x10000,  0x170000,
-app0,     app,  ota_0,   0x180000, 0x270000,
-spiffs,   data, spiffs,  0x3F0000, 0x10000,
