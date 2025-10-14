@@ -400,7 +400,9 @@ void setdimmerSet() {
 **  Enter in Charging mode
 **********************************************************************/
 void chargeMode() {
+#ifndef CONFIG_IDF_TARGET_ESP32P4
     setCpuFrequencyMhz(80);
+#endif
     setBrightness(5, false);
     vTaskDelay(pdTICKS_TO_MS(500));
     tft->fillScreen(BGCOLOR);
@@ -411,7 +413,9 @@ void chargeMode() {
             tmp = millis();
         }
     }
-    setCpuFrequencyMhz(240);
+#ifndef CONFIG_IDF_TARGET_ESP32P4
+    setCpuFrequencyMhz(CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ);
+#endif
     setBrightness(bright, false);
 }
 String get_efuse_mac_as_string() {

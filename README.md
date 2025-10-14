@@ -84,6 +84,7 @@ Things that needs to be done in next updates
      * [x] Pulling data from my new api, integrating all devices list with m5burner api and counting downloads into the m5burner database.
      * [x] OTA Pagination (pages of 100 firmware ordered by download-default)
      * [x] New Device: [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4?ref=Pirata).
+     * [x] New Device: [Lilygo T-HMI](https://www.lilygo.cc/products/t-hmi?bg_ref=sDI8Bh4HmO)
      * [x] New Feature: Backup SPIFFS/FAT now prompts to merge data into a chosen binary, so you can install firmware and data choosign `SPIFFS Yes` on install and backup B Binaries now have incremental names.
      * [x] New Feature: Added Filter and ordering to the fimware list.
      * [x] New Feature: Added *Starred* firmware list (controlled by me.. support the project to have yout firmware into the starred list.).

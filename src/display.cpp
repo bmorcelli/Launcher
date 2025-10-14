@@ -367,9 +367,10 @@ void progressHandler(size_t progress, size_t total) {
     static unsigned long lastUpdate = 0;
     tft->setFullWindow();
 #endif
-    double barWidthFloat = (double)((tftWidth - 40) * progress / total);
+    double fraction = (double)progress / (double)total;
+    double barWidthFloat = (tftWidth - 40) * fraction;
     size_t barWidth = static_cast<size_t>(barWidthFloat);
-    // Serial.printf("Total: %d, Progress: %d, Progress bar width=%d \n",total, progress, barWidth);
+    // Serial.printf("Total: %d, Progress: %d, Progress bar width: %d \n", total, progress, barWidth);
     if (progress == 0) {
         tft->setTextSize(FM);
         tft->setTextColor(ALCOLOR);
@@ -569,7 +570,7 @@ Opt_Coord drawOptions(
         tft->fillRect(boxX + paddingSide, rowTop, lineWidth, lineHeight, bgcolor);
         tft->setCursor(navX, rowTop);
         tft->setTextColor(ALCOLOR, bgcolor);
-        tft->print(text);
+        tft->drawCentreString(text, tftWidth / 2, rowTop, 1);
 
         MenuOptions navItem("", isUp ? "-" : "+", nullptr, true, false);
         navItem.setCoords(boxX + paddingSide, rowTop, lineWidth, lineHeight + rowSpacing);

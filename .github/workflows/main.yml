@@ -326,6 +326,14 @@
                 env: "lilygo-t5-epaper-s3-pro",
               }
             - {
+                vendor: "Lilygo",
+                name: "T-HMI",
+                description: "",
+                link: "https://www.lilygo.cc/products/t-hmi?bg_ref=sDI8Bh4HmO",
+                family: "ESP32-S3",
+                env: "lilygo-t-hmi",
+              }
+            - {
                 vendor: "WIP",
                 name: "T-Display-S3 AMOLED Plus",
                 description: "",

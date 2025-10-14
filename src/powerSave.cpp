@@ -37,20 +37,24 @@ void checkPowerSaveTime() {
 /* Put device on sleep mode */
 void sleepModeOn() {
     isSleeping = true;
+#ifndef CONFIG_IDF_TARGET_ESP32P4
     setCpuFrequencyMhz(80);
     turnOffDisplay();
     disableCore0WDT();
     disableCore1WDT();
     disableLoopWDT();
+#endif
 }
 
 /* Wake up device */
 void sleepModeOff() {
     isSleeping = false;
-    setCpuFrequencyMhz(240);
+#ifndef CONFIG_IDF_TARGET_ESP32P4
+    setCpuFrequencyMhz(CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ);
     enableCore0WDT();
     enableCore1WDT();
     enableLoopWDT();
     feedLoopWDT();
+#endif
     getBrightness();
 }

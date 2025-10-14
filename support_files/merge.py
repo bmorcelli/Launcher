@@ -38,7 +38,7 @@ nvs_bin = proj_dir / "support_files/UiFlow2_nvs.bin"
 app_bin  = build_dir / "firmware.bin"
 
 if mcu=="esp32p4":
-    APP_OFFSET = 0x10000
+    APP_OFFSET = 0x20000
     nvs_bin = proj_dir / "support_files/UiFlow2_nvs_p4.bin"
 
 out_bin = proj_dir / f"Launcher-{pioenv}.bin"
@@ -115,13 +115,14 @@ def _merge_bins_callback(target, source, env):
     cmd_parts = [
         "pio pkg exec -p \"tool-esptoolpy\" -- esptool",
         "--chip", chip_arg,
-        "merge_bin",
+        "merge-bin",
         "--output", q(out_bin),
     ]
 
     if mcu=="esp32p4":
         cmd_parts.extend([
-            "0x0","./support_files/esp32p4.bin",
+            hex(0x0),"./support_files/esp32p4.bin",
+            hex(PART_TABLE_OFFSET), q(part_bin),
         ])
     else:
         cmd_parts.extend([

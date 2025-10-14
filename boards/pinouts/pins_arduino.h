@@ -46,6 +46,8 @@
 #include "esp32s3.h"
 #elif LYLYGO_T5
 #include "esp32dev.h"
+#elif LILYGO_T_HMI
+#include "lilygo-t-hmi.h"
 #elif ELECROW
 #include "elecrow-esp32-24B.h"
 #elif ARDUINO_M5STACK_TAB5
