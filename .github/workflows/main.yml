@@ -257,7 +257,7 @@
                 vendor: "Lilygo",
                 name: "T-Dongle S3 (tft)",
                 description: "(single press, double press and long press logic)",
-                link: "https://lilygo.cc/products/t-dongle-s3?srsltid=AfmBOopwCcPQTTC4wTNi3rNZHn8W6g8Yo_ShcrfDiAfECS6tGq59vWo7",
+                link: "https://www.lilygo.cc/products/t-dongle-s3?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-dongle-s3-tft",
               }
@@ -265,7 +265,7 @@
                 vendor: "Lilygo",
                 name: "T-Display-S3",
                 description: "Touch and no touch (single press and longpress logic on both buttons )",
-                link: "https://lilygo.cc/products/t-display-s3?_pos=1&_sid=d7b2ebc22&_ss=r&variant=42589373268149",
+                link: "https://www.lilygo.cc/products/t-display-s3?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-touch",
               }
@@ -273,7 +273,7 @@
                 vendor: "Lilygo",
                 name: "T-Display_S3_PRO",
                 description: "",
-                link: "https://lilygo.cc/products/t-display-s3?_pos=1&_sid=d7b2ebc22&_ss=r&variant=42589373268149",
+                link: "https://www.lilygo.cc/products/t-display-s3-pro?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-pro",
               }
@@ -281,7 +281,7 @@
                 vendor: "Lilygo",
                 name: "T-Embed",
                 description: "",
-                link: "https://lilygo.cc/products/t-embed",
+                link: "https://www.lilygo.cc/products/t-embed?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-embed",
               }
@@ -289,7 +289,7 @@
                 vendor: "Lilygo",
                 name: "T-Embed_CC1101",
                 description: "(Transparent version)",
-                link: "https://lilygo.cc/products/t-embed-cc1101",
+                link: "https://www.lilygo.cc/products/t-embed-cc1101-plus?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-embed-cc1101",
               }
@@ -297,7 +297,7 @@
                 vendor: "Lilygo",
                 name: "T-LoRa-Pager",
                 description: "",
-                link: "https://lilygo.cc/products/t-lora-pager",
+                link: "https://www.lilygo.cc/products/t-lora-pager-meshtastic?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-lora-pager",
               }
@@ -305,7 +305,7 @@
                 vendor: "Lilygo",
                 name: "T-Deck",
                 description: "(Normal and Plus)",
-                link: "https://lilygo.cc/products/t-deck",
+                link: "https://www.lilygo.cc/products/t-deck-plus-ca?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-deck",
               }
@@ -313,7 +313,7 @@
                 vendor: "Lilygo",
                 name: "T-Deck Pro",
                 description: "e-Paper display",
-                link: "https://lilygo.cc/products/t-deck-pro",
+                link: "https://www.lilygo.cc/products/t-deck-pro-meshtastic?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-deck-pro",
               }
@@ -321,7 +321,7 @@
                 vendor: "Lilygo",
                 name: "T5_E-Paper_S3_Pro",
                 description: "(H752 hardware v1.0-240810)",
-                link: "https://lilygo.cc/products/t5-e-paper-s3-pro",
+                link: "https://www.lilygo.cc/products/t5-e-paper-s3-pro?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t5-epaper-s3-pro",
               }
@@ -329,7 +329,7 @@
                 vendor: "WIP",
                 name: "T-Display-S3 AMOLED Plus",
                 description: "",
-                link: "https://lilygo.cc/products/t-display-s3-amoled",
+                link: "https://www.lilygo.cc/products/t-display-s3-amoled-plus?bg_ref=sDI8Bh4HmO",
                 family: "ESP32-S3",
                 env: "lilygo-t-display-S3-amoled",
               }
