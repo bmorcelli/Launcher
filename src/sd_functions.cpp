@@ -75,9 +75,9 @@ bool setupSdCard() {
 #endif
 
 #else
-    sdcardSPI.begin(SDCARD_SCK, SDCARD_MISO, SDCARD_MOSI, 0); // start SPI communications
+    sdcardSPI.begin(SDCARD_SCK, SDCARD_MISO, SDCARD_MOSI, SDCARD_CS); // start SPI communications
     vTaskDelay(pdTICKS_TO_MS(10));
-    if (!SDM.begin(0, sdcardSPI))
+    if (!SDM.begin(SDCARD_CS, sdcardSPI))
 #endif
     {
         // sdcardSPI.end(); // Closes SPI connections and release pin header.
