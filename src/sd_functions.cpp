@@ -323,22 +323,23 @@ String loopSD(bool filePicker) {
 RESTART:
     if (_Folder != Folder || read_fs) {
         readFs(Folder, options);
+        if (options.size() == 0) return ""; // Failed reading SD card.
         _Folder = Folder;
         index = 0;
         bkf = false;
         read_fs = false;
     }
     index = loopOptions(options, false, FGCOLOR, BGCOLOR, false, index);
-    // Saídas prematuras
+    // First Exit
+    if (index < 0) goto BACK_FOLDER;
+    // Check if it is Folder or operator (> Back)
     if (options[index].color == uint16_t(FGCOLOR - 0x1111)) isFolder = true;
     else isFolder = false;
     if (options[index].color == uint16_t(ALCOLOR)) isOperator = true;
     else isOperator = false;
     if (filePicker && !isFolder && !isOperator) return fileToUse;
-    if (index < 0) goto BACK_FOLDER;
-    // Verificar se é pasta ou Operador (> Back)
 
-    // Detecçao de long press
+    // Long Press Detection
     LongPressDetected = false;
 #ifndef E_PAPER_DISPLAY
     LongPress = true;
