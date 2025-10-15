@@ -310,6 +310,7 @@ void readFs(String &folder, std::vector<Option> &opt) {
 String loopSD(bool filePicker) {
     // Function using loopOptions to store and handle files
     returnToMenu = false;
+    fileToUse = ""; // resets global variable
     int index = 0;
     int Menuindex = 0;
     String Folder = "/";
