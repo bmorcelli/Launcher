@@ -140,12 +140,12 @@ ajax.onload = function () {
 if (ajax.status === 200 && ajax.responseText === "OK") {
 var fileProgressDiv = document.createElement("div");
 fileProgressDiv.innerHTML = `<p>Updating...</p><p><progress id="otaprb" value="0" max="100" style="width:100%;"></progress></p>`;
-_("updetails").appendChild(fileProgressDiv); 
+_("updetails").appendChild(fileProgressDiv);
 const formdata2 = new FormData();
 formdata2.append("file1", blobData, fileName);
 const ajax2 = new XMLHttpRequest();
 ajax2.open("POST", "/OTAFILE");
-ajax2.upload.addEventListener("progress", function (event) { 
+ajax2.upload.addEventListener("progress", function (event) {
 var p = (event.loaded / event.total) * 100;
 _("otaprb").value = Math.round(p);
 }, false);
@@ -219,7 +219,7 @@ var path = line.substring(3, line.lastIndexOf(':'));
 var filename = line.substring(3, line.lastIndexOf(':'));
 var size = line.substring(line.lastIndexOf(':') + 1);
 if (type === "pa") {
-if (path !== "") folder = path + "/";
+if (path !== "" && folder != "/") folder = path + (path.endsWith("/") ? "" : "/");
 } else if (type === "Fo") {
 foldersArray.push({ path: folder + path, name: filename });
 } else if (type === "Fi") {
@@ -256,8 +256,8 @@ console.error('Erro na rede ou falha na requisição.');
 xmlhttp.open("GET", "/listfiles?folder=" + folders, true);
 xmlhttp.send();
 _("detailsheader").innerHTML = "<h3>Files</h3>";
-_("updetailsheader").innerHTML = "<h3>Folder Actions: " + 
-"<input type='file' id='fa' multiple style='display:none'>" + 
+_("updetailsheader").innerHTML = "<h3>Folder Actions: " +
+"<input type='file' id='fa' multiple style='display:none'>" +
 "<input type='file' id='fol' webkitdirectory directory multiple style='display:none'>" +
 "<button onclick=\"_('fa').click()\">Send Files</button>" +
 "<button onclick=\"_('fol').click()\">Send Folders</button>" +
@@ -328,7 +328,7 @@ function writeSendForm() {
 var uploadform =
 "<p>Send files</p>" +
 "<div id=\"file-progress-container\"></div>";
-_("updetails").innerHTML = uploadform; 
+_("updetails").innerHTML = uploadform;
 }
 async function drop(event) {
 event.preventDefault();
