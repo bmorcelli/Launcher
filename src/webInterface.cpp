@@ -79,38 +79,33 @@ String listFiles(String folder) {
     Serial.println("Listing files stored on SD");
 
     File root = SDM.open(folder);
-    File foundfile = root.openNextFile();
-    if (folder == "//") folder = "/";
     uploadFolder = folder;
-    String PreFolder = folder;
-    PreFolder = PreFolder.substring(0, PreFolder.lastIndexOf("/"));
-    if (PreFolder == "") PreFolder = "/";
 
-    if (folder == "/") folder = "";
-    while (foundfile) {
-        if (esp_get_free_heap_size() > (String("Fo:" + String(foundfile.name()) + ":0\n").length()) + 1024) {
-            if (foundfile.isDirectory()) returnText += "Fo:" + String(foundfile.name()) + ":0\n";
+    while (true) {
+        bool isDir;
+        String fullPath = root.getNextFileName(&isDir);
+        String nameOnly = fullPath.substring(fullPath.lastIndexOf("/") + 1);
+        if (fullPath == "") { break; }
+        // Serial.printf("Path: %s (isDir: %d)\n", fullPath.c_str(), isDir);
+
+        if (esp_get_free_heap_size() > (String("Fo:" + nameOnly + ":0\n").length()) + 1024) {
+            if (isDir) {
+                // Serial.printf("Directory: %s\n", fullPath.c_str());
+                returnText += "Fo:" + nameOnly + ":0\n";
+            } else {
+                // For files, we need to get the size, so we open the file briefly
+                // Serial.printf("Opening file for size check: %s\n", fullPath.c_str());
+                File fileForSize = SDM.open(fullPath);
+                // Serial.printf("File size: %llu bytes\n", fileForSize.size());
+                if (fileForSize) {
+                    returnText += "Fi:" + nameOnly + ":" + humanReadableSize(fileForSize.size()) + "\n";
+                    fileForSize.close();
+                }
+            }
         } else break;
-        foundfile = root.openNextFile();
         esp_task_wdt_reset();
     }
     root.close();
-    foundfile.close();
-
-    if (folder == "") folder = "/";
-    root = SDM.open(folder);
-    foundfile = root.openNextFile();
-    while (foundfile) {
-        if (esp_get_free_heap_size() > (String("Fo:" + String(foundfile.name()) + ":0\n").length()) + 1024) {
-            if (!(foundfile.isDirectory()))
-                returnText +=
-                    "Fi:" + String(foundfile.name()) + ":" + humanReadableSize(foundfile.size()) + "\n";
-        } else break;
-        foundfile = root.openNextFile();
-        esp_task_wdt_reset();
-    }
-    root.close();
-    foundfile.close();
 
     // log_i("ListFiles End");
     return returnText;

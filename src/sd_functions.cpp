@@ -111,14 +111,16 @@ bool deleteFromSd(String path) {
     dir.rewindDirectory();
     bool success = true;
 
-    File file = dir.openNextFile();
-    while (file) {
-        if (file.isDirectory()) {
-            success &= deleteFromSd(file.path());
+    bool isDir;
+    String fileName = dir.getNextFileName(&isDir);
+    while (fileName != "") {
+        String fullPath = path + "/" + fileName;
+        if (isDir) {
+            success &= deleteFromSd(fullPath);
         } else {
-            success &= SDM.remove(file.path());
+            success &= SDM.remove(fullPath.c_str());
         }
-        file = dir.openNextFile();
+        fileName = dir.getNextFileName(&isDir);
     }
 
     dir.close();
@@ -274,30 +276,24 @@ void readFs(String &folder, std::vector<Option> &opt) {
         vTaskDelay(2500 / portTICK_PERIOD_MS);
         return; // Retornar imediatamente se não for possível abrir o diretório
     }
-    while (true) {
-        File file = root.openNextFile();
-        if (!file) { break; }
 
-        String fileName = file.name();
-        const bool isDir = file.isDirectory();
+    while (true) {
+        bool isDir;
+        String fullPath = root.getNextFileName(&isDir);
+        String nameOnly = fullPath.substring(fullPath.lastIndexOf("/") + 1);
+        if (fullPath == "") { break; }
+        // Serial.printf("Path: %s (isDir: %d)\n", fullPath.c_str(), isDir);
+
         uint16_t color = FGCOLOR - 0x1111;
 
         if (!isDir) {
-            int dotIndex = fileName.lastIndexOf(".");
-            String ext = dotIndex >= 0 ? fileName.substring(dotIndex + 1) : "";
+            int dotIndex = nameOnly.lastIndexOf(".");
+            String ext = dotIndex >= 0 ? nameOnly.substring(dotIndex + 1) : "";
             ext.toUpperCase();
-            if (onlyBins && !ext.equals("BIN")) {
-                file.close();
-                continue;
-            }
+            if (onlyBins && !ext.equals("BIN")) { continue; }
             color = FGCOLOR;
         }
-
-        String label = fileName.substring(fileName.lastIndexOf("/") + 1);
-        String path = file.path();
-        opt.push_back({label, [path]() { fileToUse = path; }, color});
-
-        file.close();
+        opt.push_back({nameOnly, [fullPath]() { fileToUse = fullPath; }, color});
     }
     root.close();
     std::sort(opt.begin(), opt.end(), sortList);
