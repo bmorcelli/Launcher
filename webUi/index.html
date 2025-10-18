@@ -1,55 +1,60 @@
 <!DOCTYPE HTML>
 <html lang="en">
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta charset="UTF-8">
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<div class="container">
-<div class="float-element"><a onclick="logoutButton()" href='javascript:void(0);'>[X]</a></div>
-<h1 align="center">-= Launcher =-</h1>
-<p>Firmware version: <span id="firmwareVersion">...</span></p>
-<p>SD Free Storage: <span id="freeSD">...</span> | Used: <span id="usedSD">...</span> | Total: <span
-id="totalSD">...</span></p>
-<p><a href="https://bmorcelli.github.io/Launcher/m5lurner.html" target="_blank"
-rel="noopener noreferrer">Online Firmware list from M5Burner (Need Internet)</a></p>
-<div>
-<form id="save" enctype="multipart/form-data" method="post"><input type="hidden" id="actualFolder"
-name="actualFolder" value="/"></form>
-<button onclick="rebootButton()">Reboot</button>
-<button onclick="SDConfig()">SD pins</button>
-<button onclick="WifiConfig('ssid')">WiFi</button>
-<button onclick="WifiConfig('usr')">Usr/Pass</button>
-<button onclick="callOTA()">OTA Update</button>
-<button onclick="listFilesButton('/')">SD Files</button>
 
-</div>
-<p id="detailsheader"></p>
-<p id="status"></p>
-<div id="drop-area" class="drop-area">
-<p id="details"></p>
-</div>
-<div id="OTAdetails" style="display:none;">
-<input type="file" id="fileInput" onchange="analyzeFile()" style="display:none;" accept=".bin">
-<div id="analysisOutput"></div>
-<button id="uploadApp" style="display:none;">Start Update</button>
-<button id="uploadSpiffs" style="display:none;">SPIFFS Update</button>
-<div id="spiffsInfo" style="display:none;">
-<br>
-<p>
-<b>SPIFFS</b>: The SPIFFS (Serial Peripheral Interface Flash File System) is a file system designed to be
-used with NOR flash memory devices and microcontrollers that support the Serial Peripheral Interface
-(SPI) protocol such as the ESP32
-<br>
-<br>
-Most of the apps over the internet don't need SPIFFS to work, but there are some exceptions like <b>OrcaOne</b>.
-</p>
-</div>
-</div>
-<p id="updetailsheader"></p>
-<p id="updetails"></p>
-</div>
-<script src="scripts.js"></script>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="float-element"><a onclick="logoutButton()" href='javascript:void(0);'>[X]</a></div>
+        <h1 align="center">-= Launcher =-</h1>
+        <p>Firmware version: <span id="firmwareVersion">...</span></p>
+        <p>SD Free Storage: <span id="freeSD">...</span> | Used: <span id="usedSD">...</span> | Total: <span
+                id="totalSD">...</span></p>
+        <p><a href="https://bmorcelli.github.io/Launcher/m5lurner.html" target="_blank" rel="noopener noreferrer">Online
+                Firmware list from M5Burner (Need Internet)</a></p>
+        <div>
+            <form id="save" enctype="multipart/form-data" method="post"><input type="hidden" id="actualFolder"
+                    name="actualFolder" value="/"></form>
+            <button onclick="rebootButton()">Reboot</button>
+            <button onclick="SDConfig()">SD pins</button>
+            <button onclick="WifiConfig('ssid')">WiFi</button>
+            <button onclick="WifiConfig('usr')">Usr/Pass</button>
+            <button onclick="callOTA()">OTA Update</button>
+            <button onclick="listFilesButton('/')">SD Files</button>
+
+        </div>
+        <p id="detailsheader"></p>
+        <p id="status"></p>
+        <div id="drop-area" class="drop-area">
+            <p id="details"></p>
+        </div>
+        <div id="OTAdetails" style="display:none;">
+            <input type="file" id="fileInput" onchange="analyzeFile()" style="display:none;" accept=".bin">
+            <div id="analysisOutput"></div>
+            <button id="uploadApp" style="display:none;">Start Update</button>
+            <button id="uploadSpiffs" style="display:none;">SPIFFS Update</button>
+            <div id="spiffsInfo" style="display:none;">
+                <br>
+                <p>
+                    <b>SPIFFS</b>: The SPIFFS (Serial Peripheral Interface Flash File System) is a file system designed
+                    to be
+                    used with NOR flash memory devices and microcontrollers that support the Serial Peripheral Interface
+                    (SPI) protocol such as the ESP32
+                    <br>
+                    <br>
+                    Most of the apps over the internet don't need SPIFFS to work, but there are some exceptions like
+                    <b>OrcaOne</b>.
+                </p>
+            </div>
+        </div>
+        <p id="updetailsheader"></p>
+        <p id="updetails"></p>
+    </div>
+    <script src="scripts.js"></script>
 </body>
+
 </html>
