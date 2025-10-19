@@ -243,13 +243,13 @@ bool createFolder(String path) {
 
 /***************************************************************************************
 ** Function name: sortList
-** Description:   sort files for name
+** Description:   sort files/folders by name
 ***************************************************************************************/
 bool sortList(const Option &a, const Option &b) {
     if (a.color != b.color) {
         return a.color > b.color; // true if a is a folder and b is not
     }
-    // Order items alfabetically
+    // Order items alphabetically
     String fa = a.label;
     fa.toUpperCase();
     String fb = b.label;
