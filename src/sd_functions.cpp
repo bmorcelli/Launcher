@@ -258,8 +258,8 @@ bool sortList(const Option &a, const Option &b) {
 }
 
 /***************************************************************************************
-** Function name: sortList
-** Description:   sort files for name
+** Function name: readFs
+** Description:   read files/folders from a folder
 ***************************************************************************************/
 void readFs(String &folder, std::vector<Option> &opt) {
     // function using loopOptions
