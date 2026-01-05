@@ -54,7 +54,11 @@ Exit:
 ***************************************************************************************/
 bool setupSdCard() {
 #if !defined(SDM_SD) // fot Lilygo T-Display S3 with lilygo shield
-    if (!SD_MMC.begin("/sdcard", true))
+#if defined(ARDUINO_M5STACK_TAB5)
+    if (!SD_MMC.begin("/sdcard"))
+#else
+    if (!SD_MMC.begin("/sdcard", true)) // One bit mode
+#endif
 #elif (TFT_MOSI == SDCARD_MOSI)
     if (!SDM.begin(SDCARD_CS)) // https://github.com/Bodmer/TFT_eSPI/discussions/2420
 #elif defined(HEADLESS)
@@ -451,8 +455,7 @@ void performUpdate(Stream &updateSource, size_t updateSize, int command) {
                 log_i("Update successfully completed. Rebooting.");
                 displayRedStripe("Removing coredump (if any)...");
                 clearCoredump();
-            }
-            else log_i("Update not finished? Something went wrong!");
+            } else log_i("Update not finished? Something went wrong!");
         } else {
             log_i("Error Occurred. Error #: %s", String(Update.getError()));
         }
@@ -464,7 +467,6 @@ void performUpdate(Stream &updateSource, size_t updateSize, int command) {
     vTaskResume(xHandle);
 }
 
-
 /***************************************************************************************
  ** Function name: clearCoredump
  ** Description:   As some programs may generate core dumps,
@@ -474,14 +476,13 @@ void performUpdate(Stream &updateSource, size_t updateSize, int command) {
 bool clearCoredump() {
     const esp_partition_t *partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
-        Serial.printf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
+    Serial.printf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
     if (!partition) {
         Serial.println("Failed to find coredump partition");
         log_e("Failed to find coredump partition");
         return false;
     }
-    log_i("Erasing coredump partition at address 0x%08X, size %d bytes",
-          partition->address, partition->size);
+    log_i("Erasing coredump partition at address 0x%08X, size %d bytes", partition->address, partition->size);
 
     // erase all coredump partition
     esp_err_t err = esp_flash_erase_region(NULL, partition->address, partition->size);

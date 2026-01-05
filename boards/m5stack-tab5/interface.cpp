@@ -1,5 +1,6 @@
 #include "powerSave.h"
 #include <M5Unified.h>
+#include <SD_MMC.h>
 #include <WiFi.h>
 #include <interface.h>
 #define SDIO2_CLK GPIO_NUM_12
@@ -16,6 +17,8 @@
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
+    SD_MMC.setPins(43, 44, 39, 40, 41, 42);
+    SD_MMC.begin("/sdcard");
     Serial.println("M5.begin");
     M5.begin();
     Serial.println("M5.begin Passou");

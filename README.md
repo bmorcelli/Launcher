@@ -85,6 +85,7 @@ Things that needs to be done in next updates
 
 ## Latest Changelog
 * 2.6.5:
+     * [x] M5-Tab5 using SDMMC driver for compatibility with other firmware
      * [x] Added possibility to order by "Latest update"
      * [x] Port to OpenSourceSRDLabs [WaveSentry and WaveSentry Pro ](https://opensourcesdrlab.com/products/aifw-wavesentry-esp32?VariantsId=10331)
      * [x] Battery ADC measurement fix for Cardputer, Tdeck, StickCPlus2, T-Display S3, T-HMI

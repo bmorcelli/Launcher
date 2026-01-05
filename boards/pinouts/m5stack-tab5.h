@@ -7,6 +7,8 @@
 // BOOT_MODE 35
 // BOOT_MODE2 36 pullup
 
+#define SDM SD_MMC
+
 static const uint8_t TX = 37;
 static const uint8_t RX = 38;
 
