@@ -142,9 +142,10 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static long d_tmp = millis();
+    const uint16_t w = tftWidth;
+    const uint16_t h = tftHeight + 20;
     if (millis() - d_tmp > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
-        TouchPoint t;
 #ifdef DONT_USE_INPUT_TASK
         checkPowerSaveTime();
 #endif
@@ -162,30 +163,33 @@ void InputHandler(void) {
             touchPoint.pressed = false;
 #endif
 
-#ifdef CYD28_TouchR_MOSI
-#if TFT_MOSI == CYD28_TouchR_MOSI // S024R is inverted
-            int tmp = t.x;
-            t.x = t.y;
-            t.y = tmp;
-#endif
-#endif
-
-            if (rotation == 3) {
-                t.y = (tftHeight + 20) - t.y;
-                t.x = tftWidth - t.x;
+            Serial.printf("\nRaw Touch on   x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
+            // Considering CYD28_TouchR_ROT = 1, X and Y start Swapped
+            // CYD28_TouchR_ROT = 0bYXS ->  Y -> inverted Y
+            //                              X -> inverted X
+            //                              S -> Swap X and Y
+            if (rotation == 1) { // Landscape
+                // Do Nothing
+                // CYD28_TouchR_ROT = 0b001 = 1
             }
-            if (rotation == 0) {
-                int tmp = t.x;
-                t.x = tftWidth - t.y;
+            if (rotation == 3) { // Landscape
+                // equivalent to CYD28_TouchR_ROT = 0b111 = 7
+                t.y = h - t.y; // invert y
+                t.x = w - t.x; // invert x
+            }
+            if (rotation == 0) { // Portrait
+                // equivalent to CYD28_TouchR_ROT = 0b000 = 0
+                int tmp = t.x; // swap x y
+                t.x = w - t.y;
                 t.y = tmp;
             }
-            if (rotation == 2) {
-                int tmp = t.x;
+            if (rotation == 2) { // Portrait
+                // equivalent to CYD28_TouchR_ROT = 0b100 = 4
+                int tmp = t.x; // swap x y
                 t.x = t.y;
-                t.y = (tftHeight + 20) - tmp;
+                t.y = h - tmp; // invert y
             }
             Serial.printf("\nTouch Pressed on x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
-            log_i("\nTouch Pressed on x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
 #if defined(CYD28_DISPLAY_VER_RES_MAX) && !defined(HAS_CAPACITIVE_TOUCH)
 #if CYD28_DISPLAY_VER_RES_MAX > 340
             auto t2 = touch.getPointRaw();
