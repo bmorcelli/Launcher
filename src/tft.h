@@ -310,7 +310,7 @@ public:
 #define _TFT_DRVF(a, b, c, d, e, f, g, h, i, j) Arduino_ST7735(a, b, c, d, e, f, g, h, i, j)
 #elif ILI9341_DRIVER
 #define _TFT_DRV Arduino_ILI9341
-#define _TFT_DRVF(a, b, c, d, e, f, g, h, i, j) Arduino_ILI9341(a, b, c)
+#define _TFT_DRVF(a, b, c, d, e, f, g, h, i, j) Arduino_ILI9341(a, b, c, d, e, f)
 #elif ILI9488_DRIVER
 #define _TFT_DRV Arduino_ILI9488
 #define _TFT_DRVF(a, b, c, d, e, f, g, h, i, j) Arduino_ILI9488(a, b, c)
@@ -332,7 +332,7 @@ public:
 #else
 // CYD Default to not shoot errors on screen
 #define _TFT_DRV Arduino_ILI9341
-#define _TFT_DRVF(a, b, c, d, e, f, g, h, i, j) Arduino_ILI9341(a, b, c)
+#define _TFT_DRVF(a, b, c, d, e, f, g, h, i, j) Arduino_ILI9341(a, b, c, d, e, f)
 #endif
 
 class Ard_eSPI : public _TFT_DRV {

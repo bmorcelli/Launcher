@@ -150,6 +150,7 @@ void InputHandler(void) {
         checkPowerSaveTime();
 #endif
         if (touch.touched()) {
+            delay(5); 
             auto t = touch.getPointScaled();
             d_tmp = millis();
 #ifdef DONT_USE_INPUT_TASK // need to reset the variables to avoid ghost click
@@ -164,32 +165,32 @@ void InputHandler(void) {
 #endif
 
             Serial.printf("\nRaw Touch on   x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
-            // Considering CYD28_TouchR_ROT = 1, X and Y start Swapped
+            // Considering CYD28_TouchR_ROT = 6, X and Y are inverted
             // CYD28_TouchR_ROT = 0bYXS ->  Y -> inverted Y
             //                              X -> inverted X
             //                              S -> Swap X and Y
             if (rotation == 1) { // Landscape
                 // Do Nothing
-                // CYD28_TouchR_ROT = 0b001 = 1
+                // CYD28_TouchR_ROT = 0b110 = 6
             }
             if (rotation == 3) { // Landscape
-                // equivalent to CYD28_TouchR_ROT = 0b111 = 7
+                // equivalent to CYD28_TouchR_ROT = 0b000 = 0
                 t.y = h - t.y; // invert y
                 t.x = w - t.x; // invert x
             }
             if (rotation == 0) { // Portrait
-                // equivalent to CYD28_TouchR_ROT = 0b000 = 0
+                // equivalent to CYD28_TouchR_ROT = 0b011 = 3
                 int tmp = t.x; // swap x y
-                t.x = w - t.y;
+                t.x = w - t.y; // invert x
                 t.y = tmp;
             }
             if (rotation == 2) { // Portrait
-                // equivalent to CYD28_TouchR_ROT = 0b100 = 4
+                // equivalent to CYD28_TouchR_ROT = 0b101 = 5
                 int tmp = t.x; // swap x y
                 t.x = t.y;
                 t.y = h - tmp; // invert y
             }
-            Serial.printf("\nTouch Pressed on x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
+            Serial.printf("Touch Pressed on x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
 #if defined(CYD28_DISPLAY_VER_RES_MAX) && !defined(HAS_CAPACITIVE_TOUCH)
 #if CYD28_DISPLAY_VER_RES_MAX > 340
             auto t2 = touch.getPointRaw();
