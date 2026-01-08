@@ -1,78 +1,24 @@
+#include "nvs.h"
+#include "nvs_handle.hpp"
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
 
+namespace {
+std::unique_ptr<nvs::NVSHandle> openNamespace(const char *ns, nvs_open_mode_t mode, esp_err_t &err) {
+    auto handle = nvs::open_nvs_handle(ns, mode, &err);
+    if (err != ESP_OK) {
+        log_i("openNamespace(%s) failed: %d", ns, err);
+        return nullptr;
+    }
+    return handle;
+}
+} // namespace
 #ifndef TFT_BRIGHT_CHANNEL
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_FREQ 5000
 #define TFT_BRIGHT_Bits 8
 #define TFT_BL 27
-#endif
-
-#if defined(HAS_CAPACITIVE_TOUCH) // CST816S
-#include "CYD28_TouchscreenC.h"
-#define CYD28_DISPLAY_HOR_RES_MAX 240
-#define CYD28_DISPLAY_VER_RES_MAX 320
-CYD28_TouchC touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
-
-#elif defined(TOUCH_GT911_I2C) || defined(TOUCH_CST816S_I2C)
-#ifdef TOUCH_GT911_I2C
-#define TOUCH_MODULES_GT911
-#define TOUCH_SDA_PIN GT911_I2C_CONFIG_SDA_IO_NUM
-#define TOUCH_SCL_PIN GT911_I2C_CONFIG_SCL_IO_NUM
-#define TOUCH_RST_PIN GT911_TOUCH_CONFIG_RST_GPIO_NUM
-#define TOUCH_INT_PIN GT911_TOUCH_CONFIG_INT_GPIO_NUM
-#define TOUCH_ADDR GT911_SLAVE_ADDRESS1
-#ifndef TOUCH_INVERTED
-#define TOUCH_INVERTED 0
-#endif
-#elif TOUCH_CST816S_I2C
-#define TOUCH_MODULES_CST_SELF
-#define TOUCH_SDA_PIN CST816S_I2C_CONFIG_SDA_IO_NUM
-#define TOUCH_SCL_PIN CST816S_I2C_CONFIG_SCL_IO_NUM
-#define TOUCH_RST_PIN CST816S_TOUCH_CONFIG_RST_GPIO_NUM
-#define TOUCH_INT_PIN CST816S_TOUCH_CONFIG_INT_GPIO_NUM
-#define TOUCH_ADDR CTS820_SLAVE_ADDRESS
-#endif
-
-#include <TouchLib.h>
-class CYD_Touch : public TouchLib {
-public:
-    TouchPoint t;
-    TP_Point ti;
-    CYD_Touch() : TouchLib(Wire, TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_ADDR, TOUCH_RST_PIN) {}
-    inline bool begin() {
-        bool result = init();
-        setRotation(ROTATION);
-        return result;
-    }
-    inline bool touched() { return read(); }
-    inline TouchPoint getPointScaled() {
-        ti = getPoint(0);
-#if TOUCH_INVERTED
-        t.x = ti.y;
-        t.y = TFT_WIDTH - ti.x;
-#else
-        t.x = ti.x;
-        t.y = (tftHeight + 20) - ti.y;
-#endif
-        t.pressed = true;
-        TouchLib::raw_data[0] = 0; // resets the read raw reading, that triggers TouchLib::read() to true, and
-                                   // is not resetted at the lib
-        return t;
-    }
-};
-CYD_Touch touch;
-#else
-#include "CYD28_TouchscreenR.h"
-#ifndef CYD28_DISPLAY_HOR_RES_MAX
-#define CYD28_DISPLAY_HOR_RES_MAX TFT_HEIGHT
-#endif
-
-#ifndef CYD28_DISPLAY_VER_RES_MAX
-#define CYD28_DISPLAY_VER_RES_MAX TFT_WIDTH
-#endif
-CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 #endif
 
 /***************************************************************************************
@@ -81,12 +27,7 @@ CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-#if !defined(HAS_CAPACITIVE_TOUCH) && (defined(TOUCH_GT911_I2C) || defined(TOUCH_CST816S_I2C))
-    Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
-#endif
-#if !defined(HAS_CAPACITIVE_TOUCH) && defined(ELECROW)
     pinMode(33, OUTPUT); // touch CS
-#endif
 }
 
 /***************************************************************************************
@@ -99,18 +40,52 @@ void _post_setup_gpio() {
     pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, 255);
+    esp_err_t err = ESP_OK;
+    uint16_t calData[5];
+    auto nvsHandle = openNamespace("calData", NVS_READWRITE, err);
+    if (nvsHandle) {
+        err = nvsHandle->get_item("x0", calData[0]);
+        err |= nvsHandle->get_item("x1", calData[1]);
+        err |= nvsHandle->get_item("y0", calData[2]);
+        err |= nvsHandle->get_item("y1", calData[3]);
+        err |= nvsHandle->get_item("r", calData[4]);
+    } else {
+        err = 1;
+        Serial.println("Can't access calData namespace in NVS");
+    }
 
-    if (!touch.begin(
-#ifdef CYD28_TouchR_MOSI
-#if TFT_MOSI == CYD28_TouchR_MOSI
-            &SPI
-#endif
-#endif
-
-        )) {
-        Serial.println("Touch IC not Started");
-        log_i("Touch IC not Started");
-    } else Serial.println("Touch IC Started");
+    if (err) {
+        Serial.println("No calData available");
+        tft->setRotation(1);
+        tft->setTextSize(2);
+        tft->drawCentreString("Touch corners as indicated", TFT_HEIGHT / 2, TFT_WIDTH / 2, 1);
+        tft->calibrateTouch(calData, TFT_GREEN, TFT_BLACK, 15);
+        tft->setTouch(calData);
+        if (nvsHandle) {
+            Serial.println("Saving values into NVS");
+            err = ESP_OK;
+            err = nvsHandle->set_item("x0", calData[0]);
+            err |= nvsHandle->set_item("x1", calData[1]);
+            err |= nvsHandle->set_item("y0", calData[2]);
+            err |= nvsHandle->set_item("y1", calData[3]);
+            err |= nvsHandle->set_item("r", calData[4]);
+            if (err != ESP_OK) {
+                Serial.printf("Failed to store settings in NVS: %d\n", err);
+            } else {
+                Serial.println("Settings stored in NVS successfully");
+            }
+            tft->setRotation(rotation);
+        }
+    } else {
+        tft->setTouch(calData);
+    }
+    Serial.print("\ncalData[5] = ");
+    Serial.print("{ ");
+    for (uint8_t i = 0; i < 5; i++) {
+        Serial.print(calData[i]);
+        if (i < 4) Serial.print(", ");
+    }
+    Serial.println(" }");
 }
 
 /*********************************************************************
@@ -140,7 +115,12 @@ void _setBrightness(uint8_t brightval) {
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
+struct TouchPointPro {
+    uint16_t x;
+    uint16_t y;
+};
 void InputHandler(void) {
+    TouchPointPro t;
     static long d_tmp = millis();
     const uint16_t w = tftWidth;
     const uint16_t h = tftHeight + 20;
@@ -149,11 +129,10 @@ void InputHandler(void) {
 #ifdef DONT_USE_INPUT_TASK
         checkPowerSaveTime();
 #endif
-        if (touch.touched()) {
-            delay(5); 
-            auto t = touch.getPointScaled();
+        bool pressed = tft->getTouch(&t.x, &t.y);
+        if (pressed) {
             d_tmp = millis();
-#ifdef DONT_USE_INPUT_TASK // need to reset the variables to avoid ghost click
+            // need to reset the variables to avoid ghost click
             NextPress = false;
             PrevPress = false;
             UpPress = false;
@@ -162,42 +141,26 @@ void InputHandler(void) {
             EscPress = false;
             AnyKeyPress = false;
             touchPoint.pressed = false;
-#endif
 
             Serial.printf("\nRaw Touch on   x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
-            // Considering CYD28_TouchR_ROT = 6, X and Y are inverted
-            // CYD28_TouchR_ROT = 0bYXS ->  Y -> inverted Y
-            //                              X -> inverted X
-            //                              S -> Swap X and Y
             if (rotation == 1) { // Landscape
                 // Do Nothing
-                // CYD28_TouchR_ROT = 0b110 = 6
             }
             if (rotation == 3) { // Landscape
-                // equivalent to CYD28_TouchR_ROT = 0b000 = 0
-                t.y = h - t.y; // invert y
-                t.x = w - t.x; // invert x
+                t.y = h - t.y;   // invert y
+                t.x = w - t.x;   // invert x
             }
             if (rotation == 0) { // Portrait
-                // equivalent to CYD28_TouchR_ROT = 0b011 = 3
-                int tmp = t.x; // swap x y
-                t.x = w - t.y; // invert x
+                int tmp = t.x;   // swap x y
+                t.x = w - t.y;   // invert x
                 t.y = tmp;
             }
             if (rotation == 2) { // Portrait
-                // equivalent to CYD28_TouchR_ROT = 0b101 = 5
-                int tmp = t.x; // swap x y
+                int tmp = t.x;   // swap x y
                 t.x = t.y;
                 t.y = h - tmp; // invert y
             }
             Serial.printf("Touch Pressed on x=%d, y=%d, rot=%d\n", t.x, t.y, rotation);
-#if defined(CYD28_DISPLAY_VER_RES_MAX) && !defined(HAS_CAPACITIVE_TOUCH)
-#if CYD28_DISPLAY_VER_RES_MAX > 340
-            auto t2 = touch.getPointRaw();
-            Serial.printf("RAW d Pressed on x=%d, y=%d\n", t2.x, t2.y);
-#endif
-#endif
-
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 
@@ -208,10 +171,6 @@ void InputHandler(void) {
             touchHeatMap(touchPoint);
         }
     }
-#ifdef TOUCH_GT911_I2C
-    else
-        touch.touched(); // keep calling it to keep refreshing raw readings for when needed it will be ok
-#endif
 }
 
 /*********************************************************************
