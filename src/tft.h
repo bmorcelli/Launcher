@@ -21,7 +21,7 @@ public:
     inline void drawArc(int a, int b, int c, int d, int e, int f, int g) {};
     inline void begin() { EPD_translate::init(); };
     void setFullWindow() {};
-    void display(bool a) {};
+    inline void display(bool a = false) {};
 
 private:
 };
@@ -92,6 +92,7 @@ public:
     inline void drawArc(int16_t x, int16_t y, int16_t r, int16_t ir, int16_t sA, int16_t eA, int16_t fg) {
         TFT_eSPI::drawArc(x, y, r, ir, sA, eA, fg, TFT_BLACK, true);
     };
+    inline void display(bool a = false) {};
 };
 
 #elif defined(USE_LOVYANGFX)
@@ -119,6 +120,7 @@ public:
     inline void drawRightString(String s, uint16_t x, uint16_t y, int f) {
         lgfx::LGFX_Device::drawRightString(s, x, y);
     };
+    inline void display(bool a = false) {};
 
     Ard_eSPI(void) {
         {
@@ -230,7 +232,7 @@ public:
     };
     void setFullWindow() {};
 #else
-    void display(bool a = false)
+    inline void display(bool a = false) {};
 #endif
 
     // End of E-Paper functions
