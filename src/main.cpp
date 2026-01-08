@@ -494,8 +494,8 @@ void loop() {
             redraw = false;
             LongPress = false;
             returnToMenu = false;
-#ifdef E_PAPER_DISPLAY
             tft->display(false);
+#ifdef E_PAPER_DISPLAY
             vTaskDelay(pdTICKS_TO_MS(200));
 #endif
             if (first_loop) {

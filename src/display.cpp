@@ -58,7 +58,7 @@ Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
     ST7701_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG /* pclk_active_neg */
 #endif
 );
-#elif defined(AXS15231B_QSPI) || defined(DRIVER_RM67162)
+#elif defined(AXS15231B_QSPI) || defined(DRIVER_RM67162) || defined(DRIVER_CO5300)
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(TFT_CS, TFT_SCLK, TFT_D0, TFT_D1, TFT_D2, TFT_D3);
 #else // SPI Data Bus shared with SDCard and other SPIClass devices
 Arduino_DataBus *bus = new Arduino_HWSPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, TFT_MISO, &SPI);
@@ -235,7 +235,9 @@ void initDisplay(bool doAll) {
 
 #ifdef E_PAPER_DISPLAY // epaper display draws only once
     TouchFooter2();
+#endif
     tft->display(false);
+#ifdef E_PAPER_DISPLAY // epaper display draws only once
     tft->startCallback();
 #endif
 
@@ -319,8 +321,8 @@ void displayCurrentVersion(
     if (bar < 5) bar = 5;
     tft->fillRect((tftWidth * versionIndex) / div, tftHeight - 5, bar, 5, ALCOLOR);
 
-#ifdef E_PAPER_DISPLAY
     tft->display(false);
+#ifdef E_PAPER_DISPLAY
     tft->startCallback();
 #endif
 }
@@ -359,8 +361,9 @@ void displayRedStripe(String text, uint16_t fgcolor, uint16_t bgcolor) {
         tft->setCursor(tftWidth / 2 - FP * 3 * text.length(), tftHeight / 2 - FP * LH / 2);
     }
     tft->println(text);
-#if E_PAPER_DISPLAY
+
     tft->display(false);
+#if E_PAPER_DISPLAY
 #if defined(USE_M5GFX)
     M5.Display.setEpdMode(epd_mode_t::epd_quality);
 #endif
@@ -417,6 +420,8 @@ void progressHandler(size_t progress, size_t total) {
         tft->display();
         lastUpdate = millis();
     }
+#else
+    tft->display();
 #endif
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
     M5.Display.setEpdMode(epd_mode_t::epd_fastest);
@@ -684,9 +689,8 @@ Opt_Coord drawOptions(
             rowIndex++;
         }
     }
-
-#ifdef E_PAPER_DISPLAY
     tft->display(false);
+#ifdef E_PAPER_DISPLAY
     tft->startCallback();
     vTaskDelay(pdTICKS_TO_MS(200));
 #endif
@@ -774,8 +778,8 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     drawDeviceBorder();
     int bat = getBattery();
     if (bat > 0) drawBatteryStatus(bat);
-#ifdef E_PAPER_DISPLAY
     tft->display(false);
+#ifdef E_PAPER_DISPLAY
     tft->startCallback();
 #endif
 }
@@ -987,8 +991,8 @@ void loopVersions(String _fid) {
                 String(name), String(author), String(version), String(published_at), versionIndex, versions
             );
             redraw = false;
-#ifdef E_PAPER_DISPLAY
             tft->display(false);
+#ifdef E_PAPER_DISPLAY
             vTaskDelay(pdTICKS_TO_MS(200));
 #endif
         }

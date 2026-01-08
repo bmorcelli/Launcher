@@ -179,8 +179,8 @@ void drawUSBStickIcon(bool plugged) {
     // Led
     tft->fillRoundRect(ledX, ledY, ledW, ledH, radius, plugged ? GREEN : RED);
 
-#ifdef E_PAPER_DISPLAY
     tft->display(false);
+#ifdef E_PAPER_DISPLAY
     tft->startCallback();
 #endif
 }

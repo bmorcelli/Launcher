@@ -246,8 +246,11 @@ bool createFolder(String path) {
 ** Description:   sort files/folders by name
 ***************************************************************************************/
 bool sortList(const Option &a, const Option &b) {
-    if (a.color != b.color) {
-        return a.color > b.color; // true if a is a folder and b is not
+    const uint16_t _folderColor = uint16_t(FGCOLOR - 0x1111);
+    bool _a = (a.color == _folderColor); // is folder
+    bool _b = (b.color == _folderColor); // is folder
+    if (_a != _b) {
+        return _a > _b; // true if a is a folder and b is not
     }
     // Order items alphabetically
     String fa = a.label;
