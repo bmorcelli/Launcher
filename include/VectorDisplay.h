@@ -314,7 +314,9 @@ public:
             s += *p++;
         return s;
     }
-    
+    void display(bool a = false) {
+    }
+
     void startPoly(char c, uint16_t n) {
     }
 
