@@ -15,26 +15,25 @@ void IRAM_ATTR ISR_down();
 void IRAM_ATTR ISR_left();
 void IRAM_ATTR ISR_right();
 
-bool trackball_interrupted = false;
-int8_t trackball_up_count = 0;
-int8_t trackball_down_count = 0;
-int8_t trackball_left_count = 0;
-int8_t trackball_right_count = 0;
+volatile bool trackball_interrupted = false;
+volatile int8_t trackball_up_count = 0;
+volatile int8_t trackball_down_count = 0;
+volatile int8_t trackball_left_count = 0;
+volatile int8_t trackball_right_count = 0;
+
+#define TRACKBALL_THRESHOLD 2
+
 void IRAM_ATTR ISR_up() {
-    trackball_interrupted = true;
-    trackball_up_count = 1;
+    if (++trackball_up_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
 }
 void IRAM_ATTR ISR_down() {
-    trackball_interrupted = true;
-    trackball_down_count = 1;
+    if (++trackball_down_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
 }
 void IRAM_ATTR ISR_left() {
-    trackball_interrupted = true;
-    trackball_left_count = 1;
+    if (++trackball_left_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
 }
 void IRAM_ATTR ISR_right() {
-    trackball_interrupted = true;
-    trackball_right_count = 1;
+    if (++trackball_right_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
 }
 
 void ISR_rst() {
@@ -46,6 +45,7 @@ void ISR_rst() {
 }
 
 #define LILYGO_KB_SLAVE_ADDRESS 0x55
+#define LILYGO_KB_BRIGHTNESS_CMD 0x01
 #define KB_I2C_SDA 18
 #define KB_I2C_SCL 8
 #define SEL_BTN 0
@@ -101,12 +101,17 @@ void _post_setup_gpio() {}
 ** set brightness value
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
+    Wire.beginTransmission(LILYGO_KB_SLAVE_ADDRESS);
+    Wire.write(LILYGO_KB_BRIGHTNESS_CMD);
     if (brightval == 0) {
         analogWrite(TFT_BL, brightval);
+        Wire.write(brightval);
     } else {
         int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
         analogWrite(TFT_BL, bl);
+        Wire.write(bl);
     }
+    Wire.endTransmission();
 }
 
 /*********************************************************************
@@ -163,17 +168,16 @@ void InputHandler(void) {
     if (trackball_interrupted) {
         uint8_t xx = 1;
         uint8_t yy = 1;
-        xx += trackball_left_count;
-        xx -= trackball_right_count;
-        yy -= trackball_up_count;
-        yy += trackball_down_count;
+        xx += trackball_left_count ? 1 : 0;
+        xx -= trackball_right_count ? 1 : 0;
+        yy -= trackball_up_count ? 1 : 0;
+        yy += trackball_down_count ? 1 : 0;
         if (xx == 1 && yy == 1) {
             ISR_rst();
         } else {
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
         }
-        delay(50);
         // Print "bot - xx - yy",  1 is normal value for xx and yy 0 and 2 means movement on the axis
         // Serial.print(bot); Serial.print("-"); Serial.print(xx); Serial.print("-"); Serial.println(yy);
         if (xx < 1 || yy < 1) {
