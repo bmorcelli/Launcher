@@ -15,33 +15,34 @@ void IRAM_ATTR ISR_down();
 void IRAM_ATTR ISR_left();
 void IRAM_ATTR ISR_right();
 
-volatile bool trackball_interrupted = false;
-volatile int8_t trackball_up_count = 0;
-volatile int8_t trackball_down_count = 0;
-volatile int8_t trackball_left_count = 0;
-volatile int8_t trackball_right_count = 0;
+volatile int8_t trackball_axis_x = 0;
+volatile int8_t trackball_axis_y = 0;
+volatile uint32_t trackball_axis_expiry_ms = 0;
 
-#define TRACKBALL_THRESHOLD 2
+#define TRACKBALL_AXIS_COOLDOWN_MS 250
+#define TRACKBALL_AXIS_THRESHOLD 2
 
 void IRAM_ATTR ISR_up() {
-    if (++trackball_up_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
+    trackball_axis_y > 0 ? trackball_axis_y = -1 : --trackball_axis_y;
+    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 void IRAM_ATTR ISR_down() {
-    if (++trackball_down_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
+    trackball_axis_y < 0 ? trackball_axis_y = 1 : ++trackball_axis_y;
+    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 void IRAM_ATTR ISR_left() {
-    if (++trackball_left_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
+    trackball_axis_x > 0 ? trackball_axis_x = -1 : --trackball_axis_x;
+    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 void IRAM_ATTR ISR_right() {
-    if (++trackball_right_count >= TRACKBALL_THRESHOLD) trackball_interrupted = true;
+    trackball_axis_x < 0 ? trackball_axis_x = 1 : ++trackball_axis_x;
+    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 
 void ISR_rst() {
-    trackball_up_count = 0;
-    trackball_down_count = 0;
-    trackball_left_count = 0;
-    trackball_right_count = 0;
-    trackball_interrupted = false;
+    trackball_axis_x = 0;
+    trackball_axis_y = 0;
+    trackball_axis_expiry_ms = 0;
 }
 
 #define LILYGO_KB_SLAVE_ADDRESS 0x55
@@ -51,10 +52,11 @@ void ISR_rst() {
 #define SEL_BTN 0
 #define UP_BTN 3
 #define DW_BTN 15
-#define L_BTN 2
-#define R_BTN 1
+#define L_BTN 1
+#define R_BTN 2
 #define PIN_POWER_ON 10
 #define BOARD_TOUCH_INT 16
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
@@ -161,30 +163,23 @@ void InputHandler(void) {
     }
     if (millis() - tm < 200 && !LongPress) return;
 
-    // 0 - UP
-    // 1 - Down
-    // 2 - Left
-    // 3 - Right
-    if (trackball_interrupted) {
-        uint8_t xx = 1;
-        uint8_t yy = 1;
-        xx += trackball_left_count ? 1 : 0;
-        xx -= trackball_right_count ? 1 : 0;
-        yy -= trackball_up_count ? 1 : 0;
-        yy += trackball_down_count ? 1 : 0;
-        if (xx == 1 && yy == 1) {
-            ISR_rst();
-        } else {
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-        }
-        // Print "bot - xx - yy",  1 is normal value for xx and yy 0 and 2 means movement on the axis
-        // Serial.print(bot); Serial.print("-"); Serial.print(xx); Serial.print("-"); Serial.println(yy);
-        if (xx < 1 || yy < 1) {
+    // if the trackball movement has expired, reset it to avoid unwanted movements
+    if (trackball_axis_expiry_ms && trackball_axis_expiry_ms <= millis()) { ISR_rst(); }
+
+    if (abs(trackball_axis_x) >= TRACKBALL_AXIS_THRESHOLD ||
+        abs(trackball_axis_y) >= TRACKBALL_AXIS_THRESHOLD) {
+
+        if (!wakeUpScreen()) AnyKeyPress = true;
+        else return;
+
+        // Serial.print("Trackball: [");
+        // Serial.print(trackball_axis_x); Serial.print(", "); Serial.print(trackball_axis_y);
+        // Serial.println("]");
+        if (trackball_axis_x < 0 || trackball_axis_y < 0) {
             ISR_rst();
             PrevPress = true;
         } // left , Up
-        else if (xx > 1 || yy > 1) {
+        else if (trackball_axis_x > 0 || trackball_axis_y > 0) {
             ISR_rst();
             NextPress = true;
         } // right, Down
