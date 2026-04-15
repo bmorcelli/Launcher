@@ -275,6 +275,14 @@
             "link": "",
             "family": "ESP32-S3",
             "id": "CYD-4827S043R"
+        },
+        {
+            "display": false,
+            "name": "NM-CYD-C5",
+            "description": "(ESP32-C5, 2.8in, 320x240, Resistive)",
+            "link": "",
+            "family": "ESP32-C5",
+            "id": "NM-CYD-C5"
         }
     ],
     "Lilygo": [
