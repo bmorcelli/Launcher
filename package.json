@@ -18,6 +18,8 @@
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@types/w3c-web-serial": "^1.0.8",
+    "esptool-js": "^0.6.0",
     "typescript": "^5.4.0"
   }
 }

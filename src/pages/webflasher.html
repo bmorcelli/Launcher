@@ -10,18 +10,8 @@
     <script type="importmap">
       {
         "imports": {
-          "https://unpkg.com/atob-lite@^2.0.0?module": "data:text/javascript,export%20default%20function%20atobShim(str)%20{%20return%20globalThis.atob(str);%20}",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c2.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c2.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c3.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c3.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c5.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c5.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c6.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c6.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c61.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32c61.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32h2.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32h2.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32p4.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32p4.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32s2.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32s2.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32s3.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_32s3.json/+esm",
-          "https://unpkg.com/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_8266.json?module": "https://cdn.jsdelivr.net/npm/esptool-js@0.5.7/lib/targets/stub_flasher/stub_flasher_8266.json/+esm"
+          "esptool-js": "https://cdn.jsdelivr.net/npm/esptool-js@0.6.0/lib/index.js/+esm",
+          "pako": "https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs"
         }
       }
     </script>
@@ -31,7 +21,7 @@
       <div class="navbar">
         <div class="brand">
           <p class="brand__title">Launcher Web Flasher</p>
-          <p class="brand__subtitle">Powered by esp-web-tool v10.2.1</p>
+          <p class="brand__subtitle">Powered by esptool-js v0.6.0</p>
         </div>
         <button
           class="navbar__toggle"
@@ -112,11 +102,11 @@
         </div>
         <div class="card card--compact" style="align-items: center;">
           <div class="card__actions card__actions--center">
-            <esp-web-install-button></esp-web-install-button>
+            <button class="wf-connect-btn" data-wf-connect-btn hidden type="button">Install</button>
             <a class="button button--ghost" data-download-button hidden download>Download</a>
           </div>
           <p class="card__description" style="text-align: center; max-width: 520px;">
-            Having trouble? Make sure you are using Chrome, Edge, or another browser with WebUSB support and that this page is served over HTTPS.
+            Having trouble? Make sure you are using Chrome, Edge, or another browser with WebSerial support and that this page is served over HTTPS.
           </p>
         </div>
       </section>
@@ -124,7 +114,7 @@
       <section class="section section--compact reveal-on-scroll" tabindex="-1">
         <h2 class="section__heading">Looking for firmware binaries?</h2>
         <div class="card card--compact">
-          <p class="card__description">Jump back to the catalog find the firmwares availablem on M5Burner and other repositories.</p>
+          <p class="card__description">Jump back to the catalog to find the firmwares available on M5Burner and other repositories.</p>
           <div class="card__actions">
             <a class="button button--ghost" href="catalog.html">Open firmware catalog</a>
           </div>
@@ -134,11 +124,10 @@
     <footer>
       <div class="footer__inner">
         <p>&copy; <span data-year></span> Launcher Project.</p>
-        <p>esp-web-tools v10.2.1.</p>
+        <p>esptool-js v0.6.0.</p>
       </div>
     </footer>
     <script type="module" src="assets/js/main.js"></script>
     <script type="module" src="assets/js/webflasher.js"></script>
-    <script type="module" src="https://unpkg.com/esp-web-tools@10.2.1/dist/install-button.js?module"></script>
   </body>
 </html>
