@@ -10,3 +10,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 build/
+
+# Remove Firmware related files/folders created
+*.bin
+webUI
+include
+.claude
