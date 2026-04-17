@@ -44,6 +44,11 @@ if (existsSync(manifestSource)) {
   cpSync(manifestSource, path.join(buildDir, 'manifest.json'));
 }
 
+const flasherSource = path.join(projectRoot, 'src', 'flasher.json');
+if (existsSync(flasherSource)) {
+  cpSync(flasherSource, path.join(buildDir, 'flasher.json'));
+}
+
 for (const binsDir of ['binsBeta', 'binsRelease']) {
   copyRecursive(path.join(projectRoot, 'src', binsDir), path.join(buildDir, binsDir));
 }

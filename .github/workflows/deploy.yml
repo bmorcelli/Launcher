@@ -33,33 +33,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Download release assets for website
+      - name: Generate flasher.json
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          download_release() {
-            local primary_tag="$1"
-            local fallback_tag="$2"
-            local target_dir="$3"
-
-            if gh release view "$primary_tag" >/dev/null 2>&1; then
-              gh release download "$primary_tag" --dir "$target_dir" --clobber
-            else
-              echo "Primary tag $primary_tag not found, falling back to $fallback_tag"
-              gh release download "$fallback_tag" --dir "$target_dir" --clobber
-            fi
-          }
-
-          rm -rf src/binsBeta src/binsRelease
-          mkdir -p src/binsBeta src/binsRelease
-
-          download_release beta beta src/binsBeta
-          download_release last last src/binsRelease
-
-          # find Beta -maxdepth 1 -type f -name '*.bin' -exec mv {} src/binsBeta \;
-          # find Release -maxdepth 1 -type f -name '*.bin' -exec mv {} src/binsRelease\;
+        run: python scripts/generate_flasher_json.py
 
       - name: Build site
         run: npm run build

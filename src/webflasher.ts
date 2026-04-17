@@ -15,9 +15,23 @@ type ManifestDevice = {
 
 type ManifestData = Record<string, ManifestDevice[]>;
 
+type FlasherRelease = {
+  tag: string;
+  name: string;
+  published_at: string;
+  prerelease?: boolean;
+  devices: Record<string, string>;
+};
+
+type FlasherData = {
+  releases: FlasherRelease[];
+  beta: FlasherRelease | null;
+};
+
 type SelectionState = {
   releaseValue: string;
   releaseLabel: string;
+  selectedVersion: string;
   vendor: string;
   deviceId: string;
   deviceName: string;
@@ -728,7 +742,7 @@ const openFlashDialog = (manifestUrl: string) => {
       statusEl.classList.add("wf-dialog__status--success");
       setLocked(false);
       installBtn.textContent = "Close";
-      installBtn.onclick = () => backdrop.remove();
+      installBtn.dataset.wfDone = "true";
     }
   };
 
@@ -758,6 +772,10 @@ const openFlashDialog = (manifestUrl: string) => {
   };
 
   installBtn.addEventListener("click", () => {
+    if (installBtn.dataset.wfDone === "true") {
+      backdrop.remove();
+      return;
+    }
     if (!isFlashing) {
       void startFlash();
     }
@@ -820,6 +838,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ensureConnectButtonStyles();
 
   const releaseContainer = document.querySelector<HTMLElement>("[data-release-container]");
+  const versionContainer = document.querySelector<HTMLElement>("[data-version-container]");
   const vendorContainer = document.querySelector<HTMLElement>("[data-vendor-container]");
   const vendorPlaceholder = document.querySelector<HTMLElement>("[data-vendor-empty]");
   const deviceContainer = document.querySelector<HTMLElement>("[data-device-container]");
@@ -848,10 +867,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const state: SelectionState = {
     releaseValue: releaseOptions[0]?.value ?? "Release",
     releaseLabel: releaseOptions[0]?.label ?? "Release",
+    selectedVersion: "",
     vendor: "",
     deviceId: "",
     deviceName: ""
   };
+  let flasherData: FlasherData | null = null;
 
   let releaseCards: HTMLButtonElement[] = [];
   let vendorCards: HTMLButtonElement[] = [];
@@ -892,6 +913,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const parts: string[] = [];
     if (state.releaseLabel) {
       parts.push(state.releaseLabel);
+    }
+    if (state.releaseValue === "Release" && state.selectedVersion) {
+      parts.push(state.selectedVersion);
     }
     if (state.vendor) {
       parts.push(state.vendor);
@@ -938,7 +962,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
+  const getActiveBins = (): Record<string, string> | null => {
+    if (!flasherData) return null;
+    if (state.releaseValue === "Beta") {
+      return flasherData.beta?.devices ?? null;
+    }
+    const rel = flasherData.releases.find((r) => r.tag === state.selectedVersion);
+    return rel?.devices ?? null;
+  };
+
   const shouldDisplayDevice = (device: ManifestDevice) => {
+    const bins = getActiveBins();
+    if (bins !== null) {
+      return device.id in bins;
+    }
     if (state.releaseValue === "Beta") {
       return true;
     }
@@ -977,15 +1014,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    const binRelativePath = `bins${state.releaseValue}/Launcher-${device.id}.bin`;
-    let binAbsolutePath = binRelativePath;
     const downloadFileName = `Launcher-${device.id}.bin`;
+    const bins = getActiveBins();
+    let binAbsolutePath: string;
 
-    if (manifestBaseUrl) {
-      try {
-        binAbsolutePath = new URL(binRelativePath, manifestBaseUrl).toString();
-      } catch (error) {
-        console.warn("Unable to resolve firmware from manifest base path.", error);
+    if (bins && device.id in bins) {
+      binAbsolutePath = bins[device.id];
+    } else {
+      const binRelativePath = `bins${state.releaseValue}/Launcher-${device.id}.bin`;
+      binAbsolutePath = binRelativePath;
+      if (manifestBaseUrl) {
+        try {
+          binAbsolutePath = new URL(binRelativePath, manifestBaseUrl).toString();
+        } catch (error) {
+          console.warn("Unable to resolve firmware from manifest base path.", error);
+        }
       }
     }
 
@@ -1163,6 +1206,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const renderVersionDropdown = () => {
+    if (!versionContainer) return;
+
+    if (state.releaseValue !== "Release" || !flasherData || flasherData.releases.length === 0) {
+      versionContainer.style.display = "none";
+      versionContainer.innerHTML = "";
+      return;
+    }
+
+    versionContainer.innerHTML = "";
+    versionContainer.style.display = "flex";
+    versionContainer.style.alignItems = "center";
+    versionContainer.style.gap = "10px";
+    versionContainer.style.flexWrap = "wrap";
+
+    const label = document.createElement("label");
+    label.textContent = "Version:";
+    label.style.cssText = "font-size:0.9rem;font-weight:600;white-space:nowrap;";
+
+    const select = document.createElement("select");
+    select.style.cssText =
+      "background:rgba(28,32,36,0.9);color:inherit;border:1px solid rgba(0,221,0,0.3);border-radius:8px;padding:6px 12px;font-size:0.9rem;cursor:pointer;min-width:160px;";
+
+    flasherData.releases.forEach((rel) => {
+      const opt = document.createElement("option");
+      opt.value = rel.tag;
+      opt.textContent = rel.name || rel.tag;
+      if (rel.prerelease) opt.textContent += " (pre-release)";
+      select.appendChild(opt);
+    });
+
+    if (!state.selectedVersion || !flasherData.releases.find((r) => r.tag === state.selectedVersion)) {
+      state.selectedVersion = flasherData.releases[0]?.tag ?? "";
+    }
+    select.value = state.selectedVersion;
+
+    select.addEventListener("change", () => {
+      state.selectedVersion = select.value;
+      state.deviceId = "";
+      state.deviceName = "";
+      setSummary();
+      renderVendorCards();
+      hideInstallButton();
+      resetDeviceDetails("Select a vendor to see the devices.");
+    });
+
+    versionContainer.appendChild(label);
+    versionContainer.appendChild(select);
+  };
+
   const renderReleaseCards = () => {
     releaseContainer.innerHTML = "";
     releaseCards = [];
@@ -1177,7 +1270,13 @@ document.addEventListener("DOMContentLoaded", () => {
       card.addEventListener("click", () => {
         state.releaseValue = option.value;
         state.releaseLabel = option.label;
+        if (option.value === "Release" && flasherData && flasherData.releases.length > 0) {
+          if (!state.selectedVersion || !flasherData.releases.find((r) => r.tag === state.selectedVersion)) {
+            state.selectedVersion = flasherData.releases[0]?.tag ?? "";
+          }
+        }
         highlightCards(releaseCards, state.releaseValue);
+        renderVersionDropdown();
         setSummary();
         renderVendorCards();
         applySelection();
@@ -1189,6 +1288,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     highlightCards(releaseCards, state.releaseValue);
+    renderVersionDropdown();
   };
 
   setSummary();
@@ -1197,18 +1297,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
   renderReleaseCards();
 
-  fetch("manifest.json")
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(`Failed to load manifest: ${response.status}`);
-      }
-      return response.json() as Promise<ManifestData>;
+  const fetchManifest = fetch("manifest.json")
+    .then((r) => {
+      if (!r.ok) throw new Error(`manifest ${r.status}`);
+      return r.json() as Promise<ManifestData>;
+    });
+
+  const fetchFlasher = fetch("flasher.json")
+    .then((r) => {
+      if (!r.ok) return null;
+      return r.json() as Promise<FlasherData>;
     })
-    .then((manifest) => {
+    .catch(() => null);
+
+  Promise.all([fetchManifest, fetchFlasher])
+    .then(([manifest, fd]) => {
       vendorMap.clear();
       Object.entries(manifest).forEach(([vendorName, devices]) => {
         vendorMap.set(vendorName, devices);
       });
+      if (fd) {
+        flasherData = fd;
+        if (state.releaseValue === "Release" && fd.releases.length > 0) {
+          state.selectedVersion = fd.releases[0]?.tag ?? "";
+        }
+        renderReleaseCards();
+      }
       renderVendorCards();
     })
     .catch(() => {

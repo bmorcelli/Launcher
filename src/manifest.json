@@ -2,6 +2,7 @@
     "M5Stack": [
         {
             "display": true,
+            "released_at": "2.0.0",
             "name": "Cardputer and Cardputer ADV",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3?ref=Pirata",
@@ -10,6 +11,7 @@
         },
         {
             "display": true,
+            "released_at": "2.0.0",
             "name": "StickCPlus2",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit?ref=Pirata",
@@ -18,6 +20,7 @@
         },
         {
             "display": true,
+            "released_at": "2.0.0",
             "name": "StickCPlus",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit?ref=Pirata",
@@ -26,6 +29,7 @@
         },
         {
             "display": true,
+            "released_at": "2.0.0",
             "name": "StickC",
             "description": "",
             "link": "https://shop.m5stack.com/collections/m5-controllers?ref=Pirata",
@@ -34,6 +38,7 @@
         },
         {
             "display": true,
+            "released_at": "2.1.0",
             "name": "Core2",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stack-core2-esp32-iot-development-kit?ref=Pirata",
@@ -42,6 +47,7 @@
         },
         {
             "display": true,
+            "released_at": "2.1.0",
             "name": "Core16mb",
             "description": "",
             "link": "https://shop.m5stack.com/products/esp32-basic-core-lot-development-kit-v2-7?ref=Pirata",
@@ -50,6 +56,7 @@
         },
         {
             "display": true,
+            "released_at": "2.1.0",
             "name": "Core4mb",
             "description": "",
             "link": "https://shop.m5stack.com/products/esp32-basic-core-lot-development-kit-v2-7?ref=Pirata",
@@ -58,6 +65,7 @@
         },
         {
             "display": true,
+            "released_at": "2.2.4",
             "name": "CoreS3",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stack-cores3-esp32s3-lotdevelopment-kit?ref=Pirata",
@@ -66,6 +74,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.0",
             "name": "Tab5",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4?ref=Pirata",
@@ -74,6 +83,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.3",
             "name": "PaperS3",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5papers3-esp32s3-development-kit?ref=Pirata",
@@ -90,6 +100,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.6",
             "name": "StickS3",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5sticks3-esp32s3-mini-iot-dev-kit?ref=Pirata",
@@ -97,7 +108,7 @@
             "id": "m5stack-sticks3"
         },
         {
-            "display": true,
+            "display": false,
             "name": "Arduino Nesso n1",
             "description": "",
             "link": "https://docs.arduino.cc/hardware/nesso-n1",
@@ -116,6 +127,7 @@
     "Headless": [
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "ESP32-S3-4mb",
             "description": "",
             "link": "",
@@ -124,6 +136,7 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "ESP32-S3-8mb",
             "description": "",
             "link": "",
@@ -132,6 +145,7 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "ESP32-S3-16mb",
             "description": "",
             "link": "",
@@ -140,6 +154,7 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "ESP32-4mb",
             "description": "",
             "link": "",
@@ -148,6 +163,7 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "ESP32-8mb",
             "description": "",
             "link": "",
@@ -158,6 +174,7 @@
     "CYD": [
         {
             "display": true,
+            "released_at": "2.2.2",
             "name": "CYD-2432S028R",
             "description": "(OTA)",
             "link": "",
@@ -166,6 +183,7 @@
         },
         {
             "display": true,
+            "released_at": "2.2.2",
             "name": "CYD-2432S028R Inverted Colors",
             "description": "(OTA)",
             "link": "",
@@ -174,6 +192,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.0",
             "name": "CYD-2432W328C Inverted Colors and 2.4in ",
             "description": "(Capacitive)(OTA)",
             "link": "",
@@ -182,6 +201,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.0",
             "name": "CYD-2432W328C",
             "description": "(Capacitive)(OTA)",
             "link": "",
@@ -190,6 +210,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.5",
             "name": "CYD-2432W328R",
             "description": "(Resistive)(OTA)",
             "link": "",
@@ -198,6 +219,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.5",
             "name": "CYD-2432S024R",
             "description": "(Resistive)(OTA)",
             "link": "",
@@ -206,6 +228,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.5",
             "name": "CYD-2432S022C",
             "description": "(Capacitive)",
             "link": "",
@@ -214,6 +237,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.5",
             "name": "CYD-2432S032C",
             "description": "(3.2in, Capacitive)",
             "link": "",
@@ -222,6 +246,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.5",
             "name": "CYD-2432S032R",
             "description": "(3.2in, Resistive)",
             "link": "",
@@ -230,6 +255,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.6",
             "name": "CYD-3248S035R",
             "description": "(3.5in, Resistive)",
             "link": "",
@@ -238,6 +264,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.6",
             "name": "CYD-3248S035C",
             "description": "(3.5in, Capacitive)",
             "link": "",
@@ -246,6 +273,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "CYD-8048S043C",
             "description": "(ESP32S3, 4.3in, 800x480, Capacitive)",
             "link": "",
@@ -254,6 +282,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "CYD-8048W550C",
             "description": "(ESP32S3, 5.5in, 800x480, Capacitive)",
             "link": "",
@@ -261,8 +290,8 @@
             "id": "CYD-8048W550C"
         },
         {
-            "display": true,
-            "name": "CYD-3248W535C",
+            "display": false,
+            "released_at": "2.5.0",
             "description": "(ESP32S3, 3.5in, 320x480, Capacitive)",
             "link": "",
             "family": "ESP32-S3",
@@ -288,6 +317,7 @@
     "Lilygo": [
         {
             "display": true,
+            "released_at": "2.4.7",
             "name": "T-Dongle S3 (tft)",
             "description": "(single press, double press and long press logic)",
             "link": "https://www.lilygo.cc/products/t-dongle-s3?bg_ref=sDI8Bh4HmO",
@@ -296,6 +326,7 @@
         },
         {
             "display": true,
+            "released_at": "2.2.1",
             "name": "T-Display-S3",
             "description": "Touch and no touch (single press and longpress logic on both buttons )",
             "link": "https://www.lilygo.cc/products/t-display-s3?bg_ref=sDI8Bh4HmO",
@@ -304,6 +335,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.1",
             "name": "T-Display_S3_PRO",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-display-s3-pro?bg_ref=sDI8Bh4HmO",
@@ -312,6 +344,7 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "T-Embed",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-embed?bg_ref=sDI8Bh4HmO",
@@ -320,14 +353,16 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "T-Embed_CC1101",
-            "description": "(Transparent version)",
+            "description": "",
             "link": "https://www.lilygo.cc/products/t-embed-cc1101-plus?bg_ref=sDI8Bh4HmO",
             "family": "ESP32-S3",
             "id": "lilygo-t-embed-cc1101"
         },
         {
             "display": true,
+            "released_at": "2.5.0",
             "name": "T-LoRa-Pager",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-lora-pager-meshtastic?bg_ref=sDI8Bh4HmO",
@@ -336,6 +371,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.1",
             "name": "T-Deck Plus",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-deck-plus-ca?bg_ref=sDI8Bh4HmO",
@@ -344,6 +380,7 @@
         },
         {
             "display": true,
+            "released_at": "2.3.0",
             "name": "T-Deck",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-deck?bg_ref=sDI8Bh4HmO",
@@ -352,6 +389,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "T-Deck Pro",
             "description": "e-Paper display",
             "link": "https://www.lilygo.cc/products/t-deck-pro-meshtastic?bg_ref=sDI8Bh4HmO",
@@ -360,6 +398,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.3",
             "name": "T5_E-Paper_S3_Pro",
             "description": "",
             "link": "https://www.lilygo.cc/products/t5-e-paper-s3-pro?bg_ref=sDI8Bh4HmO",
@@ -368,6 +407,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.0",
             "name": "T-HMI",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-hmi?bg_ref=sDI8Bh4HmO",
@@ -384,6 +424,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.8",
             "name": "T-Watch S3",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-watch-s3?bg_ref=sDI8Bh4HmO",
@@ -392,6 +433,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.8",
             "name": "T-Watch ULTRA",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-watch-ultra?bg_ref=sDI8Bh4HmO",
@@ -402,6 +444,7 @@
     "Custom": [
         {
             "display": true,
+            "released_at": "2.5.0",
             "name": "Smoochie Board",
             "description": "",
             "link": "",
@@ -410,6 +453,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "Marauder V4-OG and V6",
             "description": "",
             "link": "https://github.com/justcallmekoko/ESP32Marauder/wiki/esp32-marauder-kit",
@@ -418,6 +462,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "Marauder V6.x",
             "description": "",
             "link": "https://justcallmekokollc.com/products/esp32-marauder-v6",
@@ -426,6 +471,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "Marauder V7",
             "description": "",
             "link": "https://justcallmekokollc.com/products/esp32-marauder-v7-pre-order",
@@ -434,6 +480,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "Marauder Mini",
             "description": "",
             "link": "https://justcallmekokollc.com/products/marauder-mini",
@@ -442,6 +489,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "Awok Dual Mini v2",
             "description": "",
             "link": "https://awokdynamics.com/products/dual-mini-v2",
@@ -450,6 +498,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "Awok Dual Touch v2",
             "description": "",
             "link": "https://awokdynamics.com/products/dual-touch-v2",
@@ -458,6 +507,7 @@
         },
         {
             "display": true,
+            "released_at": "2.4.8",
             "name": "RabbitLabs The Phantom",
             "description": "",
             "link": "https://rabbit-labs.com/product/the-phantom-by-rabbit-labs/?v=dc634e207282",
@@ -466,6 +516,7 @@
         },
         {
             "display": true,
+            "released_at": "2.6.5",
             "name": "WaveSentry",
             "description": "",
             "link": "https://opensourcesdrlab.com/products/aifw-wavesentry-esp32?VariantsId=10330",
