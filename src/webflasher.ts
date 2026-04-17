@@ -176,7 +176,7 @@ const ROCKET_STYLE = `
   .rocket-progress {
     position: relative;
     width: min(360px, 82vw);
-    padding: 32px 28px 68px;
+    padding: 0px 28px 0px;
     display: grid;
     gap: 24px;
     justify-items: center;
@@ -309,13 +309,6 @@ const ROCKET_STYLE = `
     color: var(--accent);
     text-shadow: 0 0 18px rgba(224, 210, 4, 0.45);
   }
-  .rocket-progress__label {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--text, #f5f8f2);
-    text-align: center;
-    text-shadow: 0 0 18px rgba(0, 221, 0, 0.25);
-  }
   @keyframes rocket-flame {
     from { transform: translate(-50%, 6px) scale(0.85, 0.9); opacity: 0.75; }
     to   { transform: translate(-50%, 0) scale(1.05, 1.2); opacity: 1; }
@@ -376,7 +369,7 @@ const ensureFlashDialogStyles = () => {
       padding: 20px 24px 0;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 12px;
     }
     .wf-dialog__title {
@@ -410,11 +403,12 @@ const ensureFlashDialogStyles = () => {
       gap: 20px;
     }
     .wf-dialog__status {
-      font-size: 0.9rem;
-      color: var(--text-subtle, rgba(245,248,242,0.7));
       text-align: center;
       line-height: 1.5;
-      min-height: 2.4em;
+      font-size: 1rem;
+      color: var(--text, #f5f8f2);
+      text-align: center;
+      text-shadow: 0 0 18px rgba(0, 221, 0, 0.25);
     }
     .wf-dialog__status--error {
       color: #ff6f6f;
@@ -660,23 +654,18 @@ const openFlashDialog = (manifestUrl: string) => {
   const dialog = document.createElement("div");
   dialog.className = "wf-dialog";
   dialog.innerHTML = `
-    <div class="wf-dialog__header">
-      <p class="wf-dialog__title">Flash Firmware</p>
-      <button class="wf-dialog__close" aria-label="Close" data-wf-close>&#x2715;</button>
-    </div>
-    <div class="wf-dialog__body">
+      <div class="wf-dialog__body">
       <div class="rocket-progress" data-indeterminate="true">
         <div class="rocket-progress__scene">${ROCKET_SCENE_TEMPLATE}</div>
         <div class="rocket-progress__counter">0%</div>
       </div>
-      <p class="rocket-progress__label">Select options and click Install.</p>
-      <p class="wf-dialog__status" data-wf-status></p>
-      <label class="wf-dialog__erase-row">
-        <input type="checkbox" data-wf-erase />
-        Erase device before flashing
-      </label>
+      <p class="wf-dialog__status" data-wf-status>Click Install to connect and deploy.</p>
     </div>
     <div class="wf-dialog__footer">
+      <label class="wf-dialog__erase-row">
+        <input type="checkbox" data-wf-erase />
+        Erase before flashing
+      </label>
       <button class="wf-btn wf-btn--ghost" data-wf-close>Cancel</button>
       <button class="wf-btn wf-btn--primary" data-wf-install>Install</button>
     </div>
@@ -687,7 +676,6 @@ const openFlashDialog = (manifestUrl: string) => {
 
   const rocketWrapper = dialog.querySelector<HTMLElement>(".rocket-progress")!;
   const counter = dialog.querySelector<HTMLElement>(".rocket-progress__counter")!;
-  const label = dialog.querySelector<HTMLElement>(".rocket-progress__label")!;
   const statusEl = dialog.querySelector<HTMLElement>("[data-wf-status]")!;
   const eraseCheckbox = dialog.querySelector<HTMLInputElement>("[data-wf-erase]")!;
   const installBtn = dialog.querySelector<HTMLButtonElement>("[data-wf-install]")!;
@@ -720,7 +708,6 @@ const openFlashDialog = (manifestUrl: string) => {
     const pct = s.progress ?? 0;
     rocketWrapper.style.setProperty("--rocket-progress", (pct / 100).toFixed(4));
     counter.textContent = `${pct.toFixed(0)}%`;
-    label.textContent = s.message;
 
     if (s.progress === null) {
       rocketWrapper.setAttribute("data-indeterminate", "true");
@@ -728,13 +715,12 @@ const openFlashDialog = (manifestUrl: string) => {
       rocketWrapper.removeAttribute("data-indeterminate");
     }
 
-    statusEl.textContent = "";
+    statusEl.textContent = s.message;
     statusEl.className = "wf-dialog__status";
 
     if (s.phase === "error") {
       statusEl.textContent = s.message;
       statusEl.classList.add("wf-dialog__status--error");
-      label.textContent = "Flash failed.";
       setLocked(false);
       installBtn.textContent = "Retry";
     } else if (s.phase === "done") {
@@ -761,11 +747,10 @@ const openFlashDialog = (manifestUrl: string) => {
     }
 
     setLocked(true);
-    label.textContent = "Starting...";
     rocketWrapper.setAttribute("data-indeterminate", "true");
     counter.textContent = "0%";
     rocketWrapper.style.setProperty("--rocket-progress", "0");
-    statusEl.textContent = "";
+    statusEl.textContent = "Starting...";
     statusEl.className = "wf-dialog__status";
 
     await flashFirmware(port, manifestUrl, eraseCheckbox.checked, updateUI);
