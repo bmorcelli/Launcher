@@ -13,6 +13,6 @@ build/
 
 # Remove Firmware related files/folders created
 *.bin
-webUI
+webUi
 include
 .claude

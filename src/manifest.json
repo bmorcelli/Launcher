@@ -522,7 +522,9 @@
             "link": "https://opensourcesdrlab.com/products/aifw-wavesentry-esp32?VariantsId=10330",
             "family": "ESP32",
             "id": "WaveSentry-R1"
-        },
+        }
+    ],
+    "Elecrow": [
         {
             "display": false,
             "name": "Elecrow ESP32 2.4in",
@@ -554,6 +556,16 @@
             "link": "https://www.elecrow.com/wiki/esp32-display-352727-intelligent-touch-screen-wi-fi26ble-320480-hmi-display.html",
             "family": "ESP32",
             "id": "elecrow-35Bv2_2"
+        }
+    ],
+    "Waveshare": [
+        {
+            "display": false,
+            "name": "Waveshare ESP32-S3 LCD 1.47in",
+            "description": "",
+            "link": "https://www.waveshare.com/wiki/ESP32-S3-LCD-1.47",
+            "family": "ESP32-S3",
+            "id": "waveshare-esp32-s3-lcd-147"
         }
     ]
 }
