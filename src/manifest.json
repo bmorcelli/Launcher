@@ -291,7 +291,7 @@
         },
         {
             "display": false,
-            "released_at": "2.5.0",
+            "name": "CYD-3248W535C",
             "description": "(ESP32S3, 3.5in, 320x480, Capacitive)",
             "link": "",
             "family": "ESP32-S3",
