@@ -326,6 +326,14 @@
         },
         {
             "display": true,
+            "name": "T-Dongle C5 (tft)",
+            "description": "(single press, double press and long press logic)",
+            "link": "https://www.lilygo.cc/products/t-dongle-c5?bg_ref=sDI8Bh4HmO",
+            "family": "ESP32-C5",
+            "id": "lilygo-t-dongle-c5-tft"
+        },
+        {
+            "display": true,
             "released_at": "2.2.1",
             "name": "T-Display-S3",
             "description": "Touch and no touch (single press and longpress logic on both buttons )",
