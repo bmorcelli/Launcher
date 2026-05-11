@@ -424,11 +424,20 @@
         },
         {
             "display": false,
+            "released_at": "2.6.9",
+            "name": "T-Display-S3 AMOLED 1.9in",
+            "description": "",
+            "link": "https://www.lilygo.cc/products/t-display-s3-amoled?bg_ref=sDI8Bh4HmO",
+            "family": "ESP32-S3",
+            "id": "lilygo-t-display-S3-amoled"
+        },
+        {
+            "display": true,
             "name": "T-Display-S3 AMOLED Plus",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-display-s3-amoled-plus?bg_ref=sDI8Bh4HmO",
             "family": "ESP32-S3",
-            "id": "lilygo-t-display-S3-amoled"
+            "id": "lilygo-t-display-S3-amoled-plus"
         },
         {
             "display": true,
