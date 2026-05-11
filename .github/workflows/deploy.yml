@@ -4,8 +4,6 @@ on:
   push:
     branches: [WebPage]
   workflow_dispatch:
-  release:
-    types: [published, edited]
 
 permissions:
   contents: read
