@@ -562,7 +562,7 @@ const openFlashDialog = (manifestUrl) => {
         <div class="rocket-progress__scene">${ROCKET_SCENE_TEMPLATE}</div>
         <div class="rocket-progress__counter">0%</div>
       </div>
-      <p class="wf-dialog__status" data-wf-status></p>
+      <p class="wf-dialog__status" data-wf-status>Click Install to connect and deploy.</p>
     </div>
     <div class="wf-dialog__footer">
       <label class="wf-dialog__erase-row">

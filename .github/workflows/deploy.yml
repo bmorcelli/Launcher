@@ -4,6 +4,8 @@ on:
   push:
     branches: [WebPage]
   workflow_dispatch:
+  release:
+    types: [published, edited]
 
 permissions:
   contents: read
@@ -23,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: WebPage
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
