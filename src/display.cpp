@@ -15,9 +15,15 @@ SerialDisplayClass *tft = new SerialDisplayClass();
 Ard_eSPI *tft = new Ard_eSPI();
 #else
 #ifdef TFT_PARALLEL_8_BIT
+#ifdef TFT_PARALLEL_8_BIT_MIXED_GPIO
+Arduino_DataBus *bus = new Arduino_ESP32PAR8(
+    TFT_DC, TFT_CS, TFT_WR, TFT_RD, TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7
+);
+#else
 Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
     TFT_DC, TFT_CS, TFT_WR, TFT_RD, TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7
 );
+#endif
 #elif RGB_PANEL // 16-par connections
 Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
 #if defined(DISPLAY_ST7262_PAR)
