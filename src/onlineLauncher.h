@@ -3,7 +3,6 @@
 
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
-#include <WiFi.h>
 
 bool installExtFirmware(String url);
 

@@ -4,11 +4,11 @@
 #include "esp_task_wdt.h"
 #include "idf/idf_update.h"
 #include "idf/idf_web_server.h"
+#include "idf/idf_wifi.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
 #include "sd_functions.h"
 #include "settings.h"
-#include <ESPmDNS.h>
 #include <globals.h>
 #include <map>
 #include <vector>
@@ -38,7 +38,6 @@ int command = 0;
 bool updateFromSd_var = false;
 
 const int default_webserverporthttp = 80;
-IPAddress AP_GATEWAY(172, 0, 0, 1);
 
 Config config;
 httpd_handle_t server = nullptr;
@@ -56,8 +55,8 @@ bool runOnce = false;
 **  Display options to launch the WebUI
 **********************************************************************/
 void webUIMyNet() {
-    if (WiFi.status() != WL_CONNECTED) connectWifi();
-    if (WiFi.status() == WL_CONNECTED) startWebUi("", 0, false);
+    if (!launcherWifiIsConnected()) connectWifi();
+    if (launcherWifiIsConnected()) startWebUi("", 0, false);
 }
 
 /**********************************************************************
@@ -739,7 +738,7 @@ void registerHandler(const char *uri, httpd_method_t method, esp_err_t (*handler
 void configureWebServer() {
     ensurePersistedSessionLoaded();
 
-    if (MDNS.begin(host)) MDNS.addService("http", "tcp", config.webserverporthttp);
+    launcherMdnsStart(host, config.webserverporthttp);
 
     registerHandler("/ping", HTTP_GET, pingHandler);
     registerHandler("/login", HTTP_POST, loginHandler);
@@ -777,8 +776,8 @@ String readLineFromFile(File myFile) {
 
 void startWebUiLoopCommon(bool mode_ap) {
     String txt;
-    if (!mode_ap) txt = WiFi.localIP().toString();
-    else txt = WiFi.softAPIP().toString();
+    if (!mode_ap) txt = launcherWifiLocalIp().c_str();
+    else txt = launcherWifiApIp().c_str();
 
 #ifndef HEADLESS
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, ALCOLOR);
@@ -831,15 +830,12 @@ void startWebUiLoopCommon(bool mode_ap) {
 void stopWebServerAndWifi() {
     launcherWebServerStop(server);
     server = nullptr;
-    MDNS.end();
+    launcherMdnsStop();
     vTaskDelay(pdTICKS_TO_MS(100));
 #if CONFIG_ESP_HOSTED_ENABLED
-    WiFi.softAPdisconnect(false);
-    WiFi.mode(WIFI_MODE_STA);
+    launcherWifiStartSta();
 #else
-    WiFi.softAPdisconnect(true);
-    WiFi.disconnect(true, true);
-    WiFi.mode(WIFI_OFF);
+    launcherWifiStop();
 #endif
 }
 
@@ -852,8 +848,8 @@ void startWebUi(String ssid, int encryptation, bool mode_ap) {
     config.httppassword = wui_pwd;
     config.webserverporthttp = default_webserverporthttp;
 
-    if (WiFi.status() == WL_CONNECTED && mode_ap) WiFi.disconnect(false);
-    if (WiFi.status() != WL_CONNECTED) wifiConnect(ssid, encryptation, mode_ap);
+    if (launcherWifiIsConnected() && mode_ap) launcherWifiStop();
+    if (!launcherWifiIsConnected() || mode_ap) wifiConnect(ssid, encryptation, mode_ap);
     vTaskDelay(pdMS_TO_TICKS(250));
 
     Serial.println("Configuring Webserver ...");

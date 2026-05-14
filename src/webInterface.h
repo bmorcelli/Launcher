@@ -3,7 +3,6 @@
 
 #include <FS.h>
 #include <SPI.h>
-#include <WiFi.h>
 #include <webFiles.h>
 
 String humanReadableSize(uint64_t bytes);

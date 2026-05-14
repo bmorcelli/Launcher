@@ -1,6 +1,6 @@
 #include "powerSave.h"
+#include "idf/idf_wifi.h"
 #include <M5Unified.h>
-#include <WiFi.h>
 #include <interface.h>
 
 /***************************************************************************************
@@ -11,13 +11,7 @@
 void _setup_gpio() {
 
     M5.begin();
-    WiFi.setPins(SDIO2_CLK, SDIO2_CMD, SDIO2_D0, SDIO2_D1, SDIO2_D2, SDIO2_D3, SDIO2_RST);
-    // Start hosted Wifi and do an async scan to trigger firmware loading and initialization of the WiFi
-    // subsystem
-    hostedInitWiFi(); // ESP-IDF function to initialize the WiFi driver in hosted mode
-    WiFi.setAutoReconnect(false);
-    WiFi.disconnect(false);
-    WiFi.scanNetworks(true);
+    launcherWifiInitHostedSdio(SDIO2_CLK, SDIO2_CMD, SDIO2_D0, SDIO2_D1, SDIO2_D2, SDIO2_D3, SDIO2_RST);
 }
 
 /***************************************************************************************

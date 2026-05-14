@@ -1,7 +1,6 @@
 #include "powerSave.h"
 #include <M5GFX.h>
 #include <M5Unified.h>
-#include <WiFi.h>
 #include <interface.h>
 
 /***************************************************************************************

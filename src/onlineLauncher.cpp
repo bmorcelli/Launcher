@@ -2,6 +2,7 @@
 #include "display.h"
 #include "idf/idf_http_client.h"
 #include "idf/idf_update.h"
+#include "idf/idf_wifi.h"
 #include "mykeyboard.h"
 #include "powerSave.h"
 #include "sd_functions.h"
@@ -54,22 +55,20 @@ void wifiConnect(String ssid, int encryptation, bool isAP) {
             }
         }
 
-        WiFi.mode(WIFI_STA);
-        WiFi.setSleep(false);
-        WiFi.begin(ssid.c_str(), pwd.c_str());
-
         resetTftDisplay(10, 10, FGCOLOR, FP);
         tft->fillScreen(BGCOLOR);
         tftprint("Connecting to: " + ssid + ".", 10);
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
 
-        // Simulação da função de desenho no display TFT
         int count = 0;
-        while (WiFi.status() != WL_CONNECTED) {
+        bool connected = false;
+        while (!connected) {
+            connected = launcherWifiConnect(ssid.c_str(), pwd.c_str(), 500);
+            if (connected) break;
             vTaskDelay(500 / portTICK_PERIOD_MS);
             tftprint(".", 10);
             count++;
-            if (count > 20) {
+            if (count > 10) {
                 wrongPass = true;
                 options = {
                     {"Retry",     [&]() { yield(); }            },
@@ -82,36 +81,31 @@ void wifiConnect(String ssid, int encryptation, bool isAP) {
             tft->display(false);
         }
     } else { // Running in Access point mode
-        IPAddress AP_GATEWAY(172, 0, 0, 1);
 #if !CONFIG_ESP_HOSTED_ENABLED
-        WiFi.softAPdisconnect(true);
-        WiFi.disconnect(true, true);
+        launcherWifiStop();
         vTaskDelay(50 / portTICK_PERIOD_MS);
 #endif
-        WiFi.mode(WIFI_AP);
-        WiFi.setSleep(false);
-        WiFi.softAPConfig(AP_GATEWAY, AP_GATEWAY, IPAddress(255, 255, 255, 0));
-        WiFi.softAP("Launcher", "", 6, 0, 4, false);
+        launcherWifiStartAp("Launcher", "", 6, 4);
         vTaskDelay(250 / portTICK_PERIOD_MS);
         Serial.print("IP: ");
-        Serial.println(WiFi.softAPIP());
+        Serial.println(launcherWifiApIp().c_str());
     }
 END:
     delay(0);
 }
 void connectWifi() {
-    int nets = 0;
-    WiFi.mode(WIFI_MODE_STA);
     displayRedStripe("Scanning...");
 #if CONFIG_ESP_HOSTED_ENABLED
-    WiFi.setAutoReconnect(false);
-    WiFi.disconnect(false);
+    launcherWifiStop();
 #endif
-    nets = WiFi.scanNetworks();
+    std::vector<LauncherWifiAp> networks;
+    int nets = launcherWifiScan(networks);
     options = {};
     for (int i = 0; i < nets; i++) {
-        options.push_back({WiFi.SSID(i).c_str(), [=]() {
-                               wifiConnect(WiFi.SSID(i).c_str(), int(WiFi.encryptionType(i)));
+        String networkSsid = networks[i].ssid.c_str();
+        int authMode = static_cast<int>(networks[i].authmode);
+        options.push_back({networkSsid, [=]() {
+                               wifiConnect(networkSsid, authMode);
                            }});
     }
     options.push_back({"Hidden SSID", [=]() {
@@ -128,8 +122,8 @@ void connectWifi() {
 void ota_function() {
 #ifndef DISABLE_OTA
     bool fav = false;
-    if (WiFi.status() != WL_CONNECTED) connectWifi();
-    if (WiFi.status() == WL_CONNECTED) {
+    if (!launcherWifiIsConnected()) connectWifi();
+    if (launcherWifiIsConnected()) {
         // Debug
         // Serial.printf("Favorite size: %d\n", favorite.size());
         // serializeJsonPretty(favorite, Serial);
@@ -289,7 +283,7 @@ bool launcherUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
 }
 
 bool getInfo(String serverUrl, JsonDocument &_doc) {
-    if (WiFi.status() == WL_CONNECTED) {
+    if (launcherWifiIsConnected()) {
         vTaskSuspend(xHandle);
         resetTftDisplay();
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
@@ -408,7 +402,7 @@ retry:
     vTaskSuspend(xHandle);
     FileDownloadContext download = {&file, 0, 0, 0};
     bool ok = launcherHttpGetStream(
-        fileAddr.c_str(), fileDownloadCb, &download, &response, "HWID", WiFi.macAddress().c_str()
+        fileAddr.c_str(), fileDownloadCb, &download, &response, "HWID", launcherWifiMac().c_str()
     );
     file.flush();
     file.close();

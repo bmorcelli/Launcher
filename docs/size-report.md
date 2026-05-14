@@ -336,3 +336,149 @@ ESPAsyncWebServer
 - O servidor nativo foi configurado para porta 80, `max_open_sockets = 2`, `lru_purge_enable = true`, timeouts de 10 segundos e `httpd_uri_match_wildcard`.
 - Upload de arquivo e OTA via WebUI usam parser multipart local com streaming, sem carregar o arquivo inteiro em RAM.
 - Fluxos que precisam validacao em hardware: login/logout, listagem SD, upload de arquivo, download de arquivo, delete, rename, criar pasta, reboot e OTA via upload.
+
+## Milestone 4 - WiFi e mDNS por ESP-IDF
+
+Data: 2026-05-14
+
+Ambiente validado: `m5stack-cardputer`
+
+Comandos executados:
+
+```powershell
+pio run -e m5stack-cardputer -t clean
+pio run -e m5stack-cardputer
+```
+
+Log completo salvo em `docs/milestone4-m5stack-cardputer-build.log`.
+
+### Alteracoes
+
+- Criada a camada `src/idf/idf_wifi.h` e `src/idf/idf_wifi.cpp`.
+- `src/onlineLauncher.h` nao inclui mais `WiFi.h`.
+- `src/onlineLauncher.cpp` usa `launcherWifiConnect`, `launcherWifiScan`, `launcherWifiStartAp`, `launcherWifiIsConnected` e `launcherWifiMac`.
+- `src/webInterface.h` nao inclui mais `WiFi.h`.
+- `src/webInterface.cpp` nao inclui mais `ESPmDNS.h` e usa `launcherMdnsStart`/`launcherMdnsStop`.
+- AP mode preserva IP `172.0.0.1`, canal 6 e ate 4 clientes, mantendo o comportamento anterior.
+- `main.cpp` ainda usa `WiFi.h`; isso ficou fora do escopo deste milestone, cujo aceite mira `onlineLauncher.*` e `webInterface.*`.
+
+### Tamanhos
+
+| Artefato | Milestone 3 | Milestone 4 | Delta vs M3 |
+| --- | ---: | ---: | ---: |
+| `.pio/build/m5stack-cardputer/firmware.bin` | 1.275.328 bytes | 1.276.432 bytes | +1.104 bytes |
+| `Launcher-m5stack-cardputer.bin` | 1.340.864 bytes | 1.341.968 bytes | +1.104 bytes |
+
+Resumo PlatformIO:
+
+```text
+RAM:   [==        ]  21.5% (used 70340 bytes from 327680 bytes)
+Flash: [==        ]  24.6% (used 1276035 bytes from 5177344 bytes)
+Launcher: [=================   ] 88.5% (used 0x137A10 bytes of 0x160000 of test partition)
+```
+
+### Dependencias
+
+Verificacao executada:
+
+```text
+rg -n "WiFi\\.h|ESPmDNS\\.h|WiFi\\.|MDNS\\." src/onlineLauncher.cpp src/onlineLauncher.h src/webInterface.cpp src/webInterface.h
+```
+
+Resultado: sem ocorrencias.
+
+Grafo de dependencias apos build limpo nao lista:
+
+```text
+ESPmDNS
+```
+
+`WiFi` ainda aparece no grafo porque `src/main.cpp` e outros fluxos fora dos modulos alvo ainda usam a API Arduino.
+
+### Observacoes
+
+- O pequeno aumento de `1.104 bytes` vem do wrapper local de WiFi/mDNS e da manutencao temporaria de compatibilidade com fluxos Arduino ainda existentes.
+- Fluxos que precisam validacao em hardware: scan de redes, conexao STA, SSID oculto, AP mode, `launcher.local` em STA/AP e OTA online usando o header `HWID`.
+
+### Complemento - main.cpp sem WiFi Arduino
+
+Data: 2026-05-14
+
+Alteracao adicional no escopo do Milestone 4:
+
+- `src/main.cpp` nao inclui mais `WiFi.h`.
+- O fluxo headless de scan/conexao usa `launcherWifiScan`, `launcherWifiConnect` e `launcherWifiIsConnected`.
+- `src/main.cpp`, `src/onlineLauncher.*` e `src/webInterface.*` nao possuem mais uso direto de `WiFi.h`, `WiFi.*`, `WL_CONNECTED` ou `WIFI_*`.
+
+Build validado:
+
+```powershell
+pio run -e m5stack-cardputer
+```
+
+Log completo salvo em `docs/main-idf-wifi-m5stack-cardputer-build.log`.
+
+Resultado: build `SUCCESS`; o PowerShell retornou exit code `1` apenas pelo warning de LTO.
+
+Tamanhos apos remover `WiFi.h` de `main.cpp`:
+
+| Artefato | Milestone 4 inicial | Apos main.cpp | Delta |
+| --- | ---: | ---: | ---: |
+| `.pio/build/m5stack-cardputer/firmware.bin` | 1.276.432 bytes | 1.253.408 bytes | -23.024 bytes |
+| `Launcher-m5stack-cardputer.bin` | 1.341.968 bytes | 1.318.944 bytes | -23.024 bytes |
+
+Resumo PlatformIO:
+
+```text
+RAM:   [==        ]  21.3% (used 69812 bytes from 327680 bytes)
+Flash: [==        ]  24.2% (used 1253003 bytes from 5177344 bytes)
+Launcher: [=================   ] 86.9% (used 0x132020 bytes of 0x160000 of test partition)
+```
+
+Grafo de dependencias apos esta alteracao nao lista:
+
+```text
+WiFi
+ESPmDNS
+```
+
+### Complemento - m5stack-tab5 hosted WiFi sem WiFi.h
+
+Data: 2026-05-14
+
+Alteracao adicional para ESP32-P4 com ESP32-C6 via ESP-Hosted:
+
+- `boards/m5stack-tab5/interface.cpp` nao inclui mais `WiFi.h`.
+- A configuracao dos pinos SDIO e inicializacao do hosted WiFi foi movida para `launcherWifiInitHostedSdio(...)`.
+- `launcherWifiInitHostedSdio(...)` chama `hostedSetPins`, `hostedInitWiFi` e inicializa STA pelo wrapper IDF.
+
+Build validado:
+
+```powershell
+pio run -e m5stack-tab5
+```
+
+Log completo salvo em `docs/m5stack-tab5-idf-hosted-wifi-build.log`.
+
+Resultado: build `SUCCESS`; o PowerShell retornou exit code `1` por warnings LTO/M5GFX depois do sucesso.
+
+Tamanhos:
+
+| Artefato | Tamanho |
+| --- | ---: |
+| `.pio/build/m5stack-tab5/firmware.bin` | 1.439.744 bytes |
+| `Launcher-m5stack-tab5.bin` | 1.505.280 bytes |
+
+Resumo PlatformIO:
+
+```text
+RAM:   [=         ]  13.3% (used 68036 bytes from 512000 bytes)
+Flash: [==        ]  17.0% (used 1425800 bytes from 8388608 bytes)
+```
+
+Grafo de dependencias do `m5stack-tab5` nao lista:
+
+```text
+WiFi
+ESPmDNS
+```

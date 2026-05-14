@@ -1,11 +1,11 @@
 #include <globals.h>
 
-#include <WiFi.h>
 #if defined(HEADLESS)
 #include <VectorDisplay.h>
 #else
 #include <tft.h>
 #endif
+#include "idf/idf_wifi.h"
 #include "esp_ota_ops.h"
 #include "nvs_flash.h"
 #if CONFIG_IDF_TARGET_ESP32P4
@@ -613,22 +613,26 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
 
     getConfigs();
     Serial.println("Scanning networks...");
-    int nets = WiFi.scanNetworks();
+    std::vector<LauncherWifiAp> networks;
+    int nets = launcherWifiScan(networks);
     bool mode_ap = true;
 
     if (sdcardMounted) {
         JsonObject setting = settings[0];
         JsonArray WifiList = setting["wifi"].as<JsonArray>();
         for (int i = 0; i < nets; i++) {
+            String networkSsid = networks[i].ssid.c_str();
             for (auto wifientry : WifiList) {
-                Serial.println("Target: " + ssid + " Network: " + WiFi.SSID(i));
-                if (WiFi.SSID(i) == wifientry["ssid"].as<String>()) {
+                Serial.println("Target: " + ssid + " Network: " + networkSsid);
+                if (networkSsid == wifientry["ssid"].as<String>()) {
                     ssid = wifientry["ssid"].as<String>();
                     pwd = wifientry["pwd"].as<String>();
-                    WiFi.begin(ssid, pwd);
                     int count = 0;
                     Serial.println("Connecting to " + ssid);
-                    while (WiFi.status() != WL_CONNECTED) {
+                    bool connected = false;
+                    while (!connected) {
+                        connected = launcherWifiConnect(ssid.c_str(), pwd.c_str(), 500);
+                        if (connected) break;
                         vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
                         digitalWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
@@ -640,19 +644,22 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
                                    // with same SSID
                         }
                     }
-                    if (WiFi.status() != WL_CONNECTED) { saveIntoNVS(); }
+                    if (!launcherWifiIsConnected()) { saveIntoNVS(); }
                 }
             }
         }
     } else if (ssid != "") { // will try to connect to a saved network
         for (int i = 0; i < nets; i++) {
-            Serial.println("Target: " + ssid + " Network: " + WiFi.SSID(i));
-            if (ssid == WiFi.SSID(i)) {
+            String networkSsid = networks[i].ssid.c_str();
+            Serial.println("Target: " + ssid + " Network: " + networkSsid);
+            if (ssid == networkSsid) {
                 Serial.println("Network matches the SSID, starting connection\n");
-                WiFi.begin(ssid, pwd);
                 int count = 0;
                 Serial.println("Connecting to " + ssid);
-                while (WiFi.status() != WL_CONNECTED) {
+                bool connected = false;
+                while (!connected) {
+                    connected = launcherWifiConnect(ssid.c_str(), pwd.c_str(), 500);
+                    if (connected) break;
                     vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
                     digitalWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
@@ -677,7 +684,7 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
     }
 
     // if there's no network information, open in Access Point Mode
-    if (WiFi.status() == WL_CONNECTED) mode_ap = false;
+    if (launcherWifiIsConnected()) mode_ap = false;
 
     startWebUi("", 0, mode_ap);
 
