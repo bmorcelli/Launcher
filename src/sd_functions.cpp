@@ -458,42 +458,42 @@ RESTART:
 ** Description:   this function performs the update
 ***************************************************************************************/
 bool performUpdate(Stream &updateSource, size_t updateSize, int command) {
-    // command = U_FAT_vfs = 300
-    // command = U_FAT_sys = 400
-    // command = U_SPIFFS = 100
-    // command = U_FLASH = 0
-
     bool success = false;
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
     progressHandler(0, 500);
 
     vTaskSuspend(xHandle);
-    if (Update.begin(updateSize, command)) {
-        int written = 0;
+    LauncherUpdateTarget target;
+    if (launcherUpdateTargetFromCommand(command, target) && launcherUpdateBegin(target, updateSize)) {
+        size_t written = 0;
         uint8_t buf[1024];
-        int bytesRead;
 
-        prog_handler = 0; // Install flash update
-        if (command == U_SPIFFS || command == U_FAT_vfs || command == U_FAT_sys)
-            prog_handler = 1; // Install flash update
+        prog_handler = target == LAUNCHER_UPDATE_APP ? 0 : 1;
         log_i("updateSize = %d", updateSize);
-        while (written < updateSize) { // updateSource.available() > 0 &&
-            bytesRead = updateSource.readBytes(buf, sizeof(buf));
-            written += Update.write(buf, bytesRead);
+        while (written < updateSize) {
+            size_t toRead = min(sizeof(buf), updateSize - written);
+            int bytesRead = updateSource.readBytes(buf, toRead);
+            if (bytesRead <= 0) {
+                launcherUpdateAbort();
+                break;
+            }
+            size_t bytesWritten = launcherUpdateWrite(buf, bytesRead);
+            if (bytesWritten != static_cast<size_t>(bytesRead)) break;
+            written += bytesWritten;
             progressHandler(written, updateSize);
         }
-        if (Update.end()) {
-            if (Update.isFinished()) {
+        if (launcherUpdateEnd()) {
+            if (launcherUpdateIsFinished()) {
                 log_i("Update successfully completed. Rebooting.");
                 displayRedStripe("Removing coredump (if any)...");
                 clearCoredump();
                 success = true;
             } else log_i("Update not finished? Something went wrong!");
         } else {
-            log_i("Error Occurred. Error #: %s", String(Update.getError()));
+            log_i("Error Occurred. Error #: %d", launcherUpdateLastError());
         }
     } else {
-        uint8_t error = Update.getError();
+        uint8_t error = launcherUpdateLastError();
         displayRedStripe("E:" + String(error) + "-Wrong Partition Scheme");
         delay(2500);
     }
@@ -563,7 +563,7 @@ void updateFromSD(String path) {
 
     if (firstThreeBytes[0] != 0xAA || firstThreeBytes[1] != 0x50 || firstThreeBytes[2] != 0x01) {
         if (!file.seek(0x0)) goto Exit;
-        if (!performUpdate(file, file.size(), U_FLASH)) goto Exit;
+        if (!performUpdate(file, file.size(), LAUNCHER_UPDATE_COMMAND_FLASH)) goto Exit;
         lastInstalledApp = installedAppNameFromPath(path);
         saveIntoNVS();
         file.close();
@@ -656,12 +656,12 @@ void updateFromSD(String path) {
         log_i("FATsize[1]: %d - max: %d at offset: %d", fat_size_vfs, MAX_FAT_vfs, fat_offset_vfs);
 
         if (!file.seek(app_offset)) goto Exit;
-        if (!performUpdate(file, app_size, U_FLASH)) goto Exit;
+        if (!performUpdate(file, app_size, LAUNCHER_UPDATE_COMMAND_FLASH)) goto Exit;
 
         prog_handler = 1; // Install SPIFFS update
         if (spiffs) {
             if (!file.seek(spiffs_offset)) goto Exit;
-            if (!performUpdate(file, spiffs_size, U_SPIFFS)) goto Exit;
+            if (!performUpdate(file, spiffs_size, LAUNCHER_UPDATE_COMMAND_SPIFFS)) goto Exit;
         }
 
         if (fat) {
@@ -713,7 +713,6 @@ bool performFATUpdate(Stream &updateSource, size_t updateSize, const char *label
 
     partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, label);
     if (!partition) {
-        error = UPDATE_ERROR_NO_PARTITION;
         return false;
     }
 

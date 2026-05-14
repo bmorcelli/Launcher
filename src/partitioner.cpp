@@ -1,6 +1,7 @@
 #include "partitioner.h"
 #include "display.h"
 #include "esp_heap_caps.h"
+#include "idf/idf_update.h"
 #include "mykeyboard.h"
 #include "sd_functions.h"
 #include <globals.h>
@@ -343,17 +344,25 @@ void restorePartition(const char *partitionLabel) {
         File source = SDM.open(filepath, "r");
         if (strcmp(partitionLabel, "spiffs") == 0) {
             prog_handler = 1;
-            Update.begin(source.size(), U_SPIFFS);
             uint8_t buffer[1024];
             int bytesRead = 0;
             int written = 0;
             size_t total = source.size();
             progressHandler(0, 500);
-            while (source.available()) {
-                bytesRead = source.read(buffer, sizeof(buffer));
-                Update.write(buffer, bytesRead);
-                written += bytesRead;
-                progressHandler(written, total);
+            if (launcherUpdateBegin(LAUNCHER_UPDATE_SPIFFS, total)) {
+                while (source.available() && written < total) {
+                    size_t toRead = min(sizeof(buffer), total - written);
+                    bytesRead = source.read(buffer, toRead);
+                    if (bytesRead <= 0) {
+                        launcherUpdateAbort();
+                        break;
+                    }
+                    size_t bytesWritten = launcherUpdateWrite(buffer, bytesRead);
+                    if (bytesWritten != static_cast<size_t>(bytesRead)) break;
+                    written += bytesWritten;
+                    progressHandler(written, total);
+                }
+                launcherUpdateEnd();
             }
         }
 

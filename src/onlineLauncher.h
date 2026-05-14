@@ -2,11 +2,8 @@
 #define __ONLINELAUNCHER_H
 
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <M5-HTTPUpdate.h>
 #include <SPIFFS.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 
 bool installExtFirmware(String url);
 
@@ -29,7 +26,7 @@ bool GetJsonFromLauncherHub(
 
 JsonDocument getVersionInfo(String fid);
 
-bool installFAT_OTA(WiFiClientSecure *client, String file, uint32_t offset, uint32_t size, const char *label);
+bool installFAT_OTA(String file, uint32_t offset, uint32_t size, const char *label);
 
 bool clearOnlineCoredump();
 

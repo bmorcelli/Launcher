@@ -1,6 +1,8 @@
 # Default, , , , ,
 # Name,   Type, SubType, Offset,   Size, Flags
-nvs,      data, nvs,     0x9000,   0x6000,
+nvs,      data, nvs,     0x9000,   0x4000,
+otadata,  data, ota,     0xD000,   0x2000,
+phy_init, data, phy,     0xf000,   0x1000,
 app0,     app,  test,    0x10000,  0x180000,
 app1,     app,  ota_0,   0x190000, 0x4D0000,
 vfs,      data, fat,     0x670000, 0x80000,
@@ -9,14 +11,18 @@ coredump, data, coredump,0x7F0000, 0x10000,
 #
 # Doom, , , , ,
 # Name,   Type, SubType, Offset,   Size, Flags
-#nvs,      data, nvs,     0x9000,   0x6000,
+#nvs,      data, nvs,     0x9000,   0x4000,
+#otadata,  data, ota,     0xD000,   0x2000,
+#phy_init, data, phy,     0xf000,   0x1000,
 #app0,     app,  test,    0x10000,  0x160000,
 #app1,     app,  ota_0,   0x170000, 0x680000,
 #coredump, data, coredump,0x7F0000, 0x10000,
 #
 # UiFlow, , , , ,
 # Name,   Type, SubType, Offset,   Size, Flags
-#nvs,      data, nvs,     0x9000,   0x6000,
+#nvs,      data, nvs,     0x9000,   0x4000,
+#otadata,  data, ota,     0xD000,   0x2000,
+#phy_init, data, phy,     0xf000,   0x1000,
 #app0,     app,  test,    0x10000,  0x160000,
 #app1,     app,  ota_0,   0x170000, 0x4E0000,
 #sys,      data, fat,     0x650000, 0x100000,

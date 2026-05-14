@@ -1,6 +1,3 @@
-[submodule "ESPAsyncWebServer"]
-	path = lib_modules/ESPAsyncWebServer
-	url = https://github.com/me-no-dev/ESPAsyncWebServer.git
 [submodule "ArduinoJson"]
 	path = lib_modules/ArduinoJson
 	url = https://github.com/bblanchon/ArduinoJson.git
@@ -10,9 +7,6 @@
 [submodule "SensorLib"]
 	path = lib_modules/SensorLib
 	url = https://github.com/lewisxhe/SensorLib.git
-[submodule "AsyncTCP"]
-	path = lib_modules/AsyncTCP
-	url = https://github.com/ESP32Async/AsyncTCP.git
 [submodule "lib_modules/XPowersLib"]
 	path = lib_modules/XPowersLib
 	url = https://github.com/lewisxhe/XPowersLib.git

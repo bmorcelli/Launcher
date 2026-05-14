@@ -1,5 +1,7 @@
 #include "onlineLauncher.h"
 #include "display.h"
+#include "idf/idf_http_client.h"
+#include "idf/idf_update.h"
 #include "mykeyboard.h"
 #include "powerSave.h"
 #include "sd_functions.h"
@@ -209,12 +211,86 @@ String replaceChars(String input) {
     return input;
 }
 
+struct RangeBufferContext {
+    uint8_t *buffer;
+    size_t capacity;
+    size_t written;
+};
+
+bool rangeBufferCb(const uint8_t *data, size_t len, void *ctx) {
+    RangeBufferContext *range = static_cast<RangeBufferContext *>(ctx);
+    if (!range || !range->buffer || range->written + len > range->capacity) return false;
+    memcpy(range->buffer + range->written, data, len);
+    range->written += len;
+    return true;
+}
+
+bool discardHttpCb(const uint8_t *, size_t, void *) { return true; }
+
+bool parseContentRangeTotal(const char *contentRange, size_t &total) {
+    if (!contentRange) return false;
+    String range = contentRange;
+    int slash = range.lastIndexOf('/');
+    if (slash < 0 || slash + 1 >= range.length()) return false;
+    total = range.substring(slash + 1).toInt();
+    return total > 0;
+}
+
+bool getRemoteFileSize(const String &url, size_t &size) {
+    LauncherHttpResponse response;
+    if (!launcherHttpGetRange(url.c_str(), 0, 1, discardHttpCb, nullptr, &response)) return false;
+    if (response.status != 206) return false;
+    return parseContentRangeTotal(response.content_range, size);
+}
+
+struct FileDownloadContext {
+    File *file;
+    size_t downloaded;
+    size_t expected;
+    long progressTick;
+};
+
+bool fileDownloadCb(const uint8_t *data, size_t len, void *ctx) {
+    FileDownloadContext *download = static_cast<FileDownloadContext *>(ctx);
+    if (!download || !download->file) return false;
+    size_t wrote = download->file->write(data, len);
+    if (wrote != len) return false;
+    download->downloaded += wrote;
+    if (download->progressTick >= 10) {
+        tft->drawPixel(0, 0, 0);
+        progressHandler(download->downloaded, download->expected);
+        download->progressTick = 0;
+    } else {
+        download->progressTick++;
+    }
+    return true;
+}
+
+struct HttpUpdateContext {
+    LauncherUpdateTarget target;
+    size_t expected;
+    size_t written;
+    bool started;
+};
+
+bool launcherUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
+    HttpUpdateContext *updateCtx = static_cast<HttpUpdateContext *>(ctx);
+    if (!updateCtx) return false;
+    if (!updateCtx->started) {
+        if (!launcherUpdateBegin(updateCtx->target, updateCtx->expected)) return false;
+        updateCtx->started = true;
+        progressHandler(0, updateCtx->expected);
+    }
+    size_t wrote = launcherUpdateWrite(data, len);
+    if (wrote != len) return false;
+    updateCtx->written += wrote;
+    progressHandler(updateCtx->written, updateCtx->expected);
+    return true;
+}
+
 bool getInfo(String serverUrl, JsonDocument &_doc) {
     if (WiFi.status() == WL_CONNECTED) {
         vTaskSuspend(xHandle);
-        WiFiClientSecure *client = new WiFiClientSecure();
-        client->setInsecure();
-        HTTPClient http;
         resetTftDisplay();
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
         tft->drawCentreString("Getting info from", tftWidth / 2, tftHeight / 3, 1);
@@ -223,16 +299,8 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
         tft->setCursor(18, tftHeight / 3 + FM * 9 * 2);
         const uint8_t maxAttempts = 5;
         for (uint8_t attempt = 0; attempt < maxAttempts; ++attempt) {
-            if (!http.begin(*client, serverUrl)) {
-                Serial.printf("[GetInfo] Unable to reach %s\n", serverUrl);
-                break;
-            }
-            http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-            http.useHTTP10(true);
-            int httpResponseCode = http.GET();
-            if (httpResponseCode == HTTP_CODE_OK) {
-                String payload = http.getString();
-                http.end();
+            String payload;
+            if (launcherHttpGetToString(serverUrl.c_str(), payload)) {
                 _doc.clear();
                 DeserializationError error = deserializeJson(_doc, payload);
                 if (error) {
@@ -248,9 +316,9 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
                 return true;
             }
 
-            Serial.printf("[GetInfo] HTTP error: %d\n", httpResponseCode);
+            Serial.printf("[GetInfo] HTTP fetch failed: %s\n", serverUrl.c_str());
             tftprint(".", 10);
-            http.end();
+            vTaskDelay(pdTICKS_TO_MS(500));
         }
     }
     vTaskResume(xHandle);
@@ -326,8 +394,6 @@ void downloadFirmware(String fid, String file_url, String fileName, String folde
 
     tft->fillRect(7, 40, tftWidth - 14, 88, BGCOLOR); // Erase the information below the firmware name
     displayRedStripe("Connecting FW");
-    WiFiClientSecure *client = new WiFiClientSecure;
-    client->setInsecure();
     File file;
 retry:
     file = SDM.open(filePath, FILE_WRITE);
@@ -337,95 +403,35 @@ retry:
         delay(2000);
         return;
     }
-    if (client) {
-        HTTPClient http;
-        int httpResponseCode = -1;
+    LauncherHttpResponse response;
+    displayRedStripe("Downloading FW");
+    vTaskSuspend(xHandle);
+    FileDownloadContext download = {&file, 0, 0, 0};
+    bool ok = launcherHttpGetStream(
+        fileAddr.c_str(), fileDownloadCb, &download, &response, "HWID", WiFi.macAddress().c_str()
+    );
+    file.flush();
+    file.close();
+    vTaskResume(xHandle);
 
-        while (httpResponseCode < 0) {
-            http.begin(*client, fileAddr);
-            http.addHeader("HWID", WiFi.macAddress());
-            http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // Github links need it
-            http.useHTTP10(true);
-            httpResponseCode = http.GET();
-            if (httpResponseCode > 0) {
-                vTaskDelay(pdMS_TO_TICKS(2));
-                size_t size = http.getSize();
-                displayRedStripe("Downloading FW");
-                vTaskSuspend(xHandle);
-                size_t downloaded = 0;
-                WiFiClient *stream = http.getStreamPtr();
-                int len = size;
-
-                prog_handler = 2; // Download handler
-
-                // Ler dados enquanto disponível
-                progressHandler(downloaded, size);
-                long print_at_5 = 0;
-                while (http.connected() && (len > 0 || len == -1)) {
-                    // Ler dados em partes
-                    vTaskDelay(pdMS_TO_TICKS(1));
-                    int size_av = stream->available();
-                    if (size_av) {
-                        size_t c = stream->readBytes(buff, size_av < bufSize ? size_av : bufSize);
-                        vTaskDelay(pdMS_TO_TICKS(2)); // time to C5 move info from one task to another
-                        if (c <= 0) continue;
-                        size_t wrote = file.write(buff, c);
-                        if (wrote != c) {
-                            log_i(
-                                "Download> write failed after %lu bytes (wrote %lu out of %lu)",
-                                downloaded,
-                                wrote,
-                                c
-                            );
-                            break;
-                        }
-
-                        if (len > 0) { len -= c; }
-
-                        downloaded += c;
-                        if (print_at_5 >= 10) {
-                            tft->drawPixel(0, 0, 0);
-                            progressHandler(downloaded, size); // Chama a função de progresso
-                            print_at_5 = 0;
-                        } else print_at_5 = print_at_5 + 1;
-                    }
-                }
-                file.flush();
-                file.close();
-                vTaskResume(xHandle);
-
-                // Checks if the file was preatically not downloaded and try one more time (size <=
-                // bufSize)
-                vTaskDelay(pdTICKS_TO_MS(50));
-                file = SDM.open(filePath, FILE_READ);
-                size_t sdSize = file ? file.size() : 0;
-                if (file) file.close();
-                if (sdSize <= bufSize && tries < 1) {
-                    tries++;
-                    SDM.remove(filePath);
-                    http.end();
-                    goto retry;
-                }
-                // Checks if the file was completely downloaded
-                Serial.printf("File size in get() = %d\nFile size in SD    = %d\n", size, sdSize);
-                if (sdSize != size) {
-                    SDM.remove(filePath);
-                    displayRedStripe("Download FAILED");
-                    while (!check(SelPress)) yield();
-                } else {
-                    Serial.printf("File successfully downloaded..\n");
-                    displayRedStripe(" Downloaded ");
-                    while (!check(SelPress)) yield();
-                }
-                break;
-            } else {
-                http.end();
-                vTaskDelay(pdTICKS_TO_MS(500));
-            }
-        }
-        http.end();
+    vTaskDelay(pdTICKS_TO_MS(50));
+    file = SDM.open(filePath, FILE_READ);
+    size_t sdSize = file ? file.size() : 0;
+    if (file) file.close();
+    if ((!ok || sdSize <= bufSize) && tries < 1) {
+        tries++;
+        SDM.remove(filePath);
+        goto retry;
+    }
+    Serial.printf("File size in get() = %d\nFile size in SD    = %d\n", (int)response.content_length, sdSize);
+    if (!ok || (response.content_length > 0 && sdSize != (size_t)response.content_length)) {
+        SDM.remove(filePath);
+        displayRedStripe("Download FAILED");
+        while (!check(SelPress)) yield();
     } else {
-        displayRedStripe("Couldn't Connect");
+        Serial.printf("File successfully downloaded..\n");
+        displayRedStripe(" Downloaded ");
+        while (!check(SelPress)) yield();
     }
     wakeUpScreen();
 }
@@ -448,31 +454,15 @@ bool installExtFirmware(String url) {
         return false;
     }
     displayRedStripe("Getting file info");
-    WiFiClientSecure *client = new WiFiClientSecure;
-    client->setInsecure();
-    if (!client) return false;
-
-    HTTPClient http;
-    http.begin(*client, url);
-    http.addHeader("Range", "bytes=32768-33183");          // Get the partition table
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // Github links need it
-    http.useHTTP10(true);
-    const char *headerKeys[] = {"Content-Range"};
-    const size_t headerKeysCount = sizeof(headerKeys) / sizeof(headerKeys[0]);
-    http.collectHeaders(headerKeys, headerKeysCount);
-    if (http.GET() != 206) {
+    LauncherHttpResponse response;
+    RangeBufferContext range = {buff, bufSize, 0};
+    if (!launcherHttpGetRange(url.c_str(), 32768, 416, rangeBufferCb, &range, &response) ||
+        response.status != 206) {
         displayRedStripe("File not found");
-        http.end();
         return false;
     }
-    String _fileSize = http.header("Content-Range");
-    _fileSize = _fileSize.substring(_fileSize.lastIndexOf("/") + 1);
-    file_size = _fileSize.toInt();
+    if (!parseContentRangeTotal(response.content_range, file_size)) return false;
 
-    WiFiClient *stream = http.getStreamPtr();
-    int size_av = stream->available();
-    stream->readBytes(buff, size_av < bufSize ? size_av : bufSize);
-    http.end();
     // Check if it is a valid partition table
     size_t PartitionSize = 0;
     size_t PartitionOffset = 0x10000;
@@ -648,25 +638,19 @@ void installFirmware( // adicionar "fid"
     tft->fillRect(7, 40, tftWidth - 14, 88, BGCOLOR); // Erase the information below the firmware name
     displayRedStripe("Connecting FW");
 
-    WiFiClientSecure *client = new WiFiClientSecure;
-
-    client->setInsecure();
-    httpUpdate.rebootOnUpdate(false);
-    httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); // Github links need it
     /* Install App */
     prog_handler = 0;
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
     progressHandler(0, 500);
-    httpUpdate.onProgress(progressHandler);
-    httpUpdate.setLedPin(LED, LED_ON);
     vTaskSuspend(xHandle);
+    size_t updateSize = app_size;
+    HttpUpdateContext appUpdate = {LAUNCHER_UPDATE_APP, updateSize, 0, false};
     bool success = false;
-    if (nb) success = httpUpdate.update(*client, fileAddr);
-    else success = httpUpdate.updateFromOffset(*client, fileAddr, app_offset, app_size);
-    if (!client) {
-        displayRedStripe("Couldn't Connect to server");
-        goto SAIR;
-    }
+    if (nb && updateSize == 0 && !getRemoteFileSize(fileAddr, updateSize)) goto SAIR;
+    appUpdate.expected = updateSize;
+    success = nb ? launcherHttpGetRange(fileAddr.c_str(), 0, updateSize, launcherUpdateHttpCb, &appUpdate)
+                 : launcherHttpGetRange(fileAddr.c_str(), app_offset, updateSize, launcherUpdateHttpCb, &appUpdate);
+    if (success) success = launcherUpdateEnd();
     if (!success) {
         displayRedStripe("Instalation Failed");
         goto SAIR;
@@ -695,9 +679,11 @@ void installFirmware( // adicionar "fid"
 
         // Install Spiffs
         progressHandler(0, 500);
-        httpUpdate.onProgress(progressHandler);
-
-        if (!httpUpdate.updateSpiffsFromOffset(*client, file, spiffs_offset, spiffs_size)) {
+        HttpUpdateContext spiffsUpdate = {LAUNCHER_UPDATE_SPIFFS, spiffs_size, 0, false};
+        bool spiffsOk =
+            launcherHttpGetRange(file.c_str(), spiffs_offset, spiffs_size, launcherUpdateHttpCb, &spiffsUpdate) &&
+            launcherUpdateEnd();
+        if (!spiffsOk) {
             displayRedStripe("SPIFFS Failed");
             delay(2500);
         }
@@ -711,12 +697,12 @@ void installFirmware( // adicionar "fid"
         for (int i = 0; i < 2; i++) {
             if (fat_size[i] > 0) {
                 if ((FAT - i * 100) == 400) {
-                    if (!installFAT_OTA(client, file, fat_offset[i], fat_size[i], "sys")) {
+                    if (!installFAT_OTA(file, fat_offset[i], fat_size[i], "sys")) {
                         displayRedStripe("FAT Failed");
                         delay(2500);
                     }
                 } else {
-                    if (!installFAT_OTA(client, file, fat_offset[i], fat_size[i], "vfs")) {
+                    if (!installFAT_OTA(file, fat_offset[i], fat_size[i], "vfs")) {
                         displayRedStripe("FAT Failed");
                         delay(2500);
                     }
@@ -743,40 +729,19 @@ SAIR:
 ** Function name: installFAT_OTA
 ** Description:   install FAT partition OverTheAir
 ***************************************************************************************/
-bool installFAT_OTA(
-    WiFiClientSecure *client, String file, uint32_t offset, uint32_t size, const char *label
-) {
+bool installFAT_OTA(String file, uint32_t offset, uint32_t size, const char *label) {
     prog_handler = 1; // review
 
     tft->fillRect(7, 40, tftWidth - 14, 88, BGCOLOR); // Erase the information below the firmware name
     displayRedStripe("Connecting FAT");
 
-    if (client) {
-        HTTPClient http;
-        int httpResponseCode = -1;
-        http.begin(*client, file);
-        http.addHeader("Range", "bytes=" + String(offset) + "-" + String(offset + size - 1));
-        http.useHTTP10(true);
-
-        while (httpResponseCode < 0) {
-            httpResponseCode = http.GET();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-        }
-        if (httpResponseCode > 0) {
-            int size = http.getSize();
-            displayRedStripe("Installing FAT");
-            WiFiClient *stream = http.getStreamPtr();
-            prog_handler = 1; // Download handler
-            performFATUpdate(*stream, size, label);
-        }
-        http.end();
-        vTaskDelay(pdTICKS_TO_MS(500));
-        return true;
-    } else {
-        displayRedStripe("Couldn't Connect");
-        delay(2000);
-        return false;
-    }
+    LauncherUpdateTarget target = strcmp(label, "sys") == 0 ? LAUNCHER_UPDATE_FAT_SYS : LAUNCHER_UPDATE_FAT_VFS;
+    HttpUpdateContext fatUpdate = {target, size, 0, false};
+    displayRedStripe("Installing FAT");
+    bool ok = launcherHttpGetRange(file.c_str(), offset, size, launcherUpdateHttpCb, &fatUpdate) &&
+              launcherUpdateEnd();
+    vTaskDelay(pdTICKS_TO_MS(500));
+    return ok;
 }
 
 #endif

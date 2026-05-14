@@ -1,8 +1,6 @@
 #include <globals.h>
 
-#include <HTTPClient.h>
 #include <WiFi.h>
-// #include <M5-HTTPUpdate.h>
 #if defined(HEADLESS)
 #include <VectorDisplay.h>
 #else
