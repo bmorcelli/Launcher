@@ -100,13 +100,13 @@ void connectWifi() {
 #endif
     std::vector<LauncherWifiAp> networks;
     int nets = launcherWifiScan(networks);
+    // Serial.printf("connectWifi: scan returned %d networks\n", nets);
     options = {};
     for (int i = 0; i < nets; i++) {
         String networkSsid = networks[i].ssid.c_str();
+        if (networkSsid.isEmpty()) continue;
         int authMode = static_cast<int>(networks[i].authmode);
-        options.push_back({networkSsid, [=]() {
-                               wifiConnect(networkSsid, authMode);
-                           }});
+        options.push_back({networkSsid, [=]() { wifiConnect(networkSsid, authMode); }});
     }
     options.push_back({"Hidden SSID", [=]() {
                            String __ssid = keyboard("", 32, "Your SSID");
@@ -184,7 +184,7 @@ void ota_function() {
 ***************************************************************************************/
 String replaceChars(String input) {
     // Define os caracteres que devem ser substituídos
-    const char charsToReplace[] = {'<', '>', ':', '\"', '/', '\\', '|', '?', '*', '\'', '`'};
+    const char charsToReplace[] = {'<', '>', ':', '\"', '/', '\\', '|', '?', '*', '\'', '`', '&'};
     // Define o caractere de substituição (neste exemplo, usamos um espaço)
     const char replacementChar = '_';
 
@@ -230,9 +230,9 @@ bool parseContentRangeTotal(const char *contentRange, size_t &total) {
     return total > 0;
 }
 
-bool getRemoteFileSize(const String &url, size_t &size) {
+bool getRemoteFileSize(const String &url, size_t &size, const char *hwid = nullptr) {
     LauncherHttpResponse response;
-    if (!launcherHttpGetRange(url.c_str(), 0, 1, discardHttpCb, nullptr, &response)) return false;
+    if (!launcherHttpGetRange(url.c_str(), 0, 1, discardHttpCb, nullptr, &response, hwid)) return false;
     if (response.status != 206) return false;
     return parseContentRangeTotal(response.content_range, size);
 }
@@ -242,20 +242,32 @@ struct FileDownloadContext {
     size_t downloaded;
     size_t expected;
     long progressTick;
+    LauncherHttpResponse *response; // back-pointer to get content_length once headers arrive
 };
 
 bool fileDownloadCb(const uint8_t *data, size_t len, void *ctx) {
     FileDownloadContext *download = static_cast<FileDownloadContext *>(ctx);
     if (!download || !download->file) return false;
+
+    // On the first chunk, content_length is already populated by fetch_headers.
+    // Use it to initialize the progress bar with the real file size.
+    if (download->expected == 0 && download->response && download->response->content_length > 0) {
+        download->expected = static_cast<size_t>(download->response->content_length);
+        progressHandler(0, download->expected);
+    }
+
     size_t wrote = download->file->write(data, len);
     if (wrote != len) return false;
     download->downloaded += wrote;
-    if (download->progressTick >= 10) {
-        tft->drawPixel(0, 0, 0);
-        progressHandler(download->downloaded, download->expected);
-        download->progressTick = 0;
-    } else {
-        download->progressTick++;
+
+    if (download->expected > 0) {
+        if (download->progressTick >= 10) {
+            tft->drawPixel(0, 0, 0);
+            progressHandler(download->downloaded, download->expected);
+            download->progressTick = 0;
+        } else {
+            download->progressTick++;
+        }
     }
     return true;
 }
@@ -399,8 +411,9 @@ retry:
     }
     LauncherHttpResponse response;
     displayRedStripe("Downloading FW");
+    prog_handler = 2;
     vTaskSuspend(xHandle);
-    FileDownloadContext download = {&file, 0, 0, 0};
+    FileDownloadContext download = {&file, 0, 0, 0, &response};
     bool ok = launcherHttpGetStream(
         fileAddr.c_str(), fileDownloadCb, &download, &response, "HWID", launcherWifiMac().c_str()
     );
@@ -640,13 +653,25 @@ void installFirmware( // adicionar "fid"
     size_t updateSize = app_size;
     HttpUpdateContext appUpdate = {LAUNCHER_UPDATE_APP, updateSize, 0, false};
     bool success = false;
-    if (nb && updateSize == 0 && !getRemoteFileSize(fileAddr, updateSize)) goto SAIR;
+    String hwid = String(launcherWifiMac().c_str());
+    if (nb && updateSize == 0 && !getRemoteFileSize(fileAddr, updateSize, hwid.c_str())) goto SAIR;
     appUpdate.expected = updateSize;
-    success = nb ? launcherHttpGetRange(fileAddr.c_str(), 0, updateSize, launcherUpdateHttpCb, &appUpdate)
-                 : launcherHttpGetRange(fileAddr.c_str(), app_offset, updateSize, launcherUpdateHttpCb, &appUpdate);
+    success =
+        nb ? launcherHttpGetRange(
+                 fileAddr.c_str(), 0, updateSize, launcherUpdateHttpCb, &appUpdate, nullptr, hwid.c_str()
+             )
+           : launcherHttpGetRange(
+                 fileAddr.c_str(),
+                 app_offset,
+                 updateSize,
+                 launcherUpdateHttpCb,
+                 &appUpdate,
+                 nullptr,
+                 hwid.c_str()
+             );
     if (success) success = launcherUpdateEnd();
     if (!success) {
-        displayRedStripe("Instalation Failed");
+        displayRedStripe(String("OTA: ") + launcherUpdateLastErrorName());
         goto SAIR;
     }
     displayRedStripe("Removing Coredump");
@@ -674,9 +699,10 @@ void installFirmware( // adicionar "fid"
         // Install Spiffs
         progressHandler(0, 500);
         HttpUpdateContext spiffsUpdate = {LAUNCHER_UPDATE_SPIFFS, spiffs_size, 0, false};
-        bool spiffsOk =
-            launcherHttpGetRange(file.c_str(), spiffs_offset, spiffs_size, launcherUpdateHttpCb, &spiffsUpdate) &&
-            launcherUpdateEnd();
+        bool spiffsOk = launcherHttpGetRange(
+                            file.c_str(), spiffs_offset, spiffs_size, launcherUpdateHttpCb, &spiffsUpdate
+                        ) &&
+                        launcherUpdateEnd();
         if (!spiffsOk) {
             displayRedStripe("SPIFFS Failed");
             delay(2500);
@@ -729,7 +755,8 @@ bool installFAT_OTA(String file, uint32_t offset, uint32_t size, const char *lab
     tft->fillRect(7, 40, tftWidth - 14, 88, BGCOLOR); // Erase the information below the firmware name
     displayRedStripe("Connecting FAT");
 
-    LauncherUpdateTarget target = strcmp(label, "sys") == 0 ? LAUNCHER_UPDATE_FAT_SYS : LAUNCHER_UPDATE_FAT_VFS;
+    LauncherUpdateTarget target =
+        strcmp(label, "sys") == 0 ? LAUNCHER_UPDATE_FAT_SYS : LAUNCHER_UPDATE_FAT_VFS;
     HttpUpdateContext fatUpdate = {target, size, 0, false};
     displayRedStripe("Installing FAT");
     bool ok = launcherHttpGetRange(file.c_str(), offset, size, launcherUpdateHttpCb, &fatUpdate) &&

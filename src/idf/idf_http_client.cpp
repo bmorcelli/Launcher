@@ -1,5 +1,6 @@
 #include "idf_http_client.h"
 
+#include "ca_certs.h"
 #include "esp_http_client.h"
 #include <cstring>
 #include <strings.h>
@@ -34,8 +35,8 @@ bool readResponse(esp_http_client_handle_t client, LauncherHttpChunkCb cb, void 
 }
 
 bool executeGet(
-    const char *url, LauncherHttpChunkCb cb, void *ctx, LauncherHttpResponse *response,
-    const char *headerKey, const char *headerValue
+    const char *url, LauncherHttpChunkCb cb, void *ctx, LauncherHttpResponse *response, const char *headerKey,
+    const char *headerValue, const char *header2Key = nullptr, const char *header2Value = nullptr
 ) {
     LauncherHttpResponse localResponse;
     LauncherHttpResponse *resp = response ? response : &localResponse;
@@ -50,20 +51,38 @@ bool executeGet(
     config.max_redirection_count = kMaxRedirects;
     config.event_handler = httpEventHandler;
     config.user_data = resp;
-    config.skip_cert_common_name_check = true;
+    config.cert_pem = kRootCAs;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return false;
 
-    if (headerKey && headerValue) esp_http_client_set_header(client, headerKey, headerValue);
+    auto applyHeaders = [&]() {
+        if (headerKey && headerValue) esp_http_client_set_header(client, headerKey, headerValue);
+        if (header2Key && header2Value) esp_http_client_set_header(client, header2Key, header2Value);
+    };
+    applyHeaders();
 
+    // esp_http_client_open/fetch_headers does NOT auto-follow redirects unlike
+    // esp_http_client_perform. Handle 3xx manually.
     bool ok = false;
-    esp_err_t err = esp_http_client_open(client, 0);
-    if (err == ESP_OK) {
+    for (int redirects = 0; redirects <= kMaxRedirects; ++redirects) {
+        esp_err_t err = esp_http_client_open(client, 0);
+        if (err != ESP_OK) break;
+
         resp->content_length = esp_http_client_fetch_headers(client);
         resp->status = esp_http_client_get_status_code(client);
+
+        if (resp->status >= 300 && resp->status < 400) {
+            esp_http_client_close(client);
+            if (esp_http_client_set_redirection(client) != ESP_OK) break;
+            // Re-apply headers after redirect (may be cleared by URL change)
+            applyHeaders();
+            continue;
+        }
+
         ok = resp->status >= 200 && resp->status < 300 && readResponse(client, cb, ctx);
         esp_http_client_close(client);
+        break;
     }
 
     esp_http_client_cleanup(client);
@@ -82,7 +101,7 @@ bool stringChunkCb(const uint8_t *data, size_t len, void *ctx) {
     sink->out->concat(reinterpret_cast<const char *>(data), len);
     return true;
 }
-}
+} // namespace
 
 bool launcherHttpGetToString(const char *url, String &out, size_t maxSize) {
     out = "";
@@ -92,16 +111,16 @@ bool launcherHttpGetToString(const char *url, String &out, size_t maxSize) {
 }
 
 bool launcherHttpGetStream(
-    const char *url, LauncherHttpChunkCb cb, void *ctx, LauncherHttpResponse *response,
-    const char *headerKey, const char *headerValue
+    const char *url, LauncherHttpChunkCb cb, void *ctx, LauncherHttpResponse *response, const char *headerKey,
+    const char *headerValue
 ) {
     return executeGet(url, cb, ctx, response, headerKey, headerValue);
 }
 
 bool launcherHttpGetRange(
     const char *url, uint32_t offset, uint32_t size, LauncherHttpChunkCb cb, void *ctx,
-    LauncherHttpResponse *response
+    LauncherHttpResponse *response, const char *hwid
 ) {
     String range = "bytes=" + String(offset) + "-" + String(offset + size - 1);
-    return executeGet(url, cb, ctx, response, "Range", range.c_str());
+    return executeGet(url, cb, ctx, response, "Range", range.c_str(), "HWID", hwid);
 }

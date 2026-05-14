@@ -2,6 +2,7 @@
 
 #include "esp_check.h"
 #include "esp_event.h"
+#include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -10,6 +11,8 @@
 #include "mdns.h"
 #include <stdio.h>
 #include <string.h>
+
+static const char *TAG = "idf_wifi";
 
 #if CONFIG_ESP_HOSTED_ENABLED
 #include "esp32-hal-hosted.h"
@@ -25,13 +28,20 @@ esp_netif_t *apNetif = nullptr;
 bool wifiInitialized = false;
 bool handlersRegistered = false;
 bool mdnsStarted = false;
+bool expectingConnection = false; // true only after esp_wifi_connect() is called
 
 void wifiEventHandler(void *, esp_event_base_t eventBase, int32_t eventId, void *) {
     if (!wifiEvents) return;
     if (eventBase == WIFI_EVENT && eventId == WIFI_EVENT_STA_DISCONNECTED) {
         xEventGroupClearBits(wifiEvents, WIFI_CONNECTED_BIT);
-        xEventGroupSetBits(wifiEvents, WIFI_FAIL_BIT);
+        // Only signal failure if we actually initiated a connection; ignore
+        // the DISCONNECTED event fired by esp_wifi_disconnect() during setup.
+        if (expectingConnection) {
+            expectingConnection = false;
+            xEventGroupSetBits(wifiEvents, WIFI_FAIL_BIT);
+        }
     } else if (eventBase == IP_EVENT && eventId == IP_EVENT_STA_GOT_IP) {
+        expectingConnection = false;
         xEventGroupClearBits(wifiEvents, WIFI_FAIL_BIT);
         xEventGroupSetBits(wifiEvents, WIFI_CONNECTED_BIT);
     }
@@ -41,33 +51,75 @@ bool okOrAlready(esp_err_t err) { return err == ESP_OK || err == ESP_ERR_INVALID
 
 bool ensureWifiInitialized() {
     if (!wifiEvents) wifiEvents = xEventGroupCreate();
-    if (!wifiEvents) return false;
+    if (!wifiEvents) {
+        ESP_LOGE(TAG, "xEventGroupCreate failed");
+        return false;
+    }
 
-    if (!okOrAlready(esp_netif_init())) return false;
-    if (!okOrAlready(esp_event_loop_create_default())) return false;
+    esp_err_t err;
+    err = esp_netif_init();
+    if (!okOrAlready(err)) {
+        ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
+        return false;
+    }
 
-    if (!staNetif) staNetif = esp_netif_create_default_wifi_sta();
-    if (!apNetif) apNetif = esp_netif_create_default_wifi_ap();
-    if (!staNetif || !apNetif) return false;
+    err = esp_event_loop_create_default();
+    if (!okOrAlready(err)) {
+        ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    if (!staNetif) {
+        // Try to get an already-existing STA netif (Arduino framework may have created it)
+        staNetif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (!staNetif) staNetif = esp_netif_create_default_wifi_sta();
+        if (!staNetif) {
+            ESP_LOGE(TAG, "esp_netif_create_default_wifi_sta returned NULL");
+            return false;
+        }
+        // ESP_LOGI(TAG, "staNetif: %p", (void *)staNetif);
+    }
+    if (!apNetif) {
+        // Try to get an already-existing AP netif (Arduino framework may have created it)
+        apNetif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        if (!apNetif) apNetif = esp_netif_create_default_wifi_ap();
+        if (!apNetif) {
+            ESP_LOGE(TAG, "esp_netif_create_default_wifi_ap returned NULL");
+            return false;
+        }
+        // ESP_LOGI(TAG, "apNetif: %p", (void *)apNetif);
+    }
 
     if (!wifiInitialized) {
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-        esp_err_t err = esp_wifi_init(&cfg);
-        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return false;
+        err = esp_wifi_init(&cfg);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            // ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
+            return false;
+        }
         wifiInitialized = true;
     }
 
     if (!handlersRegistered) {
-        if (esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifiEventHandler, nullptr, nullptr) !=
-            ESP_OK)
+        err = esp_event_handler_instance_register(
+            WIFI_EVENT, ESP_EVENT_ANY_ID, wifiEventHandler, nullptr, nullptr
+        );
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "WIFI_EVENT handler register failed: %s", esp_err_to_name(err));
             return false;
-        if (esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifiEventHandler, nullptr, nullptr) !=
-            ESP_OK)
+        }
+        err = esp_event_handler_instance_register(
+            IP_EVENT, IP_EVENT_STA_GOT_IP, wifiEventHandler, nullptr, nullptr
+        );
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "IP_EVENT handler register failed: %s", esp_err_to_name(err));
             return false;
+        }
         handlersRegistered = true;
     }
 
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    // ESP_LOGI(TAG, "WiFi initialized OK");
     return true;
 }
 
@@ -83,9 +135,19 @@ std::string ipFromNetif(esp_netif_t *netif) {
 
 bool launcherWifiStartSta() {
     if (!ensureWifiInitialized()) return false;
-    esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_wifi_set_mode STA failed: %s", esp_err_to_name(err));
+        return false;
+    }
     esp_wifi_set_ps(WIFI_PS_NONE);
-    return okOrAlready(esp_wifi_start());
+    err = esp_wifi_start();
+    if (!okOrAlready(err)) {
+        ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    // ESP_LOGI(TAG, "STA started");
+    return true;
 }
 
 bool launcherWifiInitHostedSdio(
@@ -110,37 +172,78 @@ bool launcherWifiInitHostedSdio(
 bool launcherWifiConnect(const char *ssid, const char *password, uint32_t timeout_ms) {
     if (!launcherWifiStartSta()) return false;
 
-    wifi_config_t config = {};
-    strlcpy(reinterpret_cast<char *>(config.sta.ssid), ssid ? ssid : "", sizeof(config.sta.ssid));
-    strlcpy(reinterpret_cast<char *>(config.sta.password), password ? password : "", sizeof(config.sta.password));
-    config.sta.threshold.authmode = WIFI_AUTH_OPEN;
-    config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+    // Only (re-)initiate if not already waiting for this SSID to connect.
+    // The caller may call us in a retry loop; we must not interrupt an ongoing
+    // WPA2 handshake (auth + 4-way handshake + DHCP can take 3-5 s).
+    if (!expectingConnection) {
+        // Serial.printf("[idf_wifi] Connecting to: %s\n", ssid ? ssid : "(null)");
 
-    xEventGroupClearBits(wifiEvents, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
-    esp_wifi_disconnect();
-    if (esp_wifi_set_config(WIFI_IF_STA, &config) != ESP_OK) return false;
-    if (esp_wifi_connect() != ESP_OK) return false;
+        wifi_config_t config = {};
+        strlcpy(reinterpret_cast<char *>(config.sta.ssid), ssid ? ssid : "", sizeof(config.sta.ssid));
+        strlcpy(
+            reinterpret_cast<char *>(config.sta.password),
+            password ? password : "",
+            sizeof(config.sta.password)
+        );
+        config.sta.threshold.authmode = WIFI_AUTH_OPEN;
+        config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+
+        // Disconnect first; expectingConnection is false so the DISCONNECTED
+        // event won't set FAIL_BIT.
+        esp_wifi_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        xEventGroupClearBits(wifiEvents, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
+
+        esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &config);
+        if (err != ESP_OK) {
+            // Serial.printf("[idf_wifi] set_config failed: %d\n", (int)err);
+            return false;
+        }
+        expectingConnection = true; // arm before connect so we catch DISCONNECTED
+        err = esp_wifi_connect();
+        if (err != ESP_OK) {
+            // Serial.printf("[idf_wifi] esp_wifi_connect failed: %d\n", (int)err);
+            expectingConnection = false;
+            return false;
+        }
+    }
+    // else { Serial.printf("[idf_wifi] Still waiting for connection...\n"); }
 
     EventBits_t bits = xEventGroupWaitBits(
         wifiEvents, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE, pdFALSE, pdMS_TO_TICKS(timeout_ms)
     );
-    return (bits & WIFI_CONNECTED_BIT) != 0;
+    bool connected = (bits & WIFI_CONNECTED_BIT) != 0;
+    // Serial.printf(
+    //     "[idf_wifi] wait result bits=0x%lx -> %s\n", (unsigned long)bits, connected ? "OK" : "waiting/fail"
+    // );
+    return connected;
 }
 
 int launcherWifiScan(std::vector<LauncherWifiAp> &out) {
     out.clear();
-    if (!launcherWifiStartSta()) return -1;
+    if (!launcherWifiStartSta()) {
+        ESP_LOGE(TAG, "launcherWifiScan: STA start failed");
+        return -1;
+    }
 
     wifi_scan_config_t scanConfig = {};
     scanConfig.show_hidden = true;
-    if (esp_wifi_scan_start(&scanConfig, true) != ESP_OK) return -1;
+    esp_err_t err = esp_wifi_scan_start(&scanConfig, true);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_wifi_scan_start failed: %s", esp_err_to_name(err));
+        return -1;
+    }
 
     uint16_t count = 0;
     esp_wifi_scan_get_ap_num(&count);
+    // ESP_LOGI(TAG, "Scan found %u APs", count);
     if (!count) return 0;
 
     std::vector<wifi_ap_record_t> records(count);
-    if (esp_wifi_scan_get_ap_records(&count, records.data()) != ESP_OK) return -1;
+    if (esp_wifi_scan_get_ap_records(&count, records.data()) != ESP_OK) {
+        ESP_LOGE(TAG, "esp_wifi_scan_get_ap_records failed");
+        return -1;
+    }
     out.reserve(count);
     for (uint16_t i = 0; i < count; ++i) {
         LauncherWifiAp ap;
@@ -166,11 +269,13 @@ bool launcherWifiStartAp(const char *ssid, const char *password, uint8_t channel
     wifi_config_t config = {};
     strlcpy(reinterpret_cast<char *>(config.ap.ssid), ssid ? ssid : "Launcher", sizeof(config.ap.ssid));
     config.ap.ssid_len = strlen(reinterpret_cast<const char *>(config.ap.ssid));
-    strlcpy(reinterpret_cast<char *>(config.ap.password), password ? password : "", sizeof(config.ap.password));
+    strlcpy(
+        reinterpret_cast<char *>(config.ap.password), password ? password : "", sizeof(config.ap.password)
+    );
     config.ap.channel = channel;
     config.ap.max_connection = max_clients;
-    config.ap.authmode = strlen(reinterpret_cast<const char *>(config.ap.password)) ? WIFI_AUTH_WPA_WPA2_PSK
-                                                                                    : WIFI_AUTH_OPEN;
+    config.ap.authmode =
+        strlen(reinterpret_cast<const char *>(config.ap.password)) ? WIFI_AUTH_WPA_WPA2_PSK : WIFI_AUTH_OPEN;
 
     esp_wifi_set_mode(WIFI_MODE_AP);
     esp_wifi_set_ps(WIFI_PS_NONE);
@@ -180,6 +285,7 @@ bool launcherWifiStartAp(const char *ssid, const char *password, uint8_t channel
 
 bool launcherWifiStop() {
     if (!wifiInitialized) return true;
+    expectingConnection = false;
     xEventGroupClearBits(wifiEvents, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
     esp_wifi_disconnect();
     esp_err_t err = esp_wifi_stop();
@@ -203,7 +309,9 @@ std::string launcherWifiMac() {
     uint8_t mac[6] = {};
     if (esp_wifi_get_mac(WIFI_IF_STA, mac) != ESP_OK) esp_read_mac(mac, ESP_MAC_WIFI_STA);
     char out[18];
-    snprintf(out, sizeof(out), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    snprintf(
+        out, sizeof(out), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+    );
     return out;
 }
 

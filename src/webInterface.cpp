@@ -456,9 +456,12 @@ esp_err_t loginHandler(httpd_req_t *req) {
         sessionTokenLoaded = true;
         persistedSessionToken = token;
 
+        // Keep cookie string alive until after httpd_resp_send — httpd_resp_set_hdr
+        // stores raw pointers without copying, so a temporary String would dangle.
+        String cookieHeader = "ESP32SESSION=" + token + "; Path=/; HttpOnly";
         httpd_resp_set_status(req, "302 Found");
         httpd_resp_set_hdr(req, "Location", "/");
-        httpd_resp_set_hdr(req, "Set-Cookie", ("ESP32SESSION=" + token + "; Path=/; HttpOnly").c_str());
+        httpd_resp_set_hdr(req, "Set-Cookie", cookieHeader.c_str());
         httpd_resp_send(req, nullptr, 0);
         return ESP_OK;
     }
