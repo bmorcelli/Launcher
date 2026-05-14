@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <AXP192.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 AXP192 axp192;
 
 /***************************************************************************************
@@ -8,11 +9,11 @@ AXP192 axp192;
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(SEL_BTN, INPUT);
-    pinMode(DW_BTN, INPUT);
+    launcherGpioInput(SEL_BTN);
+    launcherGpioInput(DW_BTN);
     // https://github.com/pr3y/Bruce/blob/main/media/connections/cc1101_stick_SDCard.jpg
-    pinMode(33, OUTPUT);    // Keeps this pin high to allow working with the following pinout
-    digitalWrite(33, HIGH); // Keeps this pin high to allow working with the following pinout
+    launcherGpioOutput(33);    // Keeps this pin high to allow working with the following pinout
+    launcherGpioWrite(33, HIGH); // Keeps this pin high to allow working with the following pinout
     axp192.begin();         // Start the energy management of AXP192
 }
 
@@ -43,14 +44,14 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
 
     bool upPressed = (axp192.GetBtnPress());
-    bool selPressed = (digitalRead(SEL_BTN) == LOW);
-    bool dwPressed = (digitalRead(DW_BTN) == LOW);
+    bool selPressed = (launcherGpioRead(SEL_BTN) == LOW);
+    bool dwPressed = (launcherGpioRead(DW_BTN) == LOW);
 
     bool anyPressed = upPressed || selPressed || dwPressed;
-    if (anyPressed) tm = millis();
+    if (anyPressed) tm = launcherMillis();
     if (anyPressed && wakeUpScreen()) return;
 
     AnyKeyPress = anyPressed;
@@ -70,21 +71,21 @@ void checkReboot() {
     /* Long press power off */
     if (axp192.GetBtnPress()) {
         if (armed == false) {
-            time_count = millis();
+            time_count = launcherMillis();
             armed = true;
             return;
         }
-        if (millis() - time_count < 500) return;
+        if (launcherMillis() - time_count < 500) return;
 
         while (axp192.GetBtnPress()) {
             // Display poweroff bar only if holding button
-            if (millis() - time_count > 500) {
+            if (launcherMillis() - time_count > 500) {
                 tft->setCursor(60, 12);
                 tft->setTextSize(1);
                 tft->setTextColor(FGCOLOR, BGCOLOR);
-                countDown = (millis() - time_count) / 1000 + 1;
+                countDown = (launcherMillis() - time_count) / 1000 + 1;
                 tft->printf(" PWR OFF IN %d/3\n", countDown);
-                delay(10);
+                launcherDelayMs(10);
             }
         }
         // Clear text after releasing the button

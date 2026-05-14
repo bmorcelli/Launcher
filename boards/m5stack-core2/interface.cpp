@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <M5Unified.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -34,12 +35,12 @@ void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static long tm = millis();
-    if (millis() - tm > 200 || LongPress) {
+    static long tm = launcherMillis();
+    if (launcherMillis() - tm > 200 || LongPress) {
         M5.update();
         auto t = M5.Touch.getDetail();
         if (t.isPressed() || t.isHolding()) {
-            tm = millis();
+            tm = launcherMillis();
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;

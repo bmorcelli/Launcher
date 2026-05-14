@@ -1,0 +1,213 @@
+Processing m5stack-cardputer (board: m5stack-cardputer; board_build.partitions: support_files/custom_8Mb.csv; build_src_filter: +<*> -<.git/> -<.svn/> +<../boards/m5stack-cardputer>; build_flags: -DLAUNCHER='"dev"', -DMAXFILES=256, -DCONFIG_FILE='"/config.conf"', -flto, -fno-exceptions, -w, -Wl,--print-memory-usage, -Wl,--gc-sections, -DCORE_DEBUG_LEVEL=0, -DCONFIG_ESP32_JTAG_SUPPORT_DISABLE=1, -Os, -Iboards/m5stack-cardputer, -DOTA_TAG='"cardputer"', -DARDUINO_USB_CDC_ON_BOOT=1, -DCARDPUTER=1, -DPART_08MB=1, -DROTATION=1, -DHAS_BTN=1, -DBTN_ALIAS='"Ok"', -DBTN_PIN=0, -DFP=1, -DFM=2, -DFG=3, -DANALOG_BAT_PIN=10, -DLED=21, -DLED_ON=HIGH, -DBACKLIGHT=38, -DMINBRIGHT=165, -DTCA8418_INT_PIN=11, -DTCA8418_I2C_ADDR=0x34, -DTCA8418_SDA_PIN=8, -DTCA8418_SCL_PIN=9, -DST7789_DRIVER=1, -DTFT_WIDTH=135, -DTFT_HEIGHT=240, -DTFT_BL=38, -DTFT_RST=33, -DTFT_DC=34, -DTFT_MOSI=35, -DTFT_SCLK=36, -DTFT_CS=37, -D GFX_BL=38, -D TFT_IPS=1, -D TFT_COL_OFS1=52, -D TFT_ROW_OFS1=40, -D TFT_COL_OFS2=53, -D TFT_ROW_OFS2=40, -DSDCARD_SPI_BUS=FSPI, -DSDCARD_CS=12, -DSDCARD_SCK=40, -DSDCARD_MISO=39, -DSDCARD_MOSI=14; lib_deps: adafruit/Adafruit TCA8418 @ ^1.0.1; lib_ignore: ESPAsyncWebServer, AsyncTCP, M5Stack-HTTPUpdate, Custom_Update, SensorLib, XPowersLib; platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.32/platform-espressif32.zip; platform_packages: framework-arduinoespressif32-libs @ https://github.com/bmorcelli/esp32-arduino-lib-builder/releases/download/idf-release_v5.5/esp32-arduino-libs-20251001-233155.zip; monitor_filters: esp32_exception_decoder, send_on_enter, colorize; monitor_speed: 115200; framework: arduino; lib_extra_dirs: lib_modules; board_build.variants_dir: boards; board_upload.offset_address: 0x10000; extra_scripts: pre:support_files/check_submodules.py, pre:support_files/prep_web_files.py, support_files/enable_lto.py, pre:support_files/upload_patch.py, post:support_files/merge.py)
+--------------------------------------------------------------------------------
+Checking submodules...
+Initializing missing submodules and updating existing ones...
+Submodules are ready.
+[GZIP & EMBED INTO HEADER] - Nothing to process.
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/m5stack-cardputer.html
+PLATFORM: Espressif 32 (55.3.32) (https://github.com/pioarduino/platform-espressif32/releases/download/55.03.32/platform-espressif32.zip) > M5Stack Cardputer
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-builtin, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - contrib-piohome @ 3.4.4 (https://github.com/pioarduino/registry/releases/download/0.0.1/contrib-piohome-3.4.4.tar.gz) 
+ - framework-arduinoespressif32 @ 3.3.2 (https://github.com/espressif/arduino-esp32/releases/download/3.3.2/esp32-3.3.2.tar.xz) 
+ - framework-arduinoespressif32-libs @ 5.5.0+sha.95db1a98d9 (https://github.com/bmorcelli/esp32-arduino-lib-builder/releases/download/idf-release_v5.5/esp32-arduino-libs-20251001-233155.zip) 
+ - tool-esptoolpy @ 5.1.0 (file://c:\Projetos\Launcher\.pio\core\tools\tool-esptoolpy) 
+ - tool-mklittlefs @ 3.2.0 (file://c:\Projetos\Launcher\.pio\core\tools\tool-mklittlefs) 
+ - toolchain-xtensa-esp-elf @ 14.2.0+20250730 (file://c:\Projetos\Launcher\.pio\core\tools\toolchain-xtensa-esp-elf)
+[ComponentManager] Processed 6 ignored libraries
+[ComponentManager] Session completed with 1 changes
+*** Applied include path shortening for 274 framework paths ***
+*** Path length reduced from 33089 to ~10992 characters ***
+*** Estimated savings: 21646 characters ***
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Ignored library C:\Projetos\Launcher\lib_modules\SensorLib
+Ignored library C:\Projetos\Launcher\lib_modules\XPowersLib
+More details about "Library Compatibility Mode": https://docs.platformio.org/page/librarymanager/ldf.html#ldf-compat-mode
+Found 50 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- Adafruit TCA8418 @ 1.0.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\libdeps\m5stack-cardputer\Adafruit TCA8418)
+|   |-- Adafruit BusIO @ 1.17.4 (License: Unknown, Path: C:\Projetos\Launcher\.pio\libdeps\m5stack-cardputer\Adafruit BusIO)
+|   |   |-- Wire @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\Wire)
+|   |   |-- SPI @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPI)
+|   |-- Wire @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\Wire)
+|   |-- SPI @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPI)
+|-- utility (License: Unknown, Path: C:\Projetos\Launcher\lib\utility)
+|   |-- Wire @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\Wire)
+|-- Wire @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\Wire)
+|-- SD @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SD)
+|   |-- FS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FS)
+|   |-- SPI @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPI)
+|-- SPIFFS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPIFFS)
+|   |-- FS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FS)
+|-- CYD-touch (License: Unknown, Path: C:\Projetos\Launcher\lib\CYD-touch)
+|   |-- SPI @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPI)
+|   |-- Wire @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\Wire)
+|-- FS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FS)
+|-- SD_MMC @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SD_MMC)
+|   |-- FS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FS)
+|-- ArduinoJson @ 7.4.3 (License: Unknown, Path: C:\Projetos\Launcher\lib_modules\ArduinoJson)
+|-- FFat @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FFat)
+|   |-- FS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FS)
+|-- SPI @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPI)
+|-- LittleFS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\LittleFS)
+|   |-- FS @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\FS)
+|-- GFX Library for Arduino @ 1.6.5 (License: Unknown, Path: C:\Projetos\Launcher\lib_modules\Arduino_GFX)
+|   |-- SPI @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\SPI)
+|   |-- Wire @ 3.3.2 (License: Unknown, Path: C:\Projetos\Launcher\.pio\core\packages\framework-arduinoespressif32\libraries\Wire)
+Building in release mode
+<lambda>(["checkprogsize"], [".pio\build\m5stack-cardputer\firmware.elf"])
+MethodWrapper(["checkprogsize"], [".pio\build\m5stack-cardputer\firmware.elf"])
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [==        ]  21.3% (used 69820 bytes from 327680 bytes)
+Flash: [==        ]  24.3% (used 1258035 bytes from 5177344 bytes)
+.pio\build\m5stack-cardputer\firmware.elf  :
+
+section                    size         addr
+
+.rtc.text                     0   1611653120
+
+.rtc.force_fast               0   1611653120
+
+.rtc_noinit                   0   1342177792
+
+.rtc.force_slow              32   1342177792
+
+.rtc_reserved                24   1611661288
+
+.iram0.vectors             1028   1077362688
+
+.iram0.text               74915   1077363716
+
+.dram0.dummy              59648   1070104576
+
+.dram0.data               21268   1070164224
+
+.noinit                       0   1070185492
+
+.dram0.bss                48552   1070185496
+
+.flash.text              966924   1107296288
+
+.flash_rodata_dummy      983040   1006632992
+
+.flash.appdesc              256   1007616032
+
+.flash.rodata            193900   1007616288
+
+.flash.rodata_noload      23000   1007810188
+
+.ext_ram.dummy          1179616   1006632992
+
+.iram0.text_end              89   1077438631
+
+.iram0.data                   0   1077438720
+
+.iram0.bss                    0   1077438720
+
+.dram0.heap_start             0   1070234048
+
+.debug_aranges            77120            0
+
+.debug_info             8119115            0
+
+.debug_abbrev            727319            0
+
+.debug_line             4069334            0
+
+.debug_frame             218908            0
+
+.debug_str              1197157            0
+
+.debug_loc              1452763            0
+
+.debug_ranges            177856            0
+
+.debug_line_str           21749            0
+
+.debug_loclists          359883            0
+
+.debug_rnglists           37530            0
+
+.comment                    181            0
+
+.xtensa.info                 56            0
+
+.xt.prop                   2292            0
+
+.xt.lit                      96            0
+
+Total                  20013651
+========================= [SUCCESS] Took 25.67 seconds =========================
+
+Environment                      Status    Duration
+-------------------------------  --------  ------------
+arduino-nesso-n1                 IGNORED
+CYD-2432S028                     IGNORED
+CYD-2-USB                        IGNORED
+CYD-2432W328C                    IGNORED
+CYD-2432W328C_2                  IGNORED
+CYD-2432S024R                    IGNORED
+CYD-2432W328R                    IGNORED
+CYD-2432S022C                    IGNORED
+CYD-2432S032C                    IGNORED
+CYD-2432S032R                    IGNORED
+CYD-3248S035C                    IGNORED
+CYD-3248S035R                    IGNORED
+CYD-8048S043C                    IGNORED
+CYD-8048W550C                    IGNORED
+CYD-3248W535C                    IGNORED
+CYD-4827S043R                    IGNORED
+elecrow-24B                      IGNORED
+elecrow-28B                      IGNORED
+elecrow-35B                      IGNORED
+elecrow-35Bv2_2                  IGNORED
+headless-esp32-4mb               IGNORED
+headless-esp32-8mb               IGNORED
+headless-esp32s3-4mb             IGNORED
+headless-esp32s3-8mb             IGNORED
+headless-esp32s3-16mb            IGNORED
+lilygo-t-deck                    IGNORED
+lilygo-t-deck-plus               IGNORED
+lilygo-t-deck-pro                IGNORED
+lilygo-t-display-S3-amoled       IGNORED
+lilygo-t-display-S3-amoled-plus  IGNORED
+lilygo-t-display-S3-pro          IGNORED
+lilygo-t-display-S3-touch        IGNORED
+lilygo-t-dongle-s3-tft           IGNORED
+lilygo-t-dongle-c5-tft           IGNORED
+lilygo-t-embed                   IGNORED
+lilygo-t-embed-cc1101            IGNORED
+lilygo-t-hmi                     IGNORED
+lilygo-t-lora-pager              IGNORED
+lilygo-t-watch-s3                IGNORED
+lilygo-t-watch-ultra             IGNORED
+lilygo-t5-epaper-s3-pro          IGNORED
+m5stack-cardputer                SUCCESS   00:00:25.674
+m5stack-core                     IGNORED
+m5stack-core-4Mb                 IGNORED
+m5stack-core2                    IGNORED
+m5stack-cores3                   IGNORED
+m5stack-cplus1_1                 IGNORED
+m5stack-c                        IGNORED
+m5stack-cplus2                   IGNORED
+m5stack-dinmeter                 IGNORED
+m5stack-paper-s3                 IGNORED
+m5stack-paper                    IGNORED
+m5stack-sticks3                  IGNORED
+m5stack-tab5                     IGNORED
+Marauder-Mini                    IGNORED
+Marauder-v7                      IGNORED
+Awok-Mini                        IGNORED
+Marauder-v4-OG                   IGNORED
+Marauder-v61                     IGNORED
+Awok-Touch                       IGNORED
+WaveSentry-R1                    IGNORED
+NM-CYD-C5                        IGNORED
+Phantom_S024R                    IGNORED
+smoochiee-board                  IGNORED
+waveshare-esp32-s3-lcd-147       IGNORED
+_New-Device-Model                IGNORED
+========================= 1 succeeded in 00:00:25.674 =========================

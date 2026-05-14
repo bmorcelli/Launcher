@@ -543,3 +543,152 @@ O corte seguro ja aplicado foi remover diagnosticos `ESP_LOGE` do wrapper WiFi. 
 - Separar CAs por host em vez de sempre passar o bundle completo pode reduzir RAM/parse durante conexao, mas nao deve ser adotado agora pelo mesmo motivo de manutencao.
 - Nao remover nenhuma CA sem teste real de download/OTA. O commit `fixes` depende delas para recuperar os fluxos HTTPS, entao esse corte tem risco funcional alto.
 - Evitar nova camada de log baseada em `ESP_LOGx` enquanto `CORE_DEBUG_LEVEL=0`; se diagnostico for necessario, criar API minima em `src/idf/*` com compilacao condicional propria.
+
+## Milestone 5 - reduzir dependencia de Arduino.h no codigo do app
+
+Data: 2026-05-14
+
+Ambiente validado: `m5stack-cardputer`
+
+Comando executado:
+
+```powershell
+pio run -e m5stack-cardputer
+```
+
+Log completo salvo em `docs/milestone5-m5stack-cardputer-build.log`.
+
+Resultado: build `SUCCESS`.
+
+### Alteracoes
+
+- Criados `src/idf/launcher_platform.h` e `src/idf/launcher_platform.cpp` com wrappers pequenos para tempo, delay, random, GPIO e console funcional.
+- Removido `#include <Arduino.h>` dos headers do app em `src/` e `include/`:
+  - `include/globals.h`
+  - `include/interface.h`
+  - `include/VectorDisplay.h`
+  - `src/mykeyboard.h`
+  - `src/idf/idf_update.h`
+  - `src/idf/idf_http_client.h`
+  - ramo EPD Painter de `src/tft.h`
+- `src/idf/idf_update.cpp`, `src/webInterface.cpp`, `src/main.cpp`, `src/display.cpp`, `src/mykeyboard.cpp`, `src/onlineLauncher.cpp`, `src/partitioner.cpp`, `src/settings.cpp`, `src/sd_functions.cpp`, `src/powerSave.cpp` e `src/massStorage.cpp` passaram a usar wrappers explicitos para usos simples de `millis`, `delay`, `random`, `pinMode` e `digitalWrite`.
+- `Serial.print`, `Serial.println` e `Serial.printf` ativos nos modulos do app foram migrados para `launcherConsolePrint*`. A implementacao ainda usa `Serial` internamente em `src/idf/launcher_platform.cpp`, mantendo mensagens funcionais sem espalhar a dependencia pelos modulos.
+- `String`, `Stream`, `File`, `Wire` e `SPI` continuam preservados onde fazem parte da API publica ou de fluxos UI/display/SD, conforme escopo do milestone. `Serial.begin`/`available`/`readStringUntil`/`flush`/`end` permanecem onde controlam a UART diretamente.
+
+### Arduino.h e APIs Arduino diretas
+
+Comando:
+
+```powershell
+rg -n -g 'src/**' -g 'include/**' '#include <Arduino\.h>|#include "Arduino\.h"|\bmillis\(|\bdelay\(|\brandom\(|\bpinMode\(|\bdigitalWrite\('
+```
+
+Resultado:
+
+```text
+sem resultados
+```
+
+`VectorDisplay.h` foi validado adicionalmente em um ambiente headless:
+
+```powershell
+pio run -e headless-esp32s3-8mb
+```
+
+Resultado: build `SUCCESS`.
+
+### Tamanhos
+
+| Artefato | Commit fixes + logs WiFi removidos | Milestone 5 | Delta |
+| --- | ---: | ---: | ---: |
+| `.pio/build/m5stack-cardputer/firmware.bin` | 1.258.832 bytes | 1.258.432 bytes | -400 bytes |
+| `Launcher-m5stack-cardputer.bin` | 1.324.368 bytes | 1.323.968 bytes | -400 bytes |
+
+Resumo PlatformIO:
+
+```text
+RAM:   [==        ]  21.3% (used 69820 bytes from 327680 bytes)
+Flash: [==        ]  24.3% (used 1258035 bytes from 5177344 bytes)
+```
+
+A mudanca reduziu `400 bytes` contra o ponto anterior. O ganho principal deste milestone e reduzir acoplamento de headers e remover chamadas diretas de APIs Arduino no codigo do app; a remocao real de dependencias obsoletas fica para o Milestone 6.
+
+### Fluxos manuais pendentes
+
+- Boot normal e boot para app instalado: nao testado em hardware.
+- WebUI, login/logout, SD, upload/download e OTA via upload: nao testado em hardware.
+- OTA online LauncherHub: nao testado em hardware.
+
+## Milestone 6 - limpeza de dependencias e configuracao de build
+
+Data: 2026-05-14
+
+Ambiente validado: `m5stack-cardputer`
+
+Comandos executados:
+
+```powershell
+pio run -e m5stack-cardputer
+pio run -e m5stack-cardputer -v
+```
+
+Log verboso completo salvo em `docs/milestone6-m5stack-cardputer-verbose-build.log`.
+
+Resultado: build `SUCCESS`.
+
+### Alteracoes
+
+- `platformio.ini` agora declara `lib_ignore` global para dependencias removidas:
+  - `ESPAsyncWebServer`
+  - `AsyncTCP`
+  - `M5Stack-HTTPUpdate`
+  - `Custom_Update`
+- `boards/m5stack-cardputer/platformio.ini` agora herda `${env.lib_ignore}` e mantem seus ignores especificos:
+  - `SensorLib`
+  - `XPowersLib`
+- Nenhuma flag `CONFIG_ASYNC_TCP_RUNNING_CORE` ou `CONFIG_ASYNC_TCP_USE_WDT` permanece ativa em `platformio.ini` ou no ambiente `m5stack-cardputer`.
+- `lib_extra_dirs = lib_modules` permanece necessario porque o build ainda usa `ArduinoJson` e `Arduino_GFX` a partir de `lib_modules`.
+
+### Verificacao de dependencias removidas
+
+O build verboso mostra:
+
+```text
+lib_ignore: ESPAsyncWebServer, AsyncTCP, M5Stack-HTTPUpdate, Custom_Update, SensorLib, XPowersLib
+[ComponentManager] Processed 6 ignored libraries
+```
+
+Grafo de dependencias do `m5stack-cardputer` nao lista:
+
+```text
+ESPAsyncWebServer
+AsyncTCP
+M5Stack-HTTPUpdate
+Custom_Update
+```
+
+Comando de busca usado:
+
+```powershell
+rg -n "ESPAsyncWebServer|AsyncTCP|M5Stack-HTTPUpdate|Custom_Update|CustomUpdate|CONFIG_ASYNC_TCP" docs\milestone6-m5stack-cardputer-verbose-build.log platformio.ini boards\m5stack-cardputer\platformio.ini src include
+```
+
+Resultado esperado: somente as entradas de `lib_ignore` em `platformio.ini` e no cabecalho de configuracao do log verboso.
+
+### Tamanhos
+
+| Artefato | Milestone 5 | Milestone 6 | Delta |
+| --- | ---: | ---: | ---: |
+| `.pio/build/m5stack-cardputer/firmware.bin` | 1.258.432 bytes | 1.258.432 bytes | 0 bytes |
+| `Launcher-m5stack-cardputer.bin` | 1.323.968 bytes | 1.323.968 bytes | 0 bytes |
+
+Resumo PlatformIO:
+
+```text
+RAM:   [==        ]  21.3% (used 69820 bytes from 327680 bytes)
+Flash: [==        ]  24.3% (used 1258035 bytes from 5177344 bytes)
+```
+
+### Fluxos manuais pendentes
+
+- Validacao em hardware nao executada neste milestone.

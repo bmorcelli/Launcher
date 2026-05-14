@@ -4,6 +4,7 @@
 #include "powerSave.h"
 #include "sd_functions.h"
 #include "settings.h"
+#include "idf/launcher_platform.h"
 #include <cstring>
 #include <globals.h>
 
@@ -85,7 +86,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
     if (len < coord.size) {
         // Text fits within limit, no scrolling needed
         return;
-    } else if (millis() > _lastmillis + 200) {
+    } else if (launcherMillis() > _lastmillis + 200) {
         String scrollingPart =
             displayText.substring(i, i + (coord.size - 1)); // Display charLimit characters at a time
         tft->fillRect(
@@ -95,9 +96,9 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
         tft->setCursor(coord.x, coord.y);
         tft->print(scrollingPart);
         if (i >= scrollLen - coord.size) i = -1; // Loop back
-        _lastmillis = millis();
+        _lastmillis = launcherMillis();
         i++;
-        if (i == 1) _lastmillis = millis() + 1000;
+        if (i == 1) _lastmillis = launcherMillis() + 1000;
         tft->display(false);
     }
 }
@@ -157,7 +158,7 @@ void TouchFooter2(uint16_t color) {
 ***************************************************************************************/
 void initDisplay(bool doAll) {
 #ifndef HEADLESS
-    static uint8_t _name = random(0, 3);
+    static uint8_t _name = launcherRandom(0, 3);
     String name = "@Pirata";
     String txt;
     int cor, _x, _y, show;
@@ -165,10 +166,10 @@ void initDisplay(bool doAll) {
 #ifdef E_PAPER_DISPLAY // epaper display draws only once
     static bool runOnce = false;
     static long lastMillis = 0;
-    if (runOnce && millis() - lastMillis < 5000) goto END;
+    if (runOnce && launcherMillis() - lastMillis < 5000) goto END;
     else {
         runOnce = true;
-        lastMillis = millis();
+        lastMillis = launcherMillis();
     }
 #endif
 
@@ -178,14 +179,14 @@ void initDisplay(bool doAll) {
     tft->setTextSize(FP);
     tft->setCursor(10, 10);
     cor = 0;
-    show = random(0, 40);
+    show = launcherRandom(0, 40);
     _x = tft->getCursorX();
     _y = tft->getCursorY();
 
     while (tft->getCursorY() < (tftHeight - (LH + 4))) {
-        cor = random(0, 11);
+        cor = launcherRandom(0, 11);
         tft->setTextSize(FP);
-        show = random(0, 40);
+        show = launcherRandom(0, 40);
         if (show == 0 || doAll) {
             if (cor == 10) {
                 txt = " ";
@@ -412,9 +413,9 @@ void progressHandler(size_t progress, size_t total) {
     else tft->fillRect(20, tftHeight - 45, barWidth, 13, FGCOLOR);
 
 #if defined(E_PAPER_DISPLAY) && (defined(GxEPD2_DISPLAY) || defined(USE_M5GFX))
-    if (millis() - lastUpdate > 2000) {
+    if (launcherMillis() - lastUpdate > 2000) {
         tft->display();
-        lastUpdate = millis();
+        lastUpdate = launcherMillis();
     }
 #else
     tft->display();
@@ -796,7 +797,7 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
     std::vector<MenuOptions> list;
     int max_idx = 0;
     int min_idx = 255;
-    LongPressTmp = millis();
+    LongPressTmp = launcherMillis();
     while (1) {
         if (redraw) {
             list = {};
@@ -859,9 +860,9 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
         if (LongPress || PrevPress) {
             if (!LongPress) {
                 LongPress = true;
-                LongPressTmp = millis();
+                LongPressTmp = launcherMillis();
             }
-            if (LongPress && millis() - LongPressTmp < 700) {
+            if (LongPress && launcherMillis() - LongPressTmp < 700) {
                 if (!PrevPress) {
                     AnyKeyPress = false;
                     if (index == 0) index = options.size() - 1;
@@ -869,17 +870,17 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
                     LongPress = false;
                     redraw = true;
                 }
-                if (millis() - LongPressTmp > 200)
+                if (launcherMillis() - LongPressTmp > 200)
                     tft->drawArc(
                         tftWidth / 2,
                         tftHeight / 2,
                         25,
                         15,
                         0,
-                        360 * (millis() - (LongPressTmp + 200)) / 500,
+                        360 * (launcherMillis() - (LongPressTmp + 200)) / 500,
                         FGCOLOR - 0x1111
                     );
-                if (millis() - LongPressTmp > 700) { // longpress detected to exit
+                if (launcherMillis() - LongPressTmp > 700) { // longpress detected to exit
                     LongPress = false;
                     check(PrevPress);
                     exit = true;
@@ -936,7 +937,7 @@ void loopVersions(String _fid) {
     JsonArray versions = item["versions"];
     bool redraw = true;
 
-    LongPressTmp = millis();
+    LongPressTmp = launcherMillis();
     while (1) {
         if (returnToMenu) break; // Stops the loop to get back to Main menu
 
@@ -996,35 +997,35 @@ void loopVersions(String _fid) {
         if (LongPress || PrevPress) {
             if (!LongPress) {
                 LongPress = true;
-                LongPressTmp = millis();
+                LongPressTmp = launcherMillis();
             }
-            if (LongPress && millis() - LongPressTmp < 800) {
+            if (LongPress && launcherMillis() - LongPressTmp < 800) {
             WAITING:
                 vTaskDelay(10 / portTICK_PERIOD_MS);
-                if (!PrevPress && millis() - LongPressTmp < 200) {
+                if (!PrevPress && launcherMillis() - LongPressTmp < 200) {
                     AnyKeyPress = false;
                     if (versionIndex == 0) versionIndex = versions.size() - 1;
                     else if (versionIndex > 0) versionIndex--;
                     LongPress = false;
                     redraw = true;
                 }
-                if (!PrevPress && millis() - LongPressTmp > 200) {
+                if (!PrevPress && launcherMillis() - LongPressTmp > 200) {
                     check(PrevPress);
                     redraw = true;
                     LongPress = false;
                     goto EXIT_CHECK;
                 }
-                if (millis() - LongPressTmp > 200)
+                if (launcherMillis() - LongPressTmp > 200)
                     tft->drawArc(
                         tftWidth / 2,
                         tftHeight / 2,
                         25,
                         15,
                         0,
-                        360 * (millis() - (LongPressTmp + 200)) / 500,
+                        360 * (launcherMillis() - (LongPressTmp + 200)) / 500,
                         FGCOLOR - 0x1111
                     );
-                if (millis() - LongPressTmp > 700) { // longpress detected to exit
+                if (launcherMillis() - LongPressTmp > 700) { // longpress detected to exit
                     returnToMenu = true;
                     check(PrevPress);
                     goto SAIR;

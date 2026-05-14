@@ -7,7 +7,9 @@
 
 #include <EPD_Painter_Adafruit.h>
 
-#include <Arduino.h>
+#include <WString.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 extern TaskHandle_t xHandle;
 

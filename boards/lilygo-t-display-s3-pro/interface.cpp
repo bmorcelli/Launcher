@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <XPowersLib.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 static PowersSY6970 PMU;
 #define TOUCH_MODULES_CST_SELF
 #include <TouchDrvCSTXXX.hpp>
@@ -18,16 +19,16 @@ static PowersSY6970 PMU;
 TouchDrvCSTXXX touch;
 
 void touchHomeKeyCallback(void *user_data) {
-    Serial.println("Home key pressed!");
+    launcherConsolePrintf("%s\n", String("Home key pressed!").c_str());
     static uint32_t checkMs = 0;
-    if (millis() > checkMs) {
-        if (digitalRead(TFT_BL)) {
-            digitalWrite(TFT_BL, LOW);
+    if (launcherMillis() > checkMs) {
+        if (launcherGpioRead(TFT_BL)) {
+            launcherGpioWrite(TFT_BL, LOW);
         } else {
-            digitalWrite(TFT_BL, HIGH);
+            launcherGpioWrite(TFT_BL, HIGH);
         }
     }
-    checkMs = millis() + 200;
+    checkMs = launcherMillis() + 200;
 }
 
 /***************************************************************************************
@@ -37,22 +38,22 @@ void touchHomeKeyCallback(void *user_data) {
 ***************************************************************************************/
 void _setup_gpio() {
     gpio_hold_dis((gpio_num_t)BOARD_TOUCH_RST); // PIN_TOUCH_RES
-    pinMode(SEL_BTN, INPUT);
-    pinMode(UP_BTN, INPUT);
-    pinMode(DW_BTN, INPUT);
+    launcherGpioInput(SEL_BTN);
+    launcherGpioInput(UP_BTN);
+    launcherGpioInput(DW_BTN);
 
     // CS pins of SPI devices to HIGH
-    pinMode(15, OUTPUT);
-    digitalWrite(15, HIGH);
-    pinMode(9, OUTPUT);
-    digitalWrite(9, HIGH);
-    pinMode(6, OUTPUT);
-    digitalWrite(6, HIGH);
+    launcherGpioOutput(15);
+    launcherGpioWrite(15, HIGH);
+    launcherGpioOutput(9);
+    launcherGpioWrite(9, HIGH);
+    launcherGpioOutput(6);
+    launcherGpioWrite(6, HIGH);
 
-    pinMode(BOARD_TOUCH_RST, OUTPUT);   // PIN_TOUCH_RES
-    digitalWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
-    delay(500);
-    digitalWrite(BOARD_TOUCH_RST, HIGH);      // PIN_TOUCH_RES
+    launcherGpioOutput(BOARD_TOUCH_RST);   // PIN_TOUCH_RES
+    launcherGpioWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
+    launcherDelayMs(500);
+    launcherGpioWrite(BOARD_TOUCH_RST, HIGH);      // PIN_TOUCH_RES
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
     // Initialize capacitive touch
@@ -66,7 +67,7 @@ void _setup_gpio() {
 
     bool hasPMU = PMU.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, SY6970_SLAVE_ADDRESS);
     if (!hasPMU) {
-        Serial.println("PMU is not online...");
+        launcherConsolePrintf("%s\n", String("PMU is not online...").c_str());
     } else {
         PMU.disableOTG();
         PMU.enableMeasure();
@@ -111,9 +112,9 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 5;
     else dutyCycle = ((brightval * 250) / 100);
 
-    Serial.printf("dutyCycle for bright 0-255: %d", dutyCycle);
+    launcherConsolePrintf("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -131,9 +132,9 @@ struct LTouchPointPro {
 void InputHandler(void) {
     static long tm = 0;
     LTouchPointPro t;
-    if (millis() - tm > 200 || LongPress) {
+    if (launcherMillis() - tm > 200 || LongPress) {
         if (touch.getPoint(t.x, t.y, 1) && touch.isPressed()) {
-            tm = millis();
+            tm = launcherMillis();
             if (rotation == 1) { t.y[0] = TFT_WIDTH - t.y[0]; }
             if (rotation == 3) { t.x[0] = TFT_HEIGHT - t.x[0]; }
             // Need to test these 2
@@ -148,7 +149,7 @@ void InputHandler(void) {
                 t.y[0] = TFT_HEIGHT - tmp;
             }
 
-            Serial.printf("\nPressed x=%d , y=%d, rot: %d", t.x[0], t.y[0], rotation);
+            launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d", t.x[0], t.y[0], rotation);
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;

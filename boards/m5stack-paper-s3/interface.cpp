@@ -2,6 +2,7 @@
 #include <M5GFX.h>
 #include <M5Unified.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -43,15 +44,15 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
-    if (millis() - tm > 200 || LongPress) {
+    if (launcherMillis() - tm > 200 || LongPress) {
         M5.update();
         auto t = M5.Touch.getDetail();
         if (t.isPressed() || t.isHolding()) {
-            Serial.printf("\nx1=%d, y1=%d, ", t.x, t.y);
-            tm = millis();
+            launcherConsolePrintf("\nx1=%d, y1=%d, ", t.x, t.y);
+            tm = launcherMillis();
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
-            Serial.printf("x2=%d, y2=%d, rot=%d\n", t.x, t.y, rotation);
+            launcherConsolePrintf("x2=%d, y2=%d, rot=%d\n", t.x, t.y, rotation);
 
             // Touch point global variable
             touchPoint.x = t.x;
@@ -69,7 +70,7 @@ void InputHandler(void) {
 void powerOff() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);
-    delay(1000);
+    launcherDelayMs(1000);
     M5.Power.powerOff();
-    while (1) delay(100);
+    while (1) launcherDelayMs(100);
 }

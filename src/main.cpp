@@ -5,6 +5,7 @@
 #else
 #include <tft.h>
 #endif
+#include "idf/launcher_platform.h"
 #include "idf/idf_wifi.h"
 #include "esp_ota_ops.h"
 #include "nvs_flash.h"
@@ -68,15 +69,15 @@ volatile uint16_t tftHeight = TFT_WIDTH;
 volatile uint16_t tftWidth = TFT_HEIGHT;
 TaskHandle_t xHandle;
 void __attribute__((weak)) taskInputHandler(void *parameter) {
-    auto timer = millis();
+    auto timer = launcherMillis();
     while (true) {
         checkPowerSaveTime();
-        if (!AnyKeyPress || millis() - timer > 75) {
+        if (!AnyKeyPress || launcherMillis() - timer > 75) {
             resetGlobals();
 #ifndef DONT_USE_INPUT_TASK
             InputHandler();
 #endif
-            timer = millis();
+            timer = launcherMillis();
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -213,7 +214,7 @@ void get_partition_sizes() {
     //       if(__size==0x1000000) { partitionSetter(def_part16, sizeof(def_part16)); }
     //       while(1) {
     //         Serial.println("Turn Off and On again to apply partition changes.");
-    //         delay(2500);
+    //         wait 2500 ms
     //       }
     //     }
 
@@ -268,8 +269,8 @@ void setup() {
 // Setup GPIOs and stuff
 #if defined(HEADLESS)
 #if LED > 0
-    pinMode(LED, OUTPUT); // Set pin to to recognize if launcher is starting or not, and connectiong or not
-    digitalWrite(LED, LED_ON); // keeps on until exit
+    launcherGpioOutput(LED); // Set pin to recognize if launcher is starting or connecting
+    launcherGpioWrite(LED, LED_ON); // keeps on until exit
 #endif
 #endif
 
@@ -347,14 +348,14 @@ void setup() {
     );
 
     // Start Bootscreen timer
-    int i = millis();
+    int i = launcherMillis();
     int j = 0;
     LongPress = true;
-    while (millis() < i + (5000 - bootToApp * 3000)) { // increased from 2500 to 5000
+    while (launcherMillis() < i + (5000 - bootToApp * 3000)) { // increased from 2500 to 5000
         initDisplay();                                 // Inicia o display
 
-        if (millis() > (i + j * 500)) { // Serial message each ~500ms
-            Serial.println("Press the button to enter the Launcher!");
+        if (launcherMillis() > (i + j * 500)) { // Serial message each ~500ms
+            launcherConsolePrintln("Press the button to enter the Launcher!");
             j++;
         }
 #if defined(HAS_TOUCH)
@@ -413,7 +414,7 @@ Launcher:
     LongPress = false;
     tft->fillScreen(BGCOLOR);
 #if LED > 0 && defined(HEADLESS)
-    digitalWrite(LED, LED_ON ? LOW : HIGH); // turn off the LED
+    launcherGpioWrite(LED, LED_ON ? LOW : HIGH); // turn off the LED
 #endif
 }
 
@@ -469,7 +470,7 @@ void loop() {
                     tft->fillScreen(BGCOLOR);
                 } else {
                     displayRedStripe("Insert SD Card");
-                    delay(2000);
+                    launcherDelayMs(2000);
                 }
             }, sdcardMounted
         },
@@ -522,7 +523,7 @@ void loop() {
             tft->display(false);
             if (first_loop) {
                 first_loop = false;
-                delay(350);
+                launcherDelayMs(350);
                 resetGlobals(); // avoid leaking command after menu is shown
             }
         }
@@ -585,7 +586,7 @@ void loop() {
             msg.trim();
 
             if (msg == "calibrate") {
-                Serial.println("Starting calibration..");
+                launcherConsolePrintln("Starting calibration..");
                 calibrateTouch();
             }
         }
@@ -595,7 +596,7 @@ void loop() {
 
 #else
 void loop() { // Start SD card, If there's no SD Card installed, see if there's ssid saved on memory,
-    Serial.print(
+    launcherConsolePrint(
         "     _                            _               \n"
         "    | |                          | |              \n"
         "    | |     __ _ _   _ _ __   ___| |__   ___ _ __ \n"
@@ -612,7 +613,7 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
     );
 
     getConfigs();
-    Serial.println("Scanning networks...");
+    launcherConsolePrintln("Scanning networks...");
     std::vector<LauncherWifiAp> networks;
     int nets = launcherWifiScan(networks);
     bool mode_ap = true;
@@ -623,21 +624,21 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
         for (int i = 0; i < nets; i++) {
             String networkSsid = networks[i].ssid.c_str();
             for (auto wifientry : WifiList) {
-                Serial.println("Target: " + ssid + " Network: " + networkSsid);
+                launcherConsolePrintf("Target: %s Network: %s\n", ssid.c_str(), networkSsid.c_str());
                 if (networkSsid == wifientry["ssid"].as<String>()) {
                     ssid = wifientry["ssid"].as<String>();
                     pwd = wifientry["pwd"].as<String>();
                     int count = 0;
-                    Serial.println("Connecting to " + ssid);
+                    launcherConsolePrintf("Connecting to %s\n", ssid.c_str());
                     bool connected = false;
                     while (!connected) {
                         connected = launcherWifiConnect(ssid.c_str(), pwd.c_str(), 500);
                         if (connected) break;
                         vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
-                        digitalWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
+                        launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
 #endif
-                        Serial.print(".");
+                        launcherConsolePrint(".");
                         count++;
                         if (count > 10) { // try for 5 seconds
                             break; // stops trying this network, will try the others, if there are some other
@@ -651,20 +652,20 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
     } else if (ssid != "") { // will try to connect to a saved network
         for (int i = 0; i < nets; i++) {
             String networkSsid = networks[i].ssid.c_str();
-            Serial.println("Target: " + ssid + " Network: " + networkSsid);
+            launcherConsolePrintf("Target: %s Network: %s\n", ssid.c_str(), networkSsid.c_str());
             if (ssid == networkSsid) {
-                Serial.println("Network matches the SSID, starting connection\n");
+                launcherConsolePrintln("Network matches the SSID, starting connection\n");
                 int count = 0;
-                Serial.println("Connecting to " + ssid);
+                launcherConsolePrintf("Connecting to %s\n", ssid.c_str());
                 bool connected = false;
                 while (!connected) {
                     connected = launcherWifiConnect(ssid.c_str(), pwd.c_str(), 500);
                     if (connected) break;
                     vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
-                    digitalWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
+                    launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
 #endif
-                    Serial.print(".");
+                    launcherConsolePrint(".");
                     count++;
                     if (count > 6) { // try for 3 seconds
                         break; // stops trying this network, will try the others, if there are some other with
@@ -674,7 +675,7 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
             }
         }
     } else {
-        Serial.println(
+        launcherConsolePrintln(
             "Couldn't find SD Card and SSID Saved,\n"
             "you can configure it on the WEB Ui,\n\n"
             "Starting the Launcher in Access point mode\n"

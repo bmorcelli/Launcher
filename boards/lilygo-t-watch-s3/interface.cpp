@@ -5,6 +5,7 @@
 #include <driver/gpio.h>
 #include <esp_system.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 XPowersAXP2101 axp192;
 #include <TouchDrvFT6X36.hpp>
@@ -20,11 +21,11 @@ HapticDriver_DRV2605 drv;
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(16, INPUT); // Touch IRQ
+    launcherGpioInput(16); // Touch IRQ
     Wire.begin(10, 11); // sensors
-    delay(10);
+    launcherDelayMs(10);
     Wire1.begin(39, 40); // touchscreen
-    delay(10);
+    launcherDelayMs(10);
     axp192.init(Wire, 10, 11);
     axp192.setVbusVoltageLimit(XPOWERS_AXP2101_VBUS_VOL_LIM_4V36);
     axp192.setVbusCurrentLimit(XPOWERS_AXP2101_VBUS_CUR_LIM_900MA);
@@ -91,9 +92,9 @@ void _setup_gpio() {
 
     // Haptic driver
     if (!drv.begin(Wire, 10, 11)) {
-        Serial.println("Failed to find DRV2605.");
+        launcherConsolePrintf("%s\n", String("Failed to find DRV2605.").c_str());
     } else {
-        Serial.println("Init DRV2605 Sensor success!");
+        launcherConsolePrintf("%s\n", String("Init DRV2605 Sensor success!").c_str());
         drv.selectLibrary(1);
         drv.setMode(HapticMode::INTERNAL_TRIGGER);
         drv.setERMLRA(true);
@@ -111,8 +112,8 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    pinMode(TFT_BL, OUTPUT);
-    digitalWrite(TFT_BL, HIGH);
+    launcherGpioOutput(TFT_BL);
+    launcherGpioWrite(TFT_BL, HIGH);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }
@@ -145,7 +146,7 @@ void _setBrightness(uint8_t brightval) {
     ledcWrite(TFT_BL, dutyCycle);
 }
 
-bool getTouched() { return digitalRead(16) == LOW; }
+bool getTouched() { return launcherGpioRead(16) == LOW; }
 struct TP {
     int16_t x[1], y[1];
 };
@@ -156,12 +157,12 @@ struct TP {
 void InputHandler(void) {
     TP t;
     static unsigned long tm = 0;
-    if (millis() - tm > 200 || LongPress) {
+    if (launcherMillis() - tm > 200 || LongPress) {
         // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         if (getTouched()) {
             touch.getPoint(t.x, t.y, 1);
-            // Serial.printf("\nRAW: Touch Pressed on x=%d, y=%d",t.x, t.y);
+            // launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d",t.x, t.y);
             if (rotation == 3) {
                 t.y[0] = (tftHeight + 20) - t.y[0];
                 t.x[0] = t.x[0];
@@ -177,7 +178,7 @@ void InputHandler(void) {
                 t.y[0] = tmp;
             }
             if (rotation == 1) { t.x[0] = tftWidth - t.x[0]; }
-            // Serial.printf("\nROT: Touch Pressed on x=%d, y=%d\n",t.x[0], t.y[0]);
+            // launcherConsolePrintf("\nROT: Touch Pressed on x=%d, y=%d\n",t.x[0], t.y[0]);
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
@@ -188,7 +189,7 @@ void InputHandler(void) {
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
 
-            tm = millis();
+            tm = launcherMillis();
             drv.setWaveform(0, 75);
             drv.setWaveform(1, 0); // end waveform
             drv.run();
@@ -225,10 +226,10 @@ bool isCharging() {
 }
 
 void reboot() {
-    Serial.flush();
+    launcherConsoleFlush();
 
     ledcWrite(TFT_BL, 0);
-    digitalWrite(TFT_BL, LOW);
+    launcherGpioWrite(TFT_BL, LOW);
 
     drv.setWaveform(0, 0);
     drv.setWaveform(1, 0);
@@ -239,10 +240,10 @@ void reboot() {
     // Force the touch controller to lose power so the next boot starts from a clean state.
     axp192.disableALDO3();
     axp192.disableBLDO2();
-    delay(50);
+    launcherDelayMs(50);
     axp192.enableALDO3(); //! Screen touch VDD
     axp192.enableBLDO2(); //! drv2605 enable
 
-    delay(100);
+    launcherDelayMs(100);
     esp_restart();
 }

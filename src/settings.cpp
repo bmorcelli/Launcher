@@ -9,6 +9,7 @@
 #include "partitioner.h"
 #include "powerSave.h"
 #include "sd_functions.h"
+#include "idf/launcher_platform.h"
 #include <FS.h>
 #include <SD.h>
 #include <cstdio>
@@ -61,12 +62,12 @@ bool ensureStringKey(nvs::NVSHandle &handle, const char *key, const char *value)
     esp_err_t err = handle.get_string(key, buffer, sizeof(buffer));
     if (err == ESP_OK) return false;
     if (err != ESP_ERR_NVS_NOT_FOUND) {
-        Serial.printf("ensureStringKey(%s) read failed: %d", key, err);
+        launcherConsolePrintf("ensureStringKey(%s) read failed: %d", key, err);
         return false;
     }
 
     err = handle.set_string(key, value);
-    if (err != ESP_OK) { Serial.printf("ensureStringKey(%s) write failed: %d", key, err); }
+    if (err != ESP_OK) { launcherConsolePrintf("ensureStringKey(%s) write failed: %d", key, err); }
     return err == ESP_OK;
 }
 
@@ -75,12 +76,12 @@ bool ensureU8Key(nvs::NVSHandle &handle, const char *key, uint8_t value) {
     esp_err_t err = handle.get_item(key, current);
     if (err == ESP_OK) return false;
     if (err != ESP_ERR_NVS_NOT_FOUND) {
-        Serial.printf("ensureU8Key(%s) read failed: %d", key, err);
+        launcherConsolePrintf("ensureU8Key(%s) read failed: %d", key, err);
         return false;
     }
 
     err = handle.set_item(key, value);
-    if (err != ESP_OK) { Serial.printf("ensureU8Key(%s) write failed: %d", key, err); }
+    if (err != ESP_OK) { launcherConsolePrintf("ensureU8Key(%s) write failed: %d", key, err); }
     return err == ESP_OK;
 }
 } // namespace
@@ -153,10 +154,10 @@ bool ensureM5StackUiFlowNVSDefaults() {
     if (changed) {
         err = nvsHandle->commit();
         if (err != ESP_OK) {
-            Serial.printf("ensureM5StackUiFlowNVSDefaults: commit failed: %d", err);
+            launcherConsolePrintf("ensureM5StackUiFlowNVSDefaults: commit failed: %d", err);
             return false;
         }
-        Serial.printf("ensureM5StackUiFlowNVSDefaults: default UiFlow keys created");
+        launcherConsolePrint("ensureM5StackUiFlowNVSDefaults: default UiFlow keys created");
     }
 
     return true;
@@ -504,9 +505,9 @@ void chargeMode() {
     tft->fillScreen(BGCOLOR);
     unsigned long tmp = 0;
     while (!check(SelPress)) {
-        if (millis() - tmp > 5000) {
+        if (launcherMillis() - tmp > 5000) {
             displayRedStripe(String(getBattery()) + " %");
-            tmp = millis();
+            tmp = launcherMillis();
         }
     }
 #ifndef CONFIG_IDF_TARGET_ESP32P4
@@ -578,13 +579,13 @@ bool saveIntoNVS() {
     err |= nvsHandle->set_item("cs", _cs);
 #endif
     if (err != ESP_OK) {
-        Serial.printf("Failed to store settings in NVS: %d", err);
+        launcherConsolePrintf("Failed to store settings in NVS: %d", err);
     } else {
-        Serial.printf("Settings stored in NVS successfully");
+        launcherConsolePrint("Settings stored in NVS successfully");
     }
 
     nvsHandle->commit();
-    if (!saveWifiIntoNVS()) { Serial.printf("saveIntoNVS: failed to store WiFi list"); }
+    if (!saveWifiIntoNVS()) { launcherConsolePrint("saveIntoNVS: failed to store WiFi list"); }
     return true;
 }
 
@@ -745,11 +746,11 @@ bool getWifiFromNVS() {
     if (wifiList.isNull()) return false;
     wifiList.clear();
 
-    Serial.println("NVS: Finding keys in NVS...");
+    launcherConsolePrintln("NVS: Finding keys in NVS...");
     nvs_handle_t rawHandle;
     esp_err_t err = nvs_open("l_wifi", NVS_READONLY, &rawHandle);
     if (err != ESP_OK) {
-        Serial.printf("Error opening l_wifi: %s\n", esp_err_to_name(err));
+        launcherConsolePrintf("Error opening l_wifi: %s\n", esp_err_to_name(err));
         return false;
     }
 
@@ -760,7 +761,7 @@ bool getWifiFromNVS() {
         return true;
     }
     if (err != ESP_OK) {
-        Serial.printf("Error finding l_wifi entry, error: %s\n", esp_err_to_name(err));
+        launcherConsolePrintf("Error finding l_wifi entry, error: %s\n", esp_err_to_name(err));
         nvs_close(rawHandle);
         return false;
     }
@@ -773,13 +774,13 @@ bool getWifiFromNVS() {
             size_t ssid_size = 0;
             err = nvs_get_str(rawHandle, info.key, NULL, &ssid_size);
             if (err != ESP_OK) {
-                Serial.printf("Error %d looking for %s\n", err, info.key);
+                launcherConsolePrintf("Error %d looking for %s\n", err, info.key);
                 break;
             }
 
             char *ssidBuff = static_cast<char *>(malloc(ssid_size));
             if (!ssidBuff) {
-                Serial.println("Failed to allocate buffer for SSID");
+                launcherConsolePrintln("Failed to allocate buffer for SSID");
                 break;
             }
 
@@ -795,20 +796,20 @@ bool getWifiFromNVS() {
                         if (nvs_get_str(rawHandle, pwdKey.c_str(), pwdBuff, &pwd_size) == ESP_OK) {
                             pwdValue = String(pwdBuff);
                         } else {
-                            Serial.printf("Error retrieving pwd for key %s\n", pwdKey.c_str());
+                            launcherConsolePrintf("Error retrieving pwd for key %s\n", pwdKey.c_str());
                         }
                         free(pwdBuff);
                     } else {
-                        Serial.println("Failed to allocate buffer for password");
+                        launcherConsolePrintln("Failed to allocate buffer for password");
                     }
                 } else {
-                    Serial.printf("Password key %s not found\n", pwdKey.c_str());
+                    launcherConsolePrintf("Password key %s not found\n", pwdKey.c_str());
                 }
 
                 setWifiCredential(String(ssidBuff), pwdValue, false);
-                Serial.printf("SSID: %s, PWD: %s\n", ssidBuff, pwdValue.c_str());
+                launcherConsolePrintf("SSID: %s, PWD: %s\n", ssidBuff, pwdValue.c_str());
             } else {
-                Serial.printf("Error %d retrieving %s\n", err, info.key);
+                launcherConsolePrintf("Error %d retrieving %s\n", err, info.key);
             }
             free(ssidBuff);
         }
@@ -1142,20 +1143,20 @@ bool loadTouchCalibration() {
         uint16_t parameters[5] = {x0, x1, y0, y1, rot};
         extern CYD28_TouchR touch;
         touch.setTouch(parameters);
-        Serial.printf(
+        launcherConsolePrintf(
             "loadTouchCalibration: Loaded calibration - x0:%u x1:%u y0:%u y1:%u rot:%u\n", x0, x1, y0, y1, rot
         );
         return true;
     }
 
-    Serial.printf("loadTouchCalibration: Failed to load valid calibration data: %s\n", esp_err_to_name(err));
+    launcherConsolePrintf("loadTouchCalibration: Failed to load valid calibration data: %s\n", esp_err_to_name(err));
     return false;
 }
 
 // Save touch calibration to NVS namespace "touch_cal"
 bool saveTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, uint8_t rot) {
     if (!validTouchCalibration(x0, x1, y0, y1)) {
-        Serial.printf(
+        launcherConsolePrintf(
             "saveTouchCalibration: Invalid calibration - x0:%u x1:%u y0:%u y1:%u rot:%u\n",
             x0,
             x1,
@@ -1169,7 +1170,7 @@ bool saveTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, ui
     esp_err_t err = ESP_OK;
     auto nvsHandle = openNamespace(TOUCH_CAL_NAMESPACE, NVS_READWRITE, err);
     if (!nvsHandle) {
-        Serial.printf("saveTouchCalibration: Failed to open %s namespace\n", TOUCH_CAL_NAMESPACE);
+        launcherConsolePrintf("saveTouchCalibration: Failed to open %s namespace\n", TOUCH_CAL_NAMESPACE);
         return false;
     }
 
@@ -1183,13 +1184,13 @@ bool saveTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, ui
     if (err == ESP_OK) { err = nvsHandle->commit(); }
 
     if (err == ESP_OK) {
-        Serial.printf(
+        launcherConsolePrintf(
             "saveTouchCalibration: Saved calibration - x0:%u x1:%u y0:%u y1:%u rot:%u\n", x0, x1, y0, y1, rot
         );
         return true;
     }
 
-    Serial.printf("saveTouchCalibration: Failed to save calibration data: %s\n", esp_err_to_name(err));
+    launcherConsolePrintf("saveTouchCalibration: Failed to save calibration data: %s\n", esp_err_to_name(err));
     return false;
 }
 void calibrateTouch() {
@@ -1220,7 +1221,7 @@ void calibrateTouch() {
     drawCenteredLine("Touch the screen corners", y);
     y += lineHeight;
     drawCenteredLine("indicated by the arrows", y);
-    delay(500);
+    launcherDelayMs(500);
 
     auto drawArrow = [&](uint8_t corner) {
         tft->fillRect(0, 0, 30, 30, BGCOLOR);
@@ -1245,8 +1246,8 @@ void calibrateTouch() {
     };
 
     auto readRawPoint = [&]() {
-        while (touch.touched()) { delay(10); }
-        while (!touch.touched()) { delay(10); }
+        while (touch.touched()) { launcherDelayMs(10); }
+        while (!touch.touched()) { launcherDelayMs(10); }
 
         uint32_t sx = 0;
         uint32_t sy = 0;
@@ -1255,10 +1256,10 @@ void calibrateTouch() {
             auto p = touch.getPointRaw();
             sx += p.x;
             sy += p.y;
-            delay(18);
+            launcherDelayMs(18);
         }
 
-        while (touch.touched()) { delay(10); }
+        while (touch.touched()) { launcherDelayMs(10); }
         return RawTouchPoint{uint16_t(sx / samples), uint16_t(sy / samples)};
     };
 
@@ -1305,7 +1306,7 @@ void calibrateTouch() {
     touch.setTouch(parameters);
     saveTouchCalibration(xMin, xMax, yMin, yMax, rot);
 
-    Serial.printf(
+    launcherConsolePrintf(
         "calibrateTouch: x0:%u x1:%u y0:%u y1:%u rot:%u (rot_true:%u) swap:%u invX:%u invY:%u\n",
         xMin,
         xMax,

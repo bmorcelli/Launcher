@@ -2,6 +2,7 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 TouchDrvGT911 touch;
 
 struct LTouchPointPro {
@@ -24,19 +25,19 @@ volatile uint32_t trackball_axis_expiry_ms = 0;
 
 void IRAM_ATTR ISR_up() {
     trackball_axis_y > 0 ? trackball_axis_y = -1 : --trackball_axis_y;
-    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
+    trackball_axis_expiry_ms = launcherMillis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 void IRAM_ATTR ISR_down() {
     trackball_axis_y < 0 ? trackball_axis_y = 1 : ++trackball_axis_y;
-    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
+    trackball_axis_expiry_ms = launcherMillis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 void IRAM_ATTR ISR_left() {
     trackball_axis_x > 0 ? trackball_axis_x = -1 : --trackball_axis_x;
-    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
+    trackball_axis_expiry_ms = launcherMillis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 void IRAM_ATTR ISR_right() {
     trackball_axis_x < 0 ? trackball_axis_x = 1 : ++trackball_axis_x;
-    trackball_axis_expiry_ms = millis() + TRACKBALL_AXIS_COOLDOWN_MS;
+    trackball_axis_expiry_ms = launcherMillis() + TRACKBALL_AXIS_COOLDOWN_MS;
 }
 
 void ISR_rst() {
@@ -63,29 +64,29 @@ void ISR_rst() {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    delay(500); // time to ESP32C3 start and enable the keyboard
-    if (!Wire.begin(KB_I2C_SDA, KB_I2C_SCL)) Serial.println("Fail starting ESP32-C3 keyboard");
+    launcherDelayMs(500); // time to ESP32C3 start and enable the keyboard
+    if (!Wire.begin(KB_I2C_SDA, KB_I2C_SCL)) launcherConsolePrintf("%s\n", String("Fail starting ESP32-C3 keyboard").c_str());
 
-    pinMode(PIN_POWER_ON, OUTPUT);
-    digitalWrite(PIN_POWER_ON, HIGH);
-    pinMode(SEL_BTN, INPUT);
-    pinMode(BOARD_TOUCH_INT, INPUT);
+    launcherGpioOutput(PIN_POWER_ON);
+    launcherGpioWrite(PIN_POWER_ON, HIGH);
+    launcherGpioInput(SEL_BTN);
+    launcherGpioInput(BOARD_TOUCH_INT);
     touch.setPins(-1, BOARD_TOUCH_INT);
     if (!touch.begin(Wire, GT911_SLAVE_ADDRESS_L)) {
-        Serial.println("Failed to find GT911 - check your wiring!");
+        launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
     }
 
-    pinMode(9, OUTPUT); // LoRa Radio CS Pin to HIGH (Inhibit the SPI Communication for this module)
-    digitalWrite(9, HIGH);
+    launcherGpioOutput(9); // LoRa Radio CS Pin to HIGH (Inhibit the SPI Communication for this module)
+    launcherGpioWrite(9, HIGH);
 
     // Setup for Trackball
-    pinMode(UP_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(UP_BTN);
     attachInterrupt(UP_BTN, ISR_up, FALLING);
-    pinMode(DW_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(DW_BTN);
     attachInterrupt(DW_BTN, ISR_down, FALLING);
-    pinMode(L_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(L_BTN);
     attachInterrupt(L_BTN, ISR_left, FALLING);
-    pinMode(R_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(R_BTN);
     attachInterrupt(R_BTN, ISR_right, FALLING);
 }
 
@@ -122,7 +123,7 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     char keyValue = 0;
-    static unsigned long tm = millis();
+    static unsigned long tm = launcherMillis();
     LTouchPointPro t;
     uint8_t touched = 0;
     uint8_t rot = 5;
@@ -155,16 +156,16 @@ void InputHandler(void) {
         rot = rotation;
     }
     touched = touch.getPoint(&t.x, &t.y, 1);
-    delay(1);
+    launcherDelayMs(1);
     Wire.requestFrom(LILYGO_KB_SLAVE_ADDRESS, 1);
     while (Wire.available() > 0) {
         keyValue = Wire.read();
-        delay(1);
+        launcherDelayMs(1);
     }
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
 
     // if the trackball movement has expired, reset it to avoid unwanted movements
-    if (trackball_axis_expiry_ms && trackball_axis_expiry_ms <= millis()) { ISR_rst(); }
+    if (trackball_axis_expiry_ms && trackball_axis_expiry_ms <= launcherMillis()) { ISR_rst(); }
 
     if (abs(trackball_axis_x) >= TRACKBALL_AXIS_THRESHOLD ||
         abs(trackball_axis_y) >= TRACKBALL_AXIS_THRESHOLD) {
@@ -172,9 +173,9 @@ void InputHandler(void) {
         if (!wakeUpScreen()) AnyKeyPress = true;
         else return;
 
-        // Serial.print("Trackball: [");
-        // Serial.print(trackball_axis_x); Serial.print(", "); Serial.print(trackball_axis_y);
-        // Serial.println("]");
+        // launcherConsolePrintf("%s", String("Trackball: [").c_str());
+        // launcherConsolePrintf("%s", String(trackball_axis_x).c_str()); launcherConsolePrintf("%s", String(", ").c_str()); launcherConsolePrintf("%s", String(trackball_axis_y).c_str());
+        // launcherConsolePrintf("%s\n", String("]").c_str());
         if (trackball_axis_x < 0 || trackball_axis_y < 0) {
             ISR_rst();
             PrevPress = true;
@@ -203,27 +204,27 @@ void InputHandler(void) {
         if (keyValue == 'd') NextPress = true;
 
         if (keyValue == (char)0x0D) KeyStroke.enter = true;
-        if (digitalRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
+        if (launcherGpioRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
         KeyStroke.word.push_back(keyValue);
         if (KeyStroke.del) EscPress = true;
         if (KeyStroke.enter) SelPress = true;
         KeyStroke.pressed = true;
-        tm = millis();
+        tm = launcherMillis();
     } else KeyStroke.pressed = false;
 
-    if (digitalRead(SEL_BTN) == BTN_ACT) {
-        tm = millis();
+    if (launcherGpioRead(SEL_BTN) == BTN_ACT) {
+        tm = launcherMillis();
         if (!wakeUpScreen()) {
             AnyKeyPress = true;
         } else return;
         SelPress = true;
     }
 
-    if ((millis() - tm) > 190 || LongPress) { // one reading each 190ms
+    if ((launcherMillis() - tm) > 190 || LongPress) { // one reading each 190ms
         if (touched) {
 
-            // Serial.printf("\nPressed x=%d , y=%d, rot: %d", t.x, t.y, rotation);
-            tm = millis();
+            // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d", t.x, t.y, rotation);
+            tm = launcherMillis();
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
@@ -245,7 +246,7 @@ void InputHandler(void) {
 ** Turns off the device (or try to)
 **********************************************************************/
 void powerOff() {
-    digitalWrite(PIN_POWER_ON, LOW);
+    launcherGpioWrite(PIN_POWER_ON, LOW);
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();

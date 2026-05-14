@@ -1,7 +1,7 @@
 #ifndef LAUNCHER_IDF_HTTP_CLIENT_H
 #define LAUNCHER_IDF_HTTP_CLIENT_H
 
-#include <Arduino.h>
+#include <WString.h>
 #include <cstddef>
 #include <cstdint>
 

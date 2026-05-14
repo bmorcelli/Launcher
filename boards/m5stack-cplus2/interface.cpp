@@ -1,5 +1,6 @@
 #include "powerSave.h"
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -7,18 +8,18 @@
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(UP_BTN, INPUT); // Sets the power btn as an INPUT
-    pinMode(SEL_BTN, INPUT);
-    pinMode(DW_BTN, INPUT);
-    pinMode(4, OUTPUT);    // Keeps the Stick alive after take off the USB cable
-    digitalWrite(4, HIGH); // Keeps the Stick alive after take off the USB cable
+    launcherGpioInput(UP_BTN); // Sets the power btn as an INPUT
+    launcherGpioInput(SEL_BTN);
+    launcherGpioInput(DW_BTN);
+    launcherGpioOutput(4);    // Keeps the Stick alive after take off the USB cable
+    launcherGpioWrite(4, HIGH); // Keeps the Stick alive after take off the USB cable
     // https://github.com/pr3y/Bruce/blob/main/media/connections/cc1101_stick_SDCard.jpg
     // Keeps this pin high to allow working with the following pinout
     // Keeps this pin high to allow working with the following pinout
-    pinMode(32, OUTPUT);
-    pinMode(33, OUTPUT);
-    digitalWrite(32, LOW);
-    digitalWrite(33, HIGH);
+    launcherGpioOutput(32);
+    launcherGpioOutput(33);
+    launcherGpioWrite(32, LOW);
+    launcherGpioWrite(33, HIGH);
     gpio_pulldown_dis(GPIO_NUM_36);
     gpio_pullup_dis(GPIO_NUM_36);
 }
@@ -43,14 +44,14 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
 
-    bool upPressed = (digitalRead(UP_BTN) == LOW);
-    bool selPressed = (digitalRead(SEL_BTN) == LOW);
-    bool dwPressed = (digitalRead(DW_BTN) == LOW);
+    bool upPressed = (launcherGpioRead(UP_BTN) == LOW);
+    bool selPressed = (launcherGpioRead(SEL_BTN) == LOW);
+    bool dwPressed = (launcherGpioRead(DW_BTN) == LOW);
 
     bool anyPressed = upPressed || selPressed || dwPressed;
-    if (anyPressed) tm = millis();
+    if (anyPressed) tm = launcherMillis();
     if (anyPressed && wakeUpScreen()) return;
 
     AnyKeyPress = anyPressed;
@@ -67,7 +68,7 @@ void InputHandler(void) {
 ** Turns off the device (or try to)
 **********************************************************************/
 void powerOff() {
-    digitalWrite(4, LOW);
+    launcherGpioWrite(4, LOW);
     esp_sleep_enable_ext0_wakeup((gpio_num_t)UP_BTN, LOW);
     esp_deep_sleep_start();
 }
@@ -82,23 +83,23 @@ void checkReboot() {
     static bool armed = false;
     int countDown;
     /* Long press power off */
-    if (digitalRead(UP_BTN) == LOW) {
+    if (launcherGpioRead(UP_BTN) == LOW) {
         if (armed == false) {
-            time_count = millis();
+            time_count = launcherMillis();
             armed = true;
             return;
         }
-        if (millis() - time_count < 500) return;
+        if (launcherMillis() - time_count < 500) return;
 
-        while (digitalRead(UP_BTN) == LOW) {
+        while (launcherGpioRead(UP_BTN) == LOW) {
             // Display poweroff bar only if holding button
-            if (millis() - time_count > 500) {
+            if (launcherMillis() - time_count > 500) {
                 tft->setCursor(60, 12);
                 tft->setTextSize(1);
                 tft->setTextColor(FGCOLOR, BGCOLOR);
-                countDown = (millis() - time_count) / 1000 + 1;
+                countDown = (launcherMillis() - time_count) / 1000 + 1;
                 tft->printf(" PWR OFF IN %d/3\n", countDown);
-                delay(10);
+                launcherDelayMs(10);
             }
         }
         // Clear text after releasing the button

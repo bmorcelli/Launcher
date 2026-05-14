@@ -1,3 +1,4 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
@@ -19,11 +20,11 @@ TouchDrvCST92xx touch;
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    Serial.begin(115200);
+    launcherConsoleBegin(115200);
     uint8_t csPin[4] = {4, 21, 36, 41}; // NFC,SDCard, LoRa, TFT
     for (auto pin : csPin) {
-        pinMode(pin, OUTPUT);
-        digitalWrite(pin, HIGH);
+        launcherGpioOutput(pin);
+        launcherGpioWrite(pin, HIGH);
     }
     Wire.begin(SDA, SCL);
     bool pmu_ret = false;
@@ -40,7 +41,7 @@ void _setup_gpio() {
         PPM.setALDO4Voltage(3300); // Sensor
         PPM.enableALDO4();
 
-        Serial.printf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
+        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
     }
     if (io.begin(Wire, 0x20)) {
         const uint8_t expands[] = {
@@ -52,25 +53,25 @@ void _setup_gpio() {
         for (auto pin : expands) {
             io.pinMode(pin, OUTPUT);
             io.digitalWrite(pin, HIGH);
-            delay(1);
+            launcherDelayMs(1);
         }
     } else {
-        Serial.println("Initializing expander failed");
+        launcherConsolePrintf("%s\n", String("Initializing expander failed").c_str());
     }
     io.digitalWrite(EXPANDS_TOUCH_RST, LOW);
-    delay(20);
+    launcherDelayMs(20);
     io.digitalWrite(EXPANDS_TOUCH_RST, HIGH);
-    delay(60);
+    launcherDelayMs(60);
     touch.setPins(-1, TP_INT);
     bool result = touch.begin(Wire, 0x1A, SDA, SCL);
-    if (result == false) { Serial.println("touch is not online..."); }
-    Serial.print("Model :");
-    Serial.println(touch.getModelName());
+    if (result == false) { launcherConsolePrintf("%s\n", String("touch is not online...").c_str()); }
+    launcherConsolePrintf("%s", String("Model :").c_str());
+    launcherConsolePrintf("%s\n", String(touch.getModelName()).c_str());
 
     touch.setCoverScreenCallback(
         [](void *ptr) {
-            Serial.print(millis());
-            Serial.println(" : The screen is covered");
+            launcherConsolePrintf("%s", String(launcherMillis()).c_str());
+            launcherConsolePrintf("%s\n", String(" : The screen is covered").c_str());
         },
         NULL
     );
@@ -104,11 +105,11 @@ struct LTouchPointPro {
 **********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
-    if (millis() - tm > 200 || LongPress) {
+    if (launcherMillis() - tm > 200 || LongPress) {
         if (touch.isPressed()) {
             LTouchPointPro t;
             touch.getPoint(&t.x, &t.y, 1);
-            tm = millis();
+            tm = launcherMillis();
             if (rotation == 1) { t.y = TFT_WIDTH - t.y; }
             if (rotation == 3) { t.x = t.x; }
             // Need to test these 2
@@ -123,7 +124,7 @@ void InputHandler(void) {
                 t.y = TFT_HEIGHT - tmp;
             }
 
-            Serial.printf("\nPressed x=%d , y=%d, rot: %d", t.x, t.y, rotation);
+            launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d", t.x, t.y, rotation);
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
@@ -150,7 +151,7 @@ void powerOff() {
     };
     for (auto pin : expands) {
         io.digitalWrite(pin, LOW);
-        delay(1);
+        launcherDelayMs(1);
     }
     PPM.shutdown();
 

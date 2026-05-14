@@ -1,5 +1,6 @@
 #include "powerSave.h"
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -7,11 +8,11 @@
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(UP_BTN, INPUT_PULLUP); // Sets the power btn as an INPUT
-    pinMode(SEL_BTN, INPUT_PULLUP);
-    pinMode(DW_BTN, INPUT_PULLUP);
-    pinMode(R_BTN, INPUT_PULLUP);
-    pinMode(L_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(UP_BTN); // Sets the power btn as an INPUT
+    launcherGpioInputPullup(SEL_BTN);
+    launcherGpioInputPullup(DW_BTN);
+    launcherGpioInputPullup(R_BTN);
+    launcherGpioInputPullup(L_BTN);
 }
 /***************************************************************************************
 ** Function name: _post_setup_gpio()
@@ -19,7 +20,7 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }
@@ -37,9 +38,9 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 0;
     else dutyCycle = ((brightval * 250) / 100);
 
-    Serial.printf("dutyCycle for bright 0-255: %d\n", dutyCycle);
+    launcherConsolePrintf("dutyCycle for bright 0-255: %d\n", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -51,17 +52,17 @@ void _setBrightness(uint8_t brightval) {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static unsigned long tm = millis();
-    if (millis() - tm > 200 || LongPress) {
+    static unsigned long tm = launcherMillis();
+    if (launcherMillis() - tm > 200 || LongPress) {
     } else return;
 
-    bool u = digitalRead(UP_BTN);
-    bool d = digitalRead(DW_BTN);
-    bool r = digitalRead(R_BTN);
-    bool l = digitalRead(L_BTN);
-    bool s = digitalRead(SEL_BTN);
+    bool u = launcherGpioRead(UP_BTN);
+    bool d = launcherGpioRead(DW_BTN);
+    bool r = launcherGpioRead(R_BTN);
+    bool l = launcherGpioRead(L_BTN);
+    bool s = launcherGpioRead(SEL_BTN);
     if (s == BTN_ACT || u == BTN_ACT || d == BTN_ACT || r == BTN_ACT || l == BTN_ACT) {
-        tm = millis();
+        tm = launcherMillis();
         if (!wakeUpScreen()) AnyKeyPress = true;
         else return;
     }

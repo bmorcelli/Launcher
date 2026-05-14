@@ -5,6 +5,7 @@
 #include "idf/idf_update.h"
 #include "idf/idf_web_server.h"
 #include "idf/idf_wifi.h"
+#include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
 #include "sd_functions.h"
@@ -82,7 +83,7 @@ String humanReadableSize(uint64_t bytes) {
 
 String listFiles(String folder) {
     String returnText = "pa:" + folder + ":0\n";
-    Serial.println("Listing files stored on SD");
+    launcherConsolePrintln("Listing files stored on SD");
 
     File root = SDM.open(folder);
     uploadFolder = folder;
@@ -114,13 +115,13 @@ void ensurePersistedSessionLoaded() {
     if (sessionTokenLoaded) return;
     sessionTokenLoaded = true;
     persistedSessionToken = loadSessionToken();
-    if (!persistedSessionToken.isEmpty()) sessions[persistedSessionToken] = millis();
+    if (!persistedSessionToken.isEmpty()) sessions[persistedSessionToken] = launcherMillis();
 }
 
 String generateToken(int length = 24) {
     String token = "";
     const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    for (int i = 0; i < length; i++) token += charset[random(0, sizeof(charset) - 1)];
+    for (int i = 0; i < length; i++) token += charset[launcherRandom(0, sizeof(charset) - 1)];
     return token;
 }
 
@@ -279,7 +280,7 @@ bool checkUserWebAuth(httpd_req_t *req, bool onFailureReturnLoginPage = false) {
         String token = cookie.substring(start, end);
         auto it = sessions.find(token);
         if (it != sessions.end()) {
-            it->second = millis();
+            it->second = launcherMillis();
             return true;
         }
     }
@@ -291,8 +292,7 @@ bool checkUserWebAuth(httpd_req_t *req, bool onFailureReturnLoginPage = false) {
 void createDirRecursive(String path) {
     String currentPath = "";
     int startIndex = 0;
-    Serial.print("Verifying folder: ");
-    Serial.println(path);
+    launcherConsolePrintf("Verifying folder: %s\n", path.c_str());
 
     while (startIndex < path.length()) {
         int endIndex = path.indexOf("/", startIndex);
@@ -301,8 +301,7 @@ void createDirRecursive(String path) {
         currentPath += path.substring(startIndex, endIndex);
         if (currentPath.length() > 0 && !SDM.exists(currentPath)) {
             SDM.mkdir(currentPath);
-            Serial.print("Creating folder: ");
-            Serial.println(currentPath);
+            launcherConsolePrintf("Creating folder: %s\n", currentPath.c_str());
         }
 
         if (endIndex < path.length()) currentPath += "/";
@@ -338,7 +337,7 @@ bool writeUploadData(File &file, const uint8_t *data, size_t len, size_t written
 bool beginUploadTarget(File &file, const String &filename) {
     if (uploadFolder == "/") uploadFolder = "";
     if (!update) {
-        Serial.println("File: " + uploadFolder + "/" + filename);
+        launcherConsolePrintf("File: %s/%s\n", uploadFolder.c_str(), filename.c_str());
         String fullPath = uploadFolder + "/" + filename;
         String dirPath = fullPath.substring(0, fullPath.lastIndexOf("/"));
         if (dirPath.length() > 0) createDirRecursive(dirPath);
@@ -353,7 +352,7 @@ bool beginUploadTarget(File &file, const String &filename) {
         return true;
     }
     displayRedStripe("FAIL 160: " + String(launcherUpdateLastError()));
-    delay(3000);
+    launcherDelayMs(3000);
     return false;
 }
 
@@ -364,7 +363,7 @@ bool finishUploadTarget(File &file) {
     }
     if (!launcherUpdateEnd()) {
         displayRedStripe("Fail 181: " + String(launcherUpdateLastError()));
-        delay(3000);
+        launcherDelayMs(3000);
         return false;
     }
     lastInstalledApp = "WebUI File";
@@ -440,7 +439,7 @@ bool streamMultipartUpload(httpd_req_t *req) {
 }
 
 esp_err_t pingHandler(httpd_req_t *req) {
-    Serial.println("WebUI /ping");
+    launcherConsolePrintln("WebUI /ping");
     sendText(req, "text/plain", "launcher-pong");
     return ESP_OK;
 }
@@ -451,7 +450,7 @@ esp_err_t loginHandler(httpd_req_t *req) {
         params.get("password") == wui_pwd) {
         String token = generateToken();
         sessions.clear();
-        sessions[token] = millis();
+        sessions[token] = launcherMillis();
         saveSessionToken(token);
         sessionTokenLoaded = true;
         persistedSessionToken = token;
@@ -714,10 +713,10 @@ esp_err_t wifiHandler(httpd_req_t *req) {
         pwd = pwdd;
         ssid = ssidd;
         if (setWifiCredential(ssid, pwd)) {
-            Serial.printf("WebUI: ssid->%s, pwd->%s\n", ssid.c_str(), pwd.c_str());
+            launcherConsolePrintf("WebUI: ssid->%s, pwd->%s\n", ssid.c_str(), pwd.c_str());
             saveConfigs();
         } else {
-            Serial.println("WebUI: failed to store new WiFi entry");
+            launcherConsolePrintln("WebUI: failed to store new WiFi entry");
         }
     }
     sendText(req, "text/plain", "OK");
@@ -805,11 +804,10 @@ void startWebUiLoopCommon(bool mode_ap) {
 
     while (!check(SelPress)) {
 #else
-    Serial.println("Access: http://launcher.local");
-    Serial.print("IP ");
-    Serial.println(txt);
-    Serial.println("Usr: " + String(wui_usr));
-    Serial.println("Pwd: " + String(wui_pwd));
+    launcherConsolePrintln("Access: http://launcher.local");
+    launcherConsolePrintf("IP %s\n", txt.c_str());
+    launcherConsolePrintf("Usr: %s\n", wui_usr.c_str());
+    launcherConsolePrintf("Pwd: %s\n", wui_pwd.c_str());
 
     while (1) {
 #endif
@@ -824,7 +822,7 @@ void startWebUiLoopCommon(bool mode_ap) {
 #ifndef HEADLESS
             displayRedStripe("Restart your Device");
 #else
-            Serial.println("\n\n--------------------\nRestart your Device");
+            launcherConsolePrintln("\n\n--------------------\nRestart your Device");
 #endif
         }
     }
@@ -855,10 +853,10 @@ void startWebUi(String ssid, int encryptation, bool mode_ap) {
     if (!launcherWifiIsConnected() || mode_ap) wifiConnect(ssid, encryptation, mode_ap);
     vTaskDelay(pdMS_TO_TICKS(250));
 
-    Serial.println("Configuring Webserver ...");
+    launcherConsolePrintln("Configuring Webserver ...");
     server = launcherWebServerStart(config.webserverporthttp);
     if (!server) {
-        Serial.println("Failed to start Webserver");
+        launcherConsolePrintln("Failed to start Webserver");
         return;
     }
     configureWebServer();

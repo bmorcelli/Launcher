@@ -1,0 +1,53 @@
+Processing m5stack-cardputer (board: m5stack-cardputer; platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.32/platform-espressif32.zip; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+Checking submodules...
+Initializing missing submodules and updating existing ones...
+Submodules are ready.
+[GZIP & EMBED INTO HEADER] - Nothing to process.
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/m5stack-cardputer.html
+PLATFORM: Espressif 32 (55.3.32) > M5Stack Cardputer
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-builtin, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - contrib-piohome @ 3.4.4 
+ - framework-arduinoespressif32 @ 3.3.2 
+ - framework-arduinoespressif32-libs @ 5.5.0+sha.95db1a98d9 
+ - tool-esptoolpy @ 5.1.0 
+ - tool-mklittlefs @ 3.2.0 
+ - toolchain-xtensa-esp-elf @ 14.2.0+20250730
+[ComponentManager] Processed 2 ignored libraries
+[ComponentManager] Session completed with 1 changes
+*** Applied include path shortening for 274 framework paths ***
+*** Path length reduced from 33089 to ~10992 characters ***
+*** Estimated savings: 21646 characters ***
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 50 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- Adafruit TCA8418 @ 1.0.2
+|-- utility
+|-- Wire @ 3.3.2
+|-- SD @ 3.3.2
+|-- SPIFFS @ 3.3.2
+|-- CYD-touch
+|-- FS @ 3.3.2
+|-- SD_MMC @ 3.3.2
+|-- ArduinoJson @ 7.4.3
+|-- FFat @ 3.3.2
+|-- SPI @ 3.3.2
+|-- LittleFS @ 3.3.2
+|-- GFX Library for Arduino @ 1.6.5
+Building in release mode
+Retrieving maximum program size .pio\build\m5stack-cardputer\firmware.elf
+Checking size .pio\build\m5stack-cardputer\firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [==        ]  21.3% (used 69820 bytes from 327680 bytes)
+Flash: [==        ]  24.3% (used 1258035 bytes from 5177344 bytes)
+========================= [SUCCESS] Took 17.51 seconds =========================
+
+Environment        Status    Duration
+-----------------  --------  ------------
+m5stack-cardputer  SUCCESS   00:00:17.508
+========================= 1 succeeded in 00:00:17.508 =========================

@@ -2,6 +2,7 @@
 #include <globals.h>
 #include <interface.h>
 
+#include "idf/launcher_platform.h"
 #include <Wire.h>
 
 // GPIO expander
@@ -110,27 +111,27 @@ void _setup_gpio() {
 
     Wire.begin(SDA, SCL);
 
-    pinMode(SEL_BTN, INPUT);
-    pinMode(BK_BTN, INPUT);
+    launcherGpioInput(SEL_BTN);
+    launcherGpioInput(BK_BTN);
 
     // before powering on, all CS signals should be pulled high and in an unselected state;
-    pinMode(TFT_CS, OUTPUT);
-    digitalWrite(TFT_CS, HIGH);
-    pinMode(SDCARD_CS, OUTPUT);
-    digitalWrite(SDCARD_CS, HIGH);
+    launcherGpioOutput(TFT_CS);
+    launcherGpioWrite(TFT_CS, HIGH);
+    launcherGpioOutput(SDCARD_CS);
+    launcherGpioWrite(SDCARD_CS, HIGH);
 
     bool pmu_ret = false;
     pmu_ret = PPM.init(Wire, SDA, SCL, BQ25896_I2C_ADDRESS);
     if (pmu_ret) {
         PPM.setSysPowerDownVoltage(3300);
         PPM.setInputCurrentLimit(3250);
-        Serial.printf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
+        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
         PPM.disableCurrentLimitPin();
         PPM.setChargeTargetVoltage(4208);
         PPM.setPrechargeCurr(64);
         PPM.setChargerConstantCurr(832);
         PPM.getChargerConstantCurr();
-        Serial.printf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
+        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
         PPM.enableMeasure();
         PPM.enableCharge();
         PPM.enableOTG();
@@ -153,10 +154,10 @@ void _setup_gpio() {
         }
         io.pinMode(EXPANDS_SD_PULLEN, INPUT);
     } else {
-        Serial.println("Initializing expander failed");
+        launcherConsolePrintf("%s\n", String("Initializing expander failed").c_str());
     }
 
-    pinMode(ENCODER_KEY, INPUT);
+    launcherGpioInput(ENCODER_KEY);
     encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::FOUR3);
 
     // register interrupt routine
@@ -166,10 +167,10 @@ void _setup_gpio() {
     // Initalise keyboard
     bool res = keyboard.begin(KB_I2C_ADDRESS, &Wire);
     if (!res) {
-        Serial.println("Failed to find Keyboard");
+        launcherConsolePrintf("%s\n", String("Failed to find Keyboard").c_str());
 
     } else {
-        Serial.println("Initializing Keyboard succeeded");
+        launcherConsolePrintf("%s\n", String("Initializing Keyboard succeeded").c_str());
     }
     keyboard.matrix(KB_ROWS, KB_COLS);
     keyboard.flush();
@@ -206,7 +207,7 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
 
-    static unsigned long tm = millis();
+    static unsigned long tm = launcherMillis();
     static int posDifference = 0;
     static int lastPos = 0;
     bool sel = !BTN_ACT;
@@ -215,7 +216,7 @@ void InputHandler(void) {
     uint8_t keyValue = 0;
     uint8_t keyVal = '\0';
 
-    if (millis() - tm < 500) return;
+    if (launcherMillis() - tm < 500) return;
 
     int newPos = encoder->getPosition();
     if (newPos != lastPos) {
@@ -223,8 +224,8 @@ void InputHandler(void) {
         lastPos = newPos;
     }
 
-    sel = digitalRead(SEL_BTN);
-    esc = digitalRead(BK_BTN);
+    sel = launcherGpioRead(SEL_BTN);
+    esc = launcherGpioRead(BK_BTN);
 
     if (keyboard.available() > 0) {
         int keyValue = keyboard.getEvent();
@@ -243,7 +244,7 @@ void InputHandler(void) {
                 KeyStroke.exit_key = true;
             }
             if (keyVal == KEY_ENTER) KeyStroke.enter = true;
-            if (digitalRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
+            if (launcherGpioRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
             if (keyVal == 'w') UpPress = true;
             if (keyVal == 's') DownPress = true;
             if (keyVal == 'a') PrevPress = true;
@@ -271,7 +272,7 @@ void InputHandler(void) {
     }
 
 END:
-    if (sel == BTN_ACT || esc == BTN_ACT || KeyStroke.enter) tm = millis();
+    if (sel == BTN_ACT || esc == BTN_ACT || KeyStroke.enter) tm = launcherMillis();
 }
 
 void powerOff() { PPM.shutdown(); }

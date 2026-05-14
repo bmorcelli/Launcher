@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_Bits 8
@@ -19,12 +20,12 @@ IRAM_ATTR void checkPosition() { encoder->tick(); }
 void _setup_gpio() {
     M5.begin();
 
-    pinMode(ENCODER_KEY, INPUT);
+    launcherGpioInput(ENCODER_KEY);
     encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::TWO03);
     attachInterrupt(digitalPinToInterrupt(ENCODER_INA), checkPosition, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ENCODER_INB), checkPosition, CHANGE);
 
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
 }
 /***************************************************************************************
 ** Function name: _post_setup_gpio()
@@ -50,11 +51,11 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 5;
     else dutyCycle = ((brightval * 250) / 100);
 
-    // Serial.printf("dutyCycle for bright 0-255: %d\n", dutyCycle);
+    // launcherConsolePrintf("dutyCycle for bright 0-255: %d\n", dutyCycle);
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        // Serial.println("Failed to set brightness");
+        // launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -76,7 +77,7 @@ int getBattery() {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static unsigned long tm = millis(); // debauce for buttons
+    static unsigned long tm = launcherMillis(); // debauce for buttons
     static int posDifference = 0;
     static int lastPos = 0;
     bool sel = !BTN_ACT;
@@ -87,9 +88,9 @@ void InputHandler(void) {
         lastPos = newPos;
     }
 
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
 
-    sel = digitalRead(ENCODER_KEY);
+    sel = launcherGpioRead(ENCODER_KEY);
 
     if (posDifference != 0 || sel == BTN_ACT) {
         if (!wakeUpScreen()) AnyKeyPress = true;
@@ -107,7 +108,7 @@ void InputHandler(void) {
     if (sel == BTN_ACT) {
         posDifference = 0;
         SelPress = true;
-        tm = millis();
+        tm = launcherMillis();
     }
 }
 

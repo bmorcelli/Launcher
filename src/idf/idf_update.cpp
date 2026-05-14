@@ -1,5 +1,6 @@
 #include "idf_update.h"
 
+#include "launcher_platform.h"
 #include "esp_image_format.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -224,7 +225,7 @@ bool launcherUpdateStream(Stream &source, size_t size, LauncherUpdateTarget targ
         if (launcherUpdateWrite(buffer, bytes_read) != static_cast<size_t>(bytes_read)) return false;
         written += bytes_read;
         if (cb) cb(written, size);
-        vTaskDelay(pdMS_TO_TICKS(1));
+        launcherDelayMs(1);
     }
 
     return launcherUpdateEnd();

@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 #ifndef TFT_BRIGHT_CHANNEL
 #define TFT_BRIGHT_CHANNEL 0
@@ -79,14 +80,14 @@ public:
     inline bool begin() {
         const char *szNames[] = {"Unknown", "FT6x36", "GT911", "CST820", "CST226", "MXT144", "AXS15231"};
         Wire.end();
-        Serial.println("Starting Touch Sensor");
+        launcherConsolePrintf("%s\n", String("Starting Touch Sensor").c_str());
         bool result =
             init(TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_RST_PIN, TOUCH_INT_PIN); // returns 0 if CT_SUCCESS;
         setOrientation(
             90, TFT_WIDTH, TFT_HEIGHT
         ); // This orientation reflects the right position for the InputHandler logic.
         int iType = sensorType();
-        Serial.printf("Sensor type = %s\n", szNames[iType]);
+        launcherConsolePrintf("Sensor type = %s\n", szNames[iType]);
         return result == 0 ? true : false;
     }
     inline bool touched() {
@@ -128,9 +129,9 @@ void _setup_gpio() {
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
 #endif
 #if !defined(HAS_CAPACITIVE_TOUCH) && defined(CYD)
-    pinMode(33, OUTPUT); // CS Pin
+    launcherGpioOutput(33); // CS Pin
 #elif defined(CYDS3)
-    pinMode(38, OUTPUT); // CS Pin
+    launcherGpioOutput(38); // CS Pin
 #endif
 }
 
@@ -141,7 +142,7 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 
@@ -153,9 +154,9 @@ void _post_setup_gpio() {
 #endif
 
         )) {
-        Serial.println("Touch IC not Started");
+        launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
-    } else Serial.println("Touch IC Started");
+    } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
 }
 
 /*********************************************************************
@@ -174,7 +175,7 @@ void _setBrightness(uint8_t brightval) {
 
     log_i("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -186,9 +187,9 @@ void _setBrightness(uint8_t brightval) {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static long d_tmp = millis();
+    static long d_tmp = launcherMillis();
     bool touched = touch.touched();            // read every cycle to skip bad readings
-    if (millis() - d_tmp > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
+    if (launcherMillis() - d_tmp > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;
 #ifdef DONT_USE_INPUT_TASK
@@ -198,10 +199,10 @@ void InputHandler(void) {
             auto t = touch.getPointScaled();
 #if defined(HAS_RESISTIVE_TOUCH)
             auto t2 = touch.getPointRaw();
-            Serial.printf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
+            launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
 #endif
-            Serial.printf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
-            d_tmp = millis();
+            launcherConsolePrintf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
+            d_tmp = launcherMillis();
 #ifdef DONT_USE_INPUT_TASK // need to reset the variables to avoid ghost click
             NextPress = false;
             PrevPress = false;
@@ -227,7 +228,7 @@ void InputHandler(void) {
                 t.x = t.y;
                 t.y = (tftHeight + 20) - tmp;
             }
-            Serial.printf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
+            launcherConsolePrintf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 
@@ -249,12 +250,12 @@ void reboot() {
     // so it conflicts and as Serial is already started with launcher, we need to
     // finish this process to release the pins. Same for some Bruce mods
 #if defined(CYD_RELEASE_SERIAL)
-    Serial.print("\r\n");
-    Serial.flush();
-    Serial.end();
+    launcherConsolePrintf("%s", String("\r\n").c_str());
+    launcherConsoleFlush();
+    launcherConsoleEnd();
     vTaskDelay(pdMS_TO_TICKS(50));
-    pinMode(1, INPUT);
-    pinMode(3, INPUT);
+    launcherGpioInput(1);
+    launcherGpioInput(3);
     vTaskDelay(pdMS_TO_TICKS(10));
 #endif
     ESP.restart();

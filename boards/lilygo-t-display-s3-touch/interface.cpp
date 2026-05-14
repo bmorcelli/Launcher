@@ -2,6 +2,7 @@
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 #define TOUCH_MODULES_CST_SELF
 #include <TouchDrvCSTXXX.hpp>
@@ -40,12 +41,12 @@ Button *btn2;
 void _setup_gpio() {
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
     gpio_hold_dis((gpio_num_t)21); // PIN_TOUCH_RES
-    pinMode(15, OUTPUT);
-    digitalWrite(15, HIGH); // PIN_POWER_ON
-    pinMode(21, OUTPUT);    // PIN_TOUCH_RES
-    digitalWrite(21, LOW);  // PIN_TOUCH_RES
-    delay(500);
-    digitalWrite(21, HIGH); // PIN_TOUCH_RES
+    launcherGpioOutput(15);
+    launcherGpioWrite(15, HIGH); // PIN_POWER_ON
+    launcherGpioOutput(21);    // PIN_TOUCH_RES
+    launcherGpioWrite(21, LOW);  // PIN_TOUCH_RES
+    launcherDelayMs(500);
+    launcherGpioWrite(21, HIGH); // PIN_TOUCH_RES
     Wire.begin(18, 17);     // SDA, SCL
     // PWM backlight setup
     // setup buttons
@@ -67,7 +68,7 @@ void _setup_gpio() {
                                .active_level = 0,
                                },
     };
-    pinMode(SEL_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(SEL_BTN);
 
     btn1 = new Button(bt1);
 
@@ -94,12 +95,12 @@ void _post_setup_gpio() {
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 
-    Serial.println("Prepraring Touchscreen");
+    launcherConsolePrintf("%s\n", String("Prepraring Touchscreen").c_str());
     touch.setPins(21, 16);
     if (!touch.begin(Wire, CST328_SLAVE_ADDRESS, 18, 17)) {
-        Serial.println("Failed init CST328 Device!");
+        launcherConsolePrintf("%s\n", String("Failed init CST328 Device!").c_str());
         if (!touch.begin(Wire, CST816_SLAVE_ADDRESS, 18, 17)) {
-            Serial.println("Failed init CST816 Device!");
+            launcherConsolePrintf("%s\n", String("Failed init CST816 Device!").c_str());
         } else readTouch = true;
     } else readTouch = true;
     if (readTouch) {
@@ -110,13 +111,13 @@ void _post_setup_gpio() {
         touch.setHomeButtonCallback(
             [](void *user_data) {
                 static uint32_t checkMs = 0;
-                if (millis() > checkMs) {
+                if (launcherMillis() > checkMs) {
                     if (!wakeUpScreen()) {
                         AnyKeyPress = true;
                         EscPress = true;
                     }
                 }
-                checkMs = millis() + 200;
+                checkMs = launcherMillis() + 200;
             },
             NULL
         );
@@ -142,11 +143,11 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 5;
     else dutyCycle = ((brightval * 250) / 100);
 
-    Serial.printf("dutyCycle for bright 0-255: %d\n", dutyCycle);
+    launcherConsolePrintf("dutyCycle for bright 0-255: %d\n", dutyCycle);
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -157,12 +158,12 @@ void _setBrightness(uint8_t brightval) {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static long tm = millis();
-    static long tm2 = millis();
+    static long tm = launcherMillis();
+    static long tm2 = launcherMillis();
     static bool btn_pressed = false;
     if (nxtPress || prvPress || ecPress || slPress) btn_pressed = true;
 
-    if (millis() - tm > 200 || LongPress) {
+    if (launcherMillis() - tm > 200 || LongPress) {
         if (btn_pressed) {
             btn_pressed = false;
             if (!wakeUpScreen()) AnyKeyPress = true;
@@ -183,10 +184,10 @@ void InputHandler(void) {
         touched = touch.getPoint(&t.x, &t.y, 1);
 
         if (touched) {
-            // Serial.printf(
-            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, millis(), tm
+            // launcherConsolePrintf(
+            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), tm
             // );
-            tm = millis();
+            tm = launcherMillis();
             static uint8_t rot = 5;
             if (rot != rotation) {
                 if (rotation == 1) {

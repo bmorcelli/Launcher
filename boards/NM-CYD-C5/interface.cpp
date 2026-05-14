@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 #ifndef TFT_BRIGHT_CHANNEL
 #define TFT_BRIGHT_CHANNEL 0
@@ -25,12 +26,12 @@ CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(TFT_CS, OUTPUT);
-    digitalWrite(TFT_CS, HIGH);
-    pinMode(SDCARD_CS, OUTPUT);
-    digitalWrite(SDCARD_CS, HIGH);
-    pinMode(CYD28_TouchR_CS, OUTPUT); // Touch CS pin (XPT2046)
-    digitalWrite(CYD28_TouchR_CS, HIGH);
+    launcherGpioOutput(TFT_CS);
+    launcherGpioWrite(TFT_CS, HIGH);
+    launcherGpioOutput(SDCARD_CS);
+    launcherGpioWrite(SDCARD_CS, HIGH);
+    launcherGpioOutput(CYD28_TouchR_CS); // Touch CS pin (XPT2046)
+    launcherGpioWrite(CYD28_TouchR_CS, HIGH);
 }
 
 /***************************************************************************************
@@ -40,15 +41,15 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 
     // Display and touch share the same SPI bus; pass &SPI so the driver reuses it
     if (!touch.begin(&SPI)) {
-        Serial.println("Touch IC not Started");
+        launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
-    } else Serial.println("Touch IC Started");
+    } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
 }
 
 /*********************************************************************
@@ -67,7 +68,7 @@ void _setBrightness(uint8_t brightval) {
 
     log_i("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -79,15 +80,15 @@ void _setBrightness(uint8_t brightval) {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static long tm = millis();
-    if (millis() - tm > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
+    static long tm = launcherMillis();
+    if (launcherMillis() - tm > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;
 #ifdef DONT_USE_INPUT_TASK
         checkPowerSaveTime();
 #endif
         if (touch.touched()) {
-            tm = millis();
+            tm = launcherMillis();
 #ifdef DONT_USE_INPUT_TASK // need to reset the variables to avoid ghost click
             NextPress = false;
             PrevPress = false;
@@ -100,8 +101,8 @@ void InputHandler(void) {
 #endif
             auto t = touch.getPointScaled();
             auto t2 = touch.getPointRaw();
-            Serial.printf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
-            Serial.printf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
+            launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
+            launcherConsolePrintf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
             if (rotation == 3) {
                 t.y = (tftHeight + 20) - t.y;
                 t.x = tftWidth - t.x;
@@ -116,8 +117,8 @@ void InputHandler(void) {
                 t.x = t.y;
                 t.y = (tftHeight + 20) - tmp;
             }
-            Serial.printf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
-            tm = millis();
+            launcherConsolePrintf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
+            tm = launcherMillis();
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 

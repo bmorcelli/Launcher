@@ -1,5 +1,6 @@
 #include "powerSave.h"
 #include <PowersBQ25896.tpp>
+#include "idf/launcher_platform.h"
 static PowersBQ25896 PMU;
 static bool PMU_OK = false;
 #include <TouchDrv.hpp>
@@ -11,14 +12,14 @@ static bool PMU_OK = false;
 TouchDrvCST816 touch;
 
 void touchHomeKeyCallback(void *user_data) {
-    Serial.println("Home key pressed!");
+    launcherConsolePrintf("%s\n", String("Home key pressed!").c_str());
     static uint32_t checkMs = 0;
-    if (millis() > checkMs) {
+    if (launcherMillis() > checkMs) {
         EscPress = true;
         AnyKeyPress = true;
         wakeUpScreen();
     }
-    checkMs = millis() + 200;
+    checkMs = launcherMillis() + 200;
 }
 
 /***************************************************************************************
@@ -27,13 +28,13 @@ void touchHomeKeyCallback(void *user_data) {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(BOARD_TOUCH_RST, OUTPUT); // PIN_TOUCH_RES
-    pinMode(38 /* PMIC_EN */, OUTPUT);
+    launcherGpioOutput(BOARD_TOUCH_RST); // PIN_TOUCH_RES
+    launcherGpioOutput(38 /* PMIC_EN */);
 
-    digitalWrite(38 /* PMIC_EN */, HIGH);
-    digitalWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
-    delay(100);
-    digitalWrite(BOARD_TOUCH_RST, HIGH); // PIN_TOUCH_RES
+    launcherGpioWrite(38 /* PMIC_EN */, HIGH);
+    launcherGpioWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
+    launcherDelayMs(100);
+    launcherGpioWrite(BOARD_TOUCH_RST, HIGH); // PIN_TOUCH_RES
 
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
@@ -46,7 +47,7 @@ void _setup_gpio() {
 
     bool hasPMU = PMU.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, BQ25896_SLAVE_ADDRESS);
     if (!hasPMU) {
-        Serial.println("PMU is not online...");
+        launcherConsolePrintf("%s\n", String("PMU is not online...").c_str());
     } else {
         PMU_OK = true;
         PMU.disableOTG();
@@ -116,15 +117,15 @@ void InputHandler(void) {
     }
     touched = touch.getPoint(&t.x, &t.y, 1);
     vTaskDelay(pdMS_TO_TICKS(50));
-    if ((millis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
+    if ((launcherMillis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
 
-        // Serial.printf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
+        // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
 
-            Serial.printf(
-                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, millis(), _tmptmp
+            launcherConsolePrintf(
+                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), _tmptmp
             );
-            _tmptmp = millis();
+            _tmptmp = launcherMillis();
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;

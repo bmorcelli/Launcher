@@ -1,5 +1,6 @@
 #include "powerSave.h"
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -51,8 +52,8 @@ void InputHandler(void) {
     if (false /*Conditions for Select btn*/) { SelPress = true; }
 END:
     if (AnyKeyPress) {
-        long tmp = millis();
-        while ((millis() - tmp) < 200 && false /*Conditions fot all inputs*/);
+        long tmp = launcherMillis();
+        while ((launcherMillis() - tmp) < 200 && false /*Conditions fot all inputs*/);
     }
 }
 

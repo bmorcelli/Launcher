@@ -2,6 +2,7 @@
 #include <interface.h>
 
 #include <M5Unified.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -40,14 +41,14 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     M5.update();
     static unsigned long tm = 0;
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
 
     bool aPressed = (M5.BtnA.isPressed());
     bool bPressed = (M5.BtnB.isPressed());
     bool cPressed = (M5.BtnC.isPressed());
 
     bool anyPressed = aPressed || bPressed || cPressed;
-    if (anyPressed) tm = millis();
+    if (anyPressed) tm = launcherMillis();
     if (anyPressed && wakeUpScreen()) return;
 
     AnyKeyPress = anyPressed;

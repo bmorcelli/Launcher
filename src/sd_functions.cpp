@@ -1,6 +1,7 @@
 #include "sd_functions.h"
 #include "display.h"
 #include "esp_log.h"
+#include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "settings.h"
 #include <algorithm> // for std::sort
@@ -21,7 +22,7 @@ bool eraseAppPartition() {
         esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
     if (!partition) {
         displayRedStripe("OTA partition not found");
-        delay(2000);
+        launcherDelayMs(2000);
         return false;
     }
     displayRedStripe("Erasing, please wait...");
@@ -87,7 +88,7 @@ bool setupSdCard() {
     if (!SDM.begin(_cs)) // https://github.com/Bodmer/TFT_eSPI/discussions/2420
 #elif defined(HEADLESS)
     if (_sck == 0 && _miso == 0 && _mosi == 0 && _cs == 0) {
-        Serial.println("SdCard pins not set");
+        launcherConsolePrintln("SdCard pins not set");
         return false;
     }
 
@@ -109,11 +110,11 @@ bool setupSdCard() {
 #endif
     {
         // sdcardSPI.end(); // Closes SPI connections and release pin header.
-        Serial.println("Failed to mount SDCARD");
+        launcherConsolePrintln("Failed to mount SDCARD");
         sdcardMounted = false;
         return false;
     } else {
-        Serial.println("SDCARD mounted successfully");
+        launcherConsolePrintln("SDCARD mounted successfully");
         sdcardMounted = true;
         return true;
     }
@@ -378,8 +379,8 @@ RESTART:
 #ifndef E_PAPER_DISPLAY
     LongPress = true;
     SelPress = true; // it was just pressed
-    LongPressTmp = millis();
-    while (millis() - LongPressTmp < 300 && SelPress) {
+    LongPressTmp = launcherMillis();
+    while (launcherMillis() - LongPressTmp < 300 && SelPress) {
         check(AnyKeyPress);
         vTaskDelay(20 / portTICK_PERIOD_MS);
     }
@@ -397,7 +398,7 @@ RESTART:
         if (!LongPressDetected) {
             PreFolder = Folder;
             Folder = fileToUse;
-            Serial.printf("Going : Folder    = %s\nPreFolder = %s\n", Folder, PreFolder);
+            launcherConsolePrintf("Going : Folder    = %s\nPreFolder = %s\n", Folder.c_str(), PreFolder.c_str());
             goto RESTART;
         }
 
@@ -431,7 +432,7 @@ RESTART:
             if (PreFolder != "/") PreFolder = PreFolder.substring(0, PreFolder.lastIndexOf('/'));
             if (PreFolder == "") PreFolder = "/";
             if (_Folder == PreFolder) returnToMenu = true;
-            Serial.printf("Backing: Folder    = %s\nPreFolder = %s\n", Folder, PreFolder);
+            launcherConsolePrintf("Backing: Folder    = %s\nPreFolder = %s\n", Folder.c_str(), PreFolder.c_str());
         }
     } else {
         std::vector<Option> opt = {
@@ -495,7 +496,7 @@ bool performUpdate(Stream &updateSource, size_t updateSize, int command) {
     } else {
         uint8_t error = launcherUpdateLastError();
         displayRedStripe("E:" + String(error) + "-Wrong Partition Scheme");
-        delay(2500);
+        launcherDelayMs(2500);
     }
     vTaskResume(xHandle);
     return success;
@@ -518,9 +519,9 @@ static String installedAppNameFromPath(const String &path) {
 bool clearCoredump() {
     const esp_partition_t *partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
-    Serial.printf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
+    launcherConsolePrintf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
     if (!partition) {
-        Serial.println("Failed to find coredump partition");
+        launcherConsolePrintln("Failed to find coredump partition");
         log_e("Failed to find coredump partition");
         return false;
     }
@@ -529,11 +530,11 @@ bool clearCoredump() {
     // erase all coredump partition
     esp_err_t err = esp_flash_erase_region(NULL, partition->address, partition->size);
     if (err != ESP_OK) {
-        Serial.println("Failed to erase coredump partition");
+        launcherConsolePrintln("Failed to erase coredump partition");
         log_e("Failed to erase coredump partition: %s", esp_err_to_name(err));
         return false;
     }
-    Serial.println("Coredump partition cleared successfully");
+    launcherConsolePrintln("Coredump partition cleared successfully");
     log_e("Coredump partition cleared successfully");
     return true;
 }
@@ -681,13 +682,13 @@ void updateFromSD(String path) {
         lastInstalledApp = installedAppNameFromPath(path);
         saveIntoNVS();
         displayRedStripe("Complete");
-        delay(1000);
+        launcherDelayMs(1000);
         FREE_TFT
         reboot();
     }
 Exit:
     displayRedStripe("Update Error.");
-    delay(2500);
+    launcherDelayMs(2500);
 }
 
 /***************************************************************************************

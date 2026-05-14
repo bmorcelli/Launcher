@@ -2,6 +2,7 @@
 #include <TouchDrvCSTXXX.hpp>
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 TouchDrvCSTXXX touch;
 
 #include <bq27220.h>
@@ -46,46 +47,46 @@ Adafruit_TCA8418 *keyboard;
 void _setup_gpio() {
     // LORA、SD、EPD use the same SPI, in order to avoid mutual influence;
     // before powering on, all CS signals should be pulled high and in an unselected state;
-    pinMode(BOARD_EPD_CS, OUTPUT);
-    digitalWrite(BOARD_EPD_CS, HIGH);
-    pinMode(BOARD_SD_CS, OUTPUT);
-    digitalWrite(BOARD_SD_CS, HIGH);
-    pinMode(BOARD_LORA_CS, OUTPUT);
-    digitalWrite(BOARD_LORA_CS, HIGH);
+    launcherGpioOutput(BOARD_EPD_CS);
+    launcherGpioWrite(BOARD_EPD_CS, HIGH);
+    launcherGpioOutput(BOARD_SD_CS);
+    launcherGpioWrite(BOARD_SD_CS, HIGH);
+    launcherGpioOutput(BOARD_LORA_CS);
+    launcherGpioWrite(BOARD_LORA_CS, HIGH);
     // Assuming that the previous touch was in sleep state, wake it up
-    pinMode(TOUCH_INT, OUTPUT);
-    digitalWrite(TOUCH_INT, HIGH);
-    delay(1);
-    digitalWrite(TOUCH_INT, LOW);
+    launcherGpioOutput(TOUCH_INT);
+    launcherGpioWrite(TOUCH_INT, HIGH);
+    launcherDelayMs(1);
+    launcherGpioWrite(TOUCH_INT, LOW);
 
-    pinMode(TOUCH_RST, OUTPUT);
-    digitalWrite(TOUCH_RST, LOW);
-    delay(1);
-    digitalWrite(TOUCH_RST, HIGH);
+    launcherGpioOutput(TOUCH_RST);
+    launcherGpioWrite(TOUCH_RST, LOW);
+    launcherDelayMs(1);
+    launcherGpioWrite(TOUCH_RST, HIGH);
 
-    Serial.begin(115200);
+    launcherConsoleBegin(115200);
 
     // IO
-    pinMode(0, INPUT);
-    pinMode(BOARD_KEYBOARD_LED, OUTPUT);
-    pinMode(BOARD_MOTOR_PIN, OUTPUT);
-    pinMode(BOARD_6609_EN, OUTPUT); // enable 7682 module
-    pinMode(BOARD_LORA_EN, OUTPUT); // enable LORA module
-    pinMode(BOARD_GPS_EN, OUTPUT);  // enable GPS module
-    pinMode(BOARD_1V8_EN, OUTPUT);  // enable gyroscope module
-    pinMode(BOARD_A7682E_PWRKEY, OUTPUT);
-    digitalWrite(BOARD_KEYBOARD_LED, LOW);
-    digitalWrite(BOARD_MOTOR_PIN, LOW);
-    digitalWrite(BOARD_6609_EN, HIGH);
-    digitalWrite(BOARD_LORA_EN, HIGH);
-    digitalWrite(BOARD_GPS_EN, HIGH);
-    digitalWrite(BOARD_1V8_EN, HIGH);
-    digitalWrite(BOARD_A7682E_PWRKEY, HIGH);
+    launcherGpioInput(0);
+    launcherGpioOutput(BOARD_KEYBOARD_LED);
+    launcherGpioOutput(BOARD_MOTOR_PIN);
+    launcherGpioOutput(BOARD_6609_EN); // enable 7682 module
+    launcherGpioOutput(BOARD_LORA_EN); // enable LORA module
+    launcherGpioOutput(BOARD_GPS_EN);  // enable GPS module
+    launcherGpioOutput(BOARD_1V8_EN);  // enable gyroscope module
+    launcherGpioOutput(BOARD_A7682E_PWRKEY);
+    launcherGpioWrite(BOARD_KEYBOARD_LED, LOW);
+    launcherGpioWrite(BOARD_MOTOR_PIN, LOW);
+    launcherGpioWrite(BOARD_6609_EN, HIGH);
+    launcherGpioWrite(BOARD_LORA_EN, HIGH);
+    launcherGpioWrite(BOARD_GPS_EN, HIGH);
+    launcherGpioWrite(BOARD_1V8_EN, HIGH);
+    launcherGpioWrite(BOARD_A7682E_PWRKEY, HIGH);
 
     SPI.begin(BOARD_SPI_SCK, SDCARD_MISO, BOARD_SPI_MOSI, BOARD_SPI_CS);
 
     Wire.begin(BOARD_SDA, BOARD_SCL);
-    delay(500);
+    launcherDelayMs(500);
 
     // BQ25896 --- 0x6B
     Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
@@ -96,7 +97,7 @@ void _setup_gpio() {
         PPM.setSysPowerDownVoltage(3300);
         // Set input current limit, default is 500mA
         PPM.setInputCurrentLimit(3250);
-        Serial.printf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
+        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
         // Disable current limit pin
         PPM.disableCurrentLimitPin();
         // Set the charging target voltage, Range:3840 ~ 4608mV ,step:16 mV
@@ -108,7 +109,7 @@ void _setup_gpio() {
         PPM.setChargerConstantCurr(832);
         // Get the set charging current
         PPM.getChargerConstantCurr();
-        Serial.printf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
+        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
         PPM.enableMeasure();
         PPM.enableCharge();
         PPM.disableOTG();
@@ -128,18 +129,18 @@ void _setup_gpio() {
 void scanDevices(void) {
     byte error, address;
     int nDevices = 0;
-    Serial.println("Scanning for I2C devices ...");
+    launcherConsolePrintf("%s\n", String("Scanning for I2C devices ...").c_str());
     for (address = 0x01; address < 0x7f; address++) {
         Wire.beginTransmission(address);
         error = Wire.endTransmission();
         if (error == 0) {
-            Serial.printf("I2C device found at address 0x%02X\n", address);
+            launcherConsolePrintf("I2C device found at address 0x%02X\n", address);
             nDevices++;
         } else if (error != 2) {
-            Serial.printf("Error %d at address 0x%02X\n", error, address);
+            launcherConsolePrintf("Error %d at address 0x%02X\n", error, address);
         }
     }
-    if (nDevices == 0) { Serial.println("No I2C devices found"); }
+    if (nDevices == 0) { launcherConsolePrintf("%s\n", String("No I2C devices found").c_str()); }
 }
 void _post_setup_gpio() {
     /*
@@ -148,7 +149,7 @@ void _post_setup_gpio() {
      * Use scanning to obtain the touch device address.*/
 
     // Scan I2C devices
-    Serial.println("Scanning for I2C devices ...");
+    launcherConsolePrintf("%s\n", String("Scanning for I2C devices ...").c_str());
     scanDevices();
     uint8_t address = 0xFF;
     Wire.beginTransmission(CST328_SLAVE_ADDRESS);
@@ -159,23 +160,23 @@ void _post_setup_gpio() {
     bool hasTouch = true;
     hasTouch = touch.begin(Wire, address, BOARD_SDA, BOARD_SCL);
     if (!hasTouch) {
-        Serial.println("Failed to find Capacitive Touch !");
+        launcherConsolePrintf("%s\n", String("Failed to find Capacitive Touch !").c_str());
     } else {
-        Serial.println("Find Capacitive Touch");
+        launcherConsolePrintf("%s\n", String("Find Capacitive Touch").c_str());
     }
-    Serial.print("Model :");
-    Serial.println(touch.getModelName());
+    launcherConsolePrintf("%s", String("Model :").c_str());
+    launcherConsolePrintf("%s\n", String(touch.getModelName()).c_str());
 
     keyboard = new Adafruit_TCA8418();
     if (!keyboard->begin(BOARD_I2C_ADDR_KEYBOARD, &Wire)) {
-        Serial.println("keypad not found, check wiring & pullups!");
+        launcherConsolePrintf("%s\n", String("keypad not found, check wiring & pullups!").c_str());
     }
     keyboard->matrix(KEYPAD_ROWS, KEYPAD_COLS);
     // flush the internal buffer
     keyboard->flush();
 
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }
@@ -208,7 +209,7 @@ void _setBrightness(uint8_t brightval) {
 
     log_i("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -299,7 +300,7 @@ char getKeyChar(uint8_t k) {
     } else {
         keyVal = _key_value_map[k / 10][(KEYPAD_COLS - 1) - k % 10].value_first;
     }
-    Serial.printf(
+    launcherConsolePrintf(
         "Key pressed: %c (hex: 0x%02X, k=%d, fn=%d, shift=%d, caps=%d)\n",
         keyVal,
         (int)keyVal,
@@ -334,16 +335,16 @@ void InputHandler(void) {
     LTouchPointPro t;
     uint8_t touched = 0;
     touched = touch.getPoint(&t.x, &t.y, 1);
-    if ((millis() - _tmptmp) > 150 || LongPress) { // one reading each 500ms
-        if (digitalRead(0) == LOW) NextPress = true;
+    if ((launcherMillis() - _tmptmp) > 150 || LongPress) { // one reading each 500ms
+        if (launcherGpioRead(0) == LOW) NextPress = true;
 
-        // Serial.printf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
+        // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
 
-            Serial.printf(
-                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, millis(), _tmptmp
+            launcherConsolePrintf(
+                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), _tmptmp
             );
-            _tmptmp = millis();
+            _tmptmp = launcherMillis();
 
             // if(!wakeUpScreen()) AnyKeyPress = true;
             // else goto END;
@@ -399,7 +400,7 @@ void InputHandler(void) {
                 KeyStroke.pressed = true;
             }
         }
-        _tmptmp = millis();
+        _tmptmp = launcherMillis();
     } else KeyStroke.Clear();
 }
 
@@ -411,7 +412,7 @@ void InputHandler(void) {
 void powerOff() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);
-    delay(1000);
+    launcherDelayMs(1000);
     PPM.shutdown();
-    while (1) delay(100);
+    while (1) launcherDelayMs(100);
 }

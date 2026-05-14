@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -16,20 +17,20 @@ void _setup_gpio() {
     gpio_pulldown_dis(GPIO_NUM_17);
     gpio_pullup_dis(GPIO_NUM_17);
     // Turn off LED
-    pinMode(39, OUTPUT);
-    digitalWrite(39, LOW);
-    pinMode(40, OUTPUT);
-    digitalWrite(40, LOW);
+    launcherGpioOutput(39);
+    launcherGpioWrite(39, LOW);
+    launcherGpioOutput(40);
+    launcherGpioWrite(40, LOW);
 #else
     /* T-DONGLE C5 */
     // turn off LED
-    pinMode(4, OUTPUT);
-    digitalWrite(4, LOW);
-    pinMode(5, OUTPUT);
-    digitalWrite(5, LOW);
+    launcherGpioOutput(4);
+    launcherGpioWrite(4, LOW);
+    launcherGpioOutput(5);
+    launcherGpioWrite(5, LOW);
 #endif
 
-    pinMode(SEL_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(SEL_BTN);
 }
 
 /***************************************************************************************
@@ -64,9 +65,9 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 250;
     else dutyCycle = 250 - ((brightval * 250) / 100);
 
-    Serial.printf("dutyCycle for bright 0-255: %d", dutyCycle);
+    launcherConsolePrintf("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(GFX_BL, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(GFX_BL);
         ledcAttach(GFX_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(GFX_BL, dutyCycle);
@@ -80,7 +81,7 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     static unsigned long tm = 0;
     constexpr unsigned long kInputDebounceMs = 75;
-    if (millis() - tm < kInputDebounceMs && !LongPress) return;
+    if (launcherMillis() - tm < kInputDebounceMs && !LongPress) return;
 
     checkPowerSaveTime();
 
@@ -98,17 +99,17 @@ void InputHandler(void) {
     static unsigned long pendingTime = 0;
 
     // Check for pending NextPress timeout
-    if (pendingNextPress && millis() - pendingTime > kDoublePressIntervalMs) {
+    if (pendingNextPress && launcherMillis() - pendingTime > kDoublePressIntervalMs) {
         NextPress = true;
         pendingNextPress = false;
     }
 
-    bool buttonDown = (digitalRead(SEL_BTN) == LOW);
+    bool buttonDown = (launcherGpioRead(SEL_BTN) == LOW);
 
     if (buttonDown && !buttonWasDown) {
         buttonWasDown = true;
-        buttonDownAt = millis();
-        tm = millis();
+        buttonDownAt = launcherMillis();
+        tm = launcherMillis();
         AnyKeyPress = true;
         LongPress = false;
         if (wakeUpScreen()) return;
@@ -116,7 +117,7 @@ void InputHandler(void) {
 
     if (buttonDown) {
         AnyKeyPress = true;
-        if (millis() - buttonDownAt >= kSelectPressMs) {
+        if (launcherMillis() - buttonDownAt >= kSelectPressMs) {
             LongPress = true;
             if (drawn > 1) {
                 tft->fillRect(tftWidth - 3, 0, 3, tftHeight, GREENYELLOW);
@@ -124,7 +125,7 @@ void InputHandler(void) {
                 drawn = 1;
             }
         }
-        if (millis() - buttonDownAt >= kBackPressMs && drawn > 0) {
+        if (launcherMillis() - buttonDownAt >= kBackPressMs && drawn > 0) {
             tft->fillRect(tftWidth - 3, 0, 3, tftHeight, RED);
             tft->fillRect(0, tftHeight - 3, tftWidth, 3, RED);
             drawn = 0;
@@ -134,13 +135,13 @@ void InputHandler(void) {
 
     if (buttonWasDown) {
         buttonWasDown = false;
-        unsigned long heldMs = millis() - buttonDownAt;
+        unsigned long heldMs = launcherMillis() - buttonDownAt;
         tft->fillRect(tftWidth - 3, 0, 3, tftHeight, BGCOLOR);
         tft->fillRect(0, tftHeight - 3, tftWidth, 3, BGCOLOR);
         drawn = 2;
 
         // Reset click count if more than 300ms has passed since last release
-        if (millis() - lastButtonReleaseTime > kDoublePressIntervalMs) { clickCount = 0; }
+        if (launcherMillis() - lastButtonReleaseTime > kDoublePressIntervalMs) { clickCount = 0; }
 
         if (heldMs >= kBackPressMs) {
             EscPress = true;
@@ -151,7 +152,7 @@ void InputHandler(void) {
         } else {
             // Short click - handle double press detection
             clickCount++;
-            lastButtonReleaseTime = millis();
+            lastButtonReleaseTime = launcherMillis();
 
             if (clickCount >= 2) {
                 PrevPress = true;
@@ -163,7 +164,7 @@ void InputHandler(void) {
             } else {
                 // First click - wait for potential double click
                 pendingNextPress = true;
-                pendingTime = millis();
+                pendingTime = launcherMillis();
             }
         }
         AnyKeyPress = true;

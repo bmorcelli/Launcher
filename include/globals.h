@@ -4,9 +4,12 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 #include "pins_arduino.h"
-#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h> // to make M5GFX compile in Core, Core2 and CoreS3 devices
+#include <WString.h>
+#include <cstdint>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <functional>
 #include <interface.h>
 #include <pre_compiler.h>

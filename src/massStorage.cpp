@@ -1,6 +1,7 @@
 
 #include "massStorage.h"
 #include "display.h"
+#include "idf/launcher_platform.h"
 #include "sd_functions.h"
 #ifdef SOC_USB_OTG_SUPPORTED
 #include "esp_private/usb_phy.h"
@@ -259,7 +260,7 @@ void MassStorage::setup() {
     SDM.end(); // Forces SDCard mounting again.
     if (!setupSdCard()) {
         displayRedStripe("SD card not found.");
-        delay(1000);
+        launcherDelayMs(1000);
         return;
     }
 

@@ -1,5 +1,6 @@
 #include "powerSave.h"
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -14,8 +15,8 @@ void _setup_gpio() {}
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    Serial.println("Setting GPIO 0 as Input, press to access the Launcher");
-    pinMode(SEL_BTN, INPUT_PULLUP);
+    launcherConsolePrintf("%s\n", String("Setting GPIO 0 as Input, press to access the Launcher").c_str());
+    launcherGpioInputPullup(SEL_BTN);
 }
 
 /*********************************************************************
@@ -30,7 +31,7 @@ void _setBrightness(uint8_t brightval) {}
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    if (digitalRead(SEL_BTN) == BTN_ACT) {
+    if (launcherGpioRead(SEL_BTN) == BTN_ACT) {
         SelPress = true;
         AnyKeyPress = true;
     }

@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_Bits 8
@@ -19,10 +20,10 @@ static volatile bool dw_double_ready = false;
 static volatile bool dw_long_seen = false;
 
 void IRAM_ATTR isr_dw_btn() {
-    uint32_t now = millis();
+    uint32_t now = launcherMillis();
     if (now - dw_last_isr_ms < kDwDebounceMs) return;
     dw_last_isr_ms = now;
-    bool pressed = (digitalRead(DW_BTN) == BTN_ACT);
+    bool pressed = (launcherGpioRead(DW_BTN) == BTN_ACT);
     if (pressed) {
         dw_is_down = true;
         dw_press_ms = now;
@@ -68,23 +69,23 @@ void _setup_gpio() {
   | WS500   | 5     | 4     | 6     | **    | **        |
   | LoRa    | 5     | 4     | 6     | **    | **        |
       */
-    pinMode(7, OUTPUT);
-    digitalWrite(7, HIGH); // SD Card CS
-    pinMode(2, OUTPUT);
-    digitalWrite(2, HIGH); // CC1101 CS
-    pinMode(8, OUTPUT);
-    digitalWrite(8, HIGH); // nRF24L01 CS
-    pinMode(43, OUTPUT);
-    digitalWrite(43, HIGH); // PN532 CS
-    pinMode(9, OUTPUT);
-    digitalWrite(9, LOW); // M5RF433 avoid Jamming
-    pinMode(46, OUTPUT);
-    digitalWrite(46, LOW); // Infrared LED Off
+    launcherGpioOutput(7);
+    launcherGpioWrite(7, HIGH); // SD Card CS
+    launcherGpioOutput(2);
+    launcherGpioWrite(2, HIGH); // CC1101 CS
+    launcherGpioOutput(8);
+    launcherGpioWrite(8, HIGH); // nRF24L01 CS
+    launcherGpioOutput(43);
+    launcherGpioWrite(43, HIGH); // PN532 CS
+    launcherGpioOutput(9);
+    launcherGpioWrite(9, LOW); // M5RF433 avoid Jamming
+    launcherGpioOutput(46);
+    launcherGpioWrite(46, LOW); // Infrared LED Off
 
-    pinMode(SEL_BTN, INPUT_PULLUP);
-    pinMode(DW_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(SEL_BTN);
+    launcherGpioInputPullup(DW_BTN);
     attachInterrupt(digitalPinToInterrupt(DW_BTN), isr_dw_btn, CHANGE);
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
 }
 /***************************************************************************************
 ** Function name: _post_setup_gpio()
@@ -110,11 +111,11 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 5;
     else dutyCycle = ((brightval * 250) / 100);
 
-    // Serial.printf("dutyCycle for bright 0-255: %d\n", dutyCycle);
+    // launcherConsolePrintf("dutyCycle for bright 0-255: %d\n", dutyCycle);
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
-        // Serial.println("Failed to set brightness");
+        // launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
         ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(TFT_BL, dutyCycle);
@@ -147,12 +148,12 @@ int getBattery() {
 void InputHandler(void) {
     static unsigned long tm = 0;
     static bool dwLongFired = false;
-    unsigned long now = millis();
+    unsigned long now = launcherMillis();
     if (now - tm < 200 && !LongPress) return;
     if (!wakeUpScreen()) AnyKeyPress = true;
     else return;
 
-    bool selPressed = (digitalRead(SEL_BTN) == BTN_ACT);
+    bool selPressed = (launcherGpioRead(SEL_BTN) == BTN_ACT);
     bool dwPressed = dw_is_down;
     bool dwWaiting = dw_waiting;
     bool dwDoubleReady = dw_double_ready;

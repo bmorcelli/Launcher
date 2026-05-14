@@ -2,6 +2,7 @@
 #include "display.h"
 #include "esp_heap_caps.h"
 #include "idf/idf_update.h"
+#include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "sd_functions.h"
 #include <globals.h>
@@ -204,7 +205,7 @@ void partitioner() {
         case 1:
             data = uiFlow1;
             displayRedStripe("Experimental");
-            delay(2500);
+            launcherDelayMs(2500);
             data_size = sizeof(uiFlow1);
             break;
 #endif
@@ -212,7 +213,7 @@ void partitioner() {
     }
 
     if (!partitionSetter(data, data_size)) {
-        Serial.println("Error when running partitionSetter function");
+        launcherConsolePrintln("Error when running partitionSetter function");
         displayRedStripe("Partitioning Error");
         while (!check(SelPress)) yield();
     }
@@ -224,7 +225,7 @@ void partitioner() {
     FREE_TFT
     reboot();
 Exit:
-    Serial.print("Desistiu");
+    launcherConsolePrint("Desistiu");
 }
 
 void partList() {
@@ -233,7 +234,7 @@ void partList() {
     esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
 
     if (it != NULL) {
-        Serial.println("Partições encontradas:");
+        launcherConsolePrintln("Partições encontradas:");
         String txt = "";
         int i = 0;
         while (it != NULL) {
@@ -242,25 +243,25 @@ void partList() {
             switch (partition->subtype) {
                 case ESP_PARTITION_SUBTYPE_APP_OTA_0:
                 case ESP_PARTITION_SUBTYPE_APP_OTA_1:
-                    Serial.println("OTA");
+                    launcherConsolePrintln("OTA");
                     txt += "-OTA-";
                     break;
 
                 case ESP_PARTITION_SUBTYPE_DATA_FAT:
-                    Serial.println("FAT");
+                    launcherConsolePrintln("FAT");
                     txt += "FAT-";
                     break;
                 case ESP_PARTITION_SUBTYPE_DATA_SPIFFS:
-                    Serial.println("SPIFFS");
+                    launcherConsolePrintln("SPIFFS");
                     txt += "SPIFFs-";
                     break;
-                default: Serial.println("Desconhecido"); break;
+                default: launcherConsolePrintln("Desconhecido"); break;
             }
             it = esp_partition_next(it);
         }
         esp_partition_iterator_release(it);
         displayRedStripe(txt);
-        delay(300);
+        launcherDelayMs(300);
         while (!check(SelPress)) yield();
         while (check(SelPress)) yield();
     }
@@ -271,7 +272,7 @@ void dumpPartition(const char *partitionLabel, const char *outputPath) {
     const esp_partition_t *partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, partitionLabel);
     if (partition == NULL) {
-        Serial.printf("Partição %s não encontrada\n", partitionLabel);
+        launcherConsolePrintf("Partição %s não encontrada\n", partitionLabel);
         return;
     }
 
@@ -288,11 +289,11 @@ void dumpPartition(const char *partitionLabel, const char *outputPath) {
 
     File outputFile = SDM.open(output.c_str(), FILE_WRITE, true);
     if (!outputFile) {
-        Serial.printf("Falha ao abrir o arquivo %s no cartão SD\n", outputPath);
+        launcherConsolePrintf("Falha ao abrir o arquivo %s no cartão SD\n", outputPath);
         return;
     }
 
-    Serial.printf("Iniciando dump da partição %s para o arquivo %s\n", partitionLabel, outputPath);
+    launcherConsolePrintf("Iniciando dump da partição %s para o arquivo %s\n", partitionLabel, outputPath);
 
     const size_t bufferSize = 1024; // Ajuste conforme necessário
     uint8_t buffer[1024];
@@ -304,7 +305,7 @@ void dumpPartition(const char *partitionLabel, const char *outputPath) {
         bytesToRead = (offset + bufferSize > partition->size) ? (partition->size - offset) : bufferSize;
         result = esp_partition_read(partition, offset, buffer, bytesToRead);
         if (result != ESP_OK) {
-            Serial.printf(
+            launcherConsolePrintf(
                 "Erro ao ler a partição %s no offset %d (código de erro: %d)\n",
                 partitionLabel,
                 offset,
@@ -318,10 +319,10 @@ void dumpPartition(const char *partitionLabel, const char *outputPath) {
     }
     outputFile.close();
     displayRedStripe("    Complete!    ");
-    delay(500);
+    launcherDelayMs(500);
     displayRedStripe(output);
-    delay(2500);
-    Serial.printf("Dump da partição %s para o arquivo %s concluído\n", partitionLabel, outputPath);
+    launcherDelayMs(2500);
+    launcherConsolePrintf("Dump da partição %s para o arquivo %s concluído\n", partitionLabel, outputPath);
 
     bool attach = false;
     options = {
@@ -369,9 +370,9 @@ void restorePartition(const char *partitionLabel) {
         if (strcmp(partitionLabel, "vfs") == 0) { performFATUpdate(source, source.size(), "vfs"); }
         if (strcmp(partitionLabel, "sys") == 0) { performFATUpdate(source, source.size(), "sys"); }
     }
-    delay(100);
+    launcherDelayMs(100);
     displayRedStripe("    Restored!    ");
-    delay(2500);
+    launcherDelayMs(2500);
 }
 
 #define TAG "Partitioneer"
@@ -447,7 +448,7 @@ void partitionCrawler() {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to copy partition data");
         displayRedStripe("Use M5Burner!");
-        delay(5000);
+        launcherDelayMs(5000);
         return;
     }
 
@@ -466,11 +467,11 @@ void partitionCrawler() {
 bool attachPartition(String _from, String _to) {
     size_t offset = 0;
     uint8_t bytes[16];
-    Serial.printf("From: %s\nTo: %s\n", _from.c_str(), _to.c_str());
+    launcherConsolePrintf("From: %s\nTo: %s\n", _from.c_str(), _to.c_str());
     File to = SDM.open(_to, FILE_READ);
     if (!to) {
         displayRedStripe("Can't open target");
-        delay(2500);
+        launcherDelayMs(2500);
         return false;
     }
 
@@ -479,7 +480,7 @@ bool attachPartition(String _from, String _to) {
         bytes[2] == 0x01) {
         for (int i = 0x0; i <= 0x1A0; i += 0x20) {
             if (!to.seek(0x8000 + i)) {
-                Serial.println("Error: Could not move cursor to read partition info");
+                launcherConsolePrintln("Error: Could not move cursor to read partition info");
                 to.close();
                 return false;
             }
@@ -488,7 +489,7 @@ bool attachPartition(String _from, String _to) {
             if (bytes[3] == 0x81 || bytes[3] == 0x82 || bytes[3] == 0x83) {
                 // Calculate offset (big endian)
                 offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) | bytes[0x08];
-                Serial.printf("offset=%d\n", offset);
+                launcherConsolePrintf("offset=%d\n", offset);
             }
         }
     }
@@ -503,7 +504,7 @@ bool attachPartition(String _from, String _to) {
 
         if (app_size == 0 || spiffs_size == 0) {
             displayRedStripe("Invalid partition sizes");
-            delay(2500);
+            launcherDelayMs(2500);
             return false;
         }
 
@@ -522,14 +523,14 @@ bool attachPartition(String _from, String _to) {
         File original = SDM.open(_to, FILE_READ);
         if (!original) {
             displayRedStripe("Can't open target");
-            delay(2500);
+            launcherDelayMs(2500);
             return false;
         }
 
         File rebuilt = SDM.open(new_path, FILE_WRITE, true);
         if (!rebuilt) {
             displayRedStripe("Can't create target");
-            delay(2500);
+            launcherDelayMs(2500);
             original.close();
             return false;
         }
@@ -546,7 +547,7 @@ bool attachPartition(String _from, String _to) {
         uint8_t *table = (uint8_t *)heap_caps_malloc(PARTITION_SIZE, MALLOC_CAP_INTERNAL);
         if (table == NULL) {
             displayRedStripe("No memory");
-            delay(2500);
+            launcherDelayMs(2500);
             rebuilt.close();
             original.close();
             return false;
@@ -614,7 +615,7 @@ bool attachPartition(String _from, String _to) {
     File target = SDM.open(_to, FILE_WRITE);
     if (!target) {
         displayRedStripe("Can't reopen target");
-        delay(2500);
+        launcherDelayMs(2500);
         return false;
     }
 
@@ -647,7 +648,7 @@ bool attachPartition(String _from, String _to) {
     File from = SDM.open(_from, FILE_READ);
     if (!from) {
         displayRedStripe("Can't open source");
-        delay(2500);
+        launcherDelayMs(2500);
         target.close();
         return false;
     }
@@ -664,7 +665,7 @@ bool attachPartition(String _from, String _to) {
     from.close();
     target.close();
 
-    Serial.printf(
+    launcherConsolePrintf(
         "Partition data from '%s' attached at offset 0x%X into '%s'\n",
         _from.c_str(),
         (unsigned int)offset,

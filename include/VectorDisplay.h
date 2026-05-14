@@ -9,10 +9,11 @@
 
 #include <sys/timeb.h>
 #include <string>
+#include <cstring>
 
 typedef std::string String;
 
-uint32_t millis() {
+inline uint32_t vectorDisplayMillis() {
     struct timeb t;
     ftime(&t);
     return t.millitm + t.time * 1000;
@@ -45,7 +46,15 @@ public:
 };
 
 #else
-#include <Arduino.h>
+#include "idf/launcher_platform.h"
+#include <HardwareSerial.h>
+#include <Print.h>
+#include <Stream.h>
+#include <WString.h>
+
+inline uint32_t vectorDisplayMillis() {
+    return launcherMillis();
+}
 #endif
 
 #ifdef ESP8266
@@ -251,8 +260,8 @@ private:
 private:    
     inline void sendDelay() {
         if (delayTime>0) {
-            while(millis()-lastSend < delayTime) ;
-            lastSend = millis();
+            while(vectorDisplayMillis()-lastSend < delayTime) ;
+            lastSend = vectorDisplayMillis();
         }
     }
     
@@ -267,7 +276,7 @@ public:
 
     void setDelay(uint32_t delayMillis) {
         delayTime = delayMillis;
-        lastSend = millis();
+        lastSend = vectorDisplayMillis();
     }
     
     virtual void remoteFlush() {

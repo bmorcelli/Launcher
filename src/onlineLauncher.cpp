@@ -3,6 +3,7 @@
 #include "idf/idf_http_client.h"
 #include "idf/idf_update.h"
 #include "idf/idf_wifi.h"
+#include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "powerSave.h"
 #include "sd_functions.h"
@@ -25,9 +26,9 @@ void wifiConnect(String ssid, int encryptation, bool isAP) {
         if (getWifiCredential(ssid, knownPwd)) {
             pwd = knownPwd;
             found = true;
-            Serial.printf("Found SSID: %s\n", ssid.c_str());
+            launcherConsolePrintf("Found SSID: %s\n", ssid.c_str());
         }
-        Serial.printf("sdcardMounted: %d\n", sdcardMounted);
+        launcherConsolePrintf("sdcardMounted: %d\n", sdcardMounted);
 
     Retry:
         if (!found || wrongPass) {
@@ -42,14 +43,14 @@ void wifiConnect(String ssid, int encryptation, bool isAP) {
             if (!found) {
                 if (setWifiCredential(ssid, pwd)) {
                     found = true;
-                    Serial.printf("wifiConnect: ssid->%s, pwd->%s\n", ssid.c_str(), pwd.c_str());
+                    launcherConsolePrintf("wifiConnect: ssid->%s, pwd->%s\n", ssid.c_str(), pwd.c_str());
                     saveConfigs();
                 } else {
-                    Serial.println("wifiConnect: failed to store new WiFi entry");
+                    launcherConsolePrintln("wifiConnect: failed to store new WiFi entry");
                 }
             } else if (wrongPass) {
                 if (setWifiCredential(ssid, pwd)) {
-                    Serial.printf("Mudou pwd de SSID: %s\n", ssid.c_str());
+                    launcherConsolePrintf("Mudou pwd de SSID: %s\n", ssid.c_str());
                     saveConfigs();
                 }
             }
@@ -87,11 +88,10 @@ void wifiConnect(String ssid, int encryptation, bool isAP) {
 #endif
         launcherWifiStartAp("Launcher", "", 6, 4);
         vTaskDelay(250 / portTICK_PERIOD_MS);
-        Serial.print("IP: ");
-        Serial.println(launcherWifiApIp().c_str());
+        launcherConsolePrintf("IP: %s\n", launcherWifiApIp().c_str());
     }
 END:
-    delay(0);
+    launcherDelayMs(0);
 }
 void connectWifi() {
     displayRedStripe("Scanning...");
@@ -310,19 +310,19 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
                 _doc.clear();
                 DeserializationError error = deserializeJson(_doc, payload);
                 if (error) {
-                    Serial.printf("[GetInfo] Failed to parse JSON: %s\n", error.c_str());
+                    launcherConsolePrintf("[GetInfo] Failed to parse JSON: %s\n", error.c_str());
                     displayRedStripe("JSON Parse Failed");
                     vTaskDelay(1500 / portTICK_PERIOD_MS);
                     _doc.clear();
                     vTaskResume(xHandle);
                     return false;
                 }
-                Serial.printf("[GetInfo] Downloaded and parsed json with size: %d\n", _doc.size());
+                launcherConsolePrintf("[GetInfo] Downloaded and parsed json with size: %d\n", _doc.size());
                 vTaskResume(xHandle);
                 return true;
             }
 
-            Serial.printf("[GetInfo] HTTP fetch failed: %s\n", serverUrl.c_str());
+            launcherConsolePrintf("[GetInfo] HTTP fetch failed: %s\n", serverUrl.c_str());
             tftprint(".", 10);
             vTaskDelay(pdTICKS_TO_MS(500));
         }
@@ -349,7 +349,7 @@ bool GetJsonFromLauncherHub(uint8_t page, String order, bool star, String query)
         total_firmware = doc["total"].as<int>();
         num_pages = doc["total"].as<int>() / doc["page_size"].as<int>();
         current_page = page;
-        Serial.printf("GetJsonFromLauncherHub> Loaded %d firmwares\n", total_firmware);
+        launcherConsolePrintf("GetJsonFromLauncherHub> Loaded %d firmwares\n", total_firmware);
         return true;
     }
     displayRedStripe("Firmware list fetch Failed");
@@ -378,7 +378,7 @@ void downloadFirmware(String fid, String file_url, String fileName, String folde
     prog_handler = 2;
     if (!setupSdCard()) {
         displayRedStripe("SDCard Not Found");
-        delay(2500);
+        launcherDelayMs(2500);
         return;
     }
     log_i("Download folder before checks: '%s'", folder.c_str());
@@ -391,7 +391,7 @@ void downloadFirmware(String fid, String file_url, String fileName, String folde
             if (!SDM.mkdir(folder_name)) {
                 log_i("Download: Couldn't create folder '%s'\n", folder_name.c_str());
                 displayRedStripe("Can't create: '" + folder_name + "'");
-                delay(2000);
+                launcherDelayMs(2000);
                 return;
             }
         }
@@ -406,7 +406,7 @@ retry:
     if (!file) {
         log_i("Download: Couldn't create file %s", filePath.c_str());
         displayRedStripe("Fail creating file.");
-        delay(2000);
+        launcherDelayMs(2000);
         return;
     }
     LauncherHttpResponse response;
@@ -430,13 +430,13 @@ retry:
         SDM.remove(filePath);
         goto retry;
     }
-    Serial.printf("File size in get() = %d\nFile size in SD    = %d\n", (int)response.content_length, sdSize);
+    launcherConsolePrintf("File size in get() = %d\nFile size in SD    = %d\n", (int)response.content_length, sdSize);
     if (!ok || (response.content_length > 0 && sdSize != (size_t)response.content_length)) {
         SDM.remove(filePath);
         displayRedStripe("Download FAILED");
         while (!check(SelPress)) yield();
     } else {
-        Serial.printf("File successfully downloaded..\n");
+        launcherConsolePrintln("File successfully downloaded..");
         displayRedStripe(" Downloaded ");
         while (!check(SelPress)) yield();
     }
@@ -483,7 +483,7 @@ bool installExtFirmware(String url) {
 
             // if (bytes[3] == 0xFF) Serial.println(": ------- END of Table ------- |");
             if (bytes[3] == 0x00 || (bytes[3] >= 0x10 && bytes[3] <= 0x1F)) {
-                Serial.println(": Ota or Factory partition |");
+                launcherConsolePrintln(": Ota or Factory partition |");
                 if (bytes[0x0A] > 0 && PartitionSize == 0) {
                     PartitionSize = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) |
                                     bytes[0x0C]; // Write the size of app0 partition
@@ -501,7 +501,7 @@ bool installExtFirmware(String url) {
             //     Serial.println(": OTA partition                |");
             // if (bytes[3] == 0x20) Serial.println(": TEST partition               |");
             if (bytes[3] == 0x81) {
-                Serial.println(": FAT partition                |");
+                launcherConsolePrintln(": FAT partition                |");
                 int a = 0;
                 if (fat_offset[0] != 0) a = 1;
                 fat_offset[a] = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
@@ -511,7 +511,7 @@ bool installExtFirmware(String url) {
                     (bytes[0x0A] << 16) | (bytes[0x0B] << 8) | bytes[0x0C]; // Write the size of FAT partition
             }
             if (bytes[3] == 0x82 || bytes[3] == 0x83) {
-                Serial.println(": Spiffs/LittleFs partition    |");
+                launcherConsolePrintln(": Spiffs/LittleFs partition    |");
                 spiffs_offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
                                 bytes[0x08]; // Write the offset of spiffs partition
                 bytes[0x0C] = 0;
@@ -533,23 +533,22 @@ bool installExtFirmware(String url) {
         }
         // Check if there is room for spiffs in the file
         if (file_size < spiffs_offset) {
-            Serial.printf(
+            launcherConsolePrintf(
                 "\nError: file doesn't reach spiffs offset %d, to read spiffs.", spiffs_offset, HEX
             );
         } else {
-            Serial.println("Preparing to copy spiffs...");
+            launcherConsolePrintln("Preparing to copy spiffs...");
             // check size of the Spiffs Partition, if it fits in the launcher
             // If it is larger the the Launcher Spiffs Partition, cut it to the limit
             if (spiffs_size > MAX_SPIFFS) {
                 spiffs_size = MAX_SPIFFS;
                 temp_size = spiffs_offset + spiffs_size;
                 if (file_size <= temp_size) { spiffs_size = file_size - spiffs_offset; }
-                Serial.print("\nTotal spiffs size after crop: ");
-                Serial.println(spiffs_size, HEX);
+                launcherConsolePrintf("\nTotal spiffs size after crop: %X\n", spiffs_size);
             }
         }
     }
-    Serial.printf(
+    launcherConsolePrintf(
         "url: %s"
         "\nPartitionSize: 0x%x, PartitionOffset: 0x%x,"
         "\nspiffs: %d, spiffs_offset: 0x%x, spiffs_size: 0x%x, "
@@ -593,9 +592,9 @@ bool installExtFirmware(String url) {
 bool clearOnlineCoredump() {
     const esp_partition_t *partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
-    Serial.printf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
+    launcherConsolePrintf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
     if (!partition) {
-        Serial.println("Failed to find coredump partition");
+        launcherConsolePrintln("Failed to find coredump partition");
         log_e("Failed to find coredump partition");
         return false;
     }
@@ -604,11 +603,11 @@ bool clearOnlineCoredump() {
     // erase all coredump partition
     esp_err_t err = esp_flash_erase_region(NULL, partition->address, partition->size);
     if (err != ESP_OK) {
-        Serial.println("Failed to erase coredump partition");
+        launcherConsolePrintln("Failed to erase coredump partition");
         log_e("Failed to erase coredump partition: %s", esp_err_to_name(err));
         return false;
     }
-    Serial.println("Coredump partition cleared successfully");
+    launcherConsolePrintln("Coredump partition cleared successfully");
     log_e("Coredump partition cleared successfully");
     return true;
 }
@@ -688,7 +687,7 @@ void installFirmware( // adicionar "fid"
         // Format Spiffs partition
         if (!SPIFFS.begin(true)) {
             displayRedStripe("Fail to start SPIFFS");
-            delay(2500);
+            launcherDelayMs(2500);
         } else {
             displayRedStripe("Formatting SPIFFS");
             SPIFFS.format();
@@ -705,7 +704,7 @@ void installFirmware( // adicionar "fid"
                         launcherUpdateEnd();
         if (!spiffsOk) {
             displayRedStripe("SPIFFS Failed");
-            delay(2500);
+            launcherDelayMs(2500);
         }
     }
 
@@ -719,12 +718,12 @@ void installFirmware( // adicionar "fid"
                 if ((FAT - i * 100) == 400) {
                     if (!installFAT_OTA(file, fat_offset[i], fat_size[i], "sys")) {
                         displayRedStripe("FAT Failed");
-                        delay(2500);
+                        launcherDelayMs(2500);
                     }
                 } else {
                     if (!installFAT_OTA(file, fat_offset[i], fat_size[i], "vfs")) {
                         displayRedStripe("FAT Failed");
-                        delay(2500);
+                        launcherDelayMs(2500);
                     }
                 }
             }
@@ -742,7 +741,7 @@ Sucesso:
 // Só chega aqui se der errado
 SAIR:
     vTaskResume(xHandle);
-    delay(2000);
+    launcherDelayMs(2000);
 }
 
 /***************************************************************************************

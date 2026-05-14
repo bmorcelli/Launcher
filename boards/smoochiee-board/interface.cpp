@@ -1,4 +1,5 @@
 #include "powerSave.h"
+#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -14,19 +15,19 @@ XPowersPPM PPM;
 
 void _setup_gpio() {
 
-    pinMode(UP_BTN, INPUT_PULLUP); // Sets the power btn as an INPUT
-    pinMode(SEL_BTN, INPUT_PULLUP);
-    pinMode(DW_BTN, INPUT_PULLUP);
-    pinMode(R_BTN, INPUT_PULLUP);
-    pinMode(L_BTN, INPUT_PULLUP);
+    launcherGpioInputPullup(UP_BTN); // Sets the power btn as an INPUT
+    launcherGpioInputPullup(SEL_BTN);
+    launcherGpioInputPullup(DW_BTN);
+    launcherGpioInputPullup(R_BTN);
+    launcherGpioInputPullup(L_BTN);
 
-    pinMode(CC1101_SS_PIN, OUTPUT);
-    pinMode(NRF24_SS_PIN, OUTPUT);
-    pinMode(45, OUTPUT);
+    launcherGpioOutput(CC1101_SS_PIN);
+    launcherGpioOutput(NRF24_SS_PIN);
+    launcherGpioOutput(45);
 
-    digitalWrite(45, HIGH);
-    digitalWrite(CC1101_SS_PIN, HIGH);
-    digitalWrite(NRF24_SS_PIN, HIGH);
+    launcherGpioWrite(45, HIGH);
+    launcherGpioWrite(CC1101_SS_PIN, HIGH);
+    launcherGpioWrite(NRF24_SS_PIN, HIGH);
     // Starts SPI instance for CC1101 and NRF24 with CS pins blocking communication at start
 
     bool pmu_ret = false;
@@ -35,13 +36,13 @@ void _setup_gpio() {
     if (pmu_ret) {
         PPM.setSysPowerDownVoltage(3300);
         PPM.setInputCurrentLimit(3250);
-        Serial.printf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
+        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
         PPM.disableCurrentLimitPin();
         PPM.setChargeTargetVoltage(4208);
         PPM.setPrechargeCurr(64);
         PPM.setChargerConstantCurr(832);
         PPM.getChargerConstantCurr();
-        Serial.printf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
+        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
         PPM.enableMeasure();
         PPM.enableCharge();
         PPM.enableOTG();
@@ -77,16 +78,16 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
     // read all inputs only once, instead of 4
-    bool l = digitalRead(L_BTN);
-    bool r = digitalRead(R_BTN);
-    bool u = digitalRead(UP_BTN);
-    bool d = digitalRead(DW_BTN);
-    bool s = digitalRead(SEL_BTN);
+    bool l = launcherGpioRead(L_BTN);
+    bool r = launcherGpioRead(R_BTN);
+    bool u = launcherGpioRead(UP_BTN);
+    bool d = launcherGpioRead(DW_BTN);
+    bool s = launcherGpioRead(SEL_BTN);
 
     if (s == BTN_ACT || u == BTN_ACT || d == BTN_ACT || r == BTN_ACT || l == BTN_ACT) {
-        tm = millis();
+        tm = launcherMillis();
         if (!wakeUpScreen()) AnyKeyPress = true;
         else return;
     } else return;
@@ -109,28 +110,28 @@ void InputHandler(void) {
 void checkReboot() {
     int countDown;
     /* Long press power off */
-    if (digitalRead(L_BTN) == BTN_ACT && digitalRead(R_BTN) == BTN_ACT) {
-        uint32_t time_count = millis();
-        while (digitalRead(L_BTN) == BTN_ACT && digitalRead(R_BTN) == BTN_ACT) {
+    if (launcherGpioRead(L_BTN) == BTN_ACT && launcherGpioRead(R_BTN) == BTN_ACT) {
+        uint32_t time_count = launcherMillis();
+        while (launcherGpioRead(L_BTN) == BTN_ACT && launcherGpioRead(R_BTN) == BTN_ACT) {
             // Display poweroff bar only if holding button
-            if (millis() - time_count > 500) {
+            if (launcherMillis() - time_count > 500) {
                 tft->setTextSize(1);
                 tft->setTextColor(FGCOLOR, BGCOLOR);
-                countDown = (millis() - time_count) / 1000 + 1;
+                countDown = (launcherMillis() - time_count) / 1000 + 1;
                 if (countDown < 4)
                     tft->drawCentreString("PWR OFF IN " + String(countDown) + "/3", tftWidth / 2, 12, 1);
                 else {
                     tft->fillScreen(BGCOLOR);
-                    while (digitalRead(L_BTN) == BTN_ACT || digitalRead(R_BTN) == BTN_ACT);
-                    delay(200);
+                    while (launcherGpioRead(L_BTN) == BTN_ACT || launcherGpioRead(R_BTN) == BTN_ACT);
+                    launcherDelayMs(200);
                     powerOff();
                 }
-                delay(10);
+                launcherDelayMs(10);
             }
         }
 
         // Clear text after releasing the button
-        delay(30);
+        launcherDelayMs(30);
         tft->fillRect(60, 12, tftWidth - 60, 8, BGCOLOR);
     }
 }

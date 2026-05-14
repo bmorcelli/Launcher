@@ -1,7 +1,6 @@
 #ifndef LAUNCHER_IDF_UPDATE_H
 #define LAUNCHER_IDF_UPDATE_H
 
-#include <Arduino.h>
 #include <Stream.h>
 #include <cstddef>
 #include <cstdint>

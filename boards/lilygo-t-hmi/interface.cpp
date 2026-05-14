@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <SD_MMC.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 CYD28_TouchR touch(320, 240);
 
 /***************************************************************************************
@@ -12,14 +13,14 @@ CYD28_TouchR touch(320, 240);
 ***************************************************************************************/
 void _setup_gpio() {
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
-    pinMode(TFT_BL, OUTPUT);
-    digitalWrite(TFT_BL, HIGH);
-    pinMode(CYD28_TouchR_CS, OUTPUT);
-    digitalWrite(CYD28_TouchR_CS, HIGH);
-    pinMode(PWR_ON_PIN, OUTPUT);
-    digitalWrite(PWR_ON_PIN, HIGH);
-    pinMode(PWR_EN_PIN, OUTPUT);
-    digitalWrite(PWR_EN_PIN, HIGH);
+    launcherGpioOutput(TFT_BL);
+    launcherGpioWrite(TFT_BL, HIGH);
+    launcherGpioOutput(CYD28_TouchR_CS);
+    launcherGpioWrite(CYD28_TouchR_CS, HIGH);
+    launcherGpioOutput(PWR_ON_PIN);
+    launcherGpioWrite(PWR_ON_PIN, HIGH);
+    launcherGpioOutput(PWR_EN_PIN);
+    launcherGpioWrite(PWR_EN_PIN, HIGH);
 }
 
 /***************************************************************************************
@@ -29,12 +30,12 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     SPI.begin(CYD28_TouchR_CLK, CYD28_TouchR_MISO, CYD28_TouchR_MOSI);
-    if (!touch.begin(&SPI)) { Serial.println("Touchscreen initialization failed!"); }
+    if (!touch.begin(&SPI)) { launcherConsolePrintf("%s\n", String("Touchscreen initialization failed!").c_str()); }
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_Bits 8
 #define TFT_BRIGHT_FREQ 5000
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
+    launcherGpioOutput(TFT_BL);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }
@@ -63,12 +64,12 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
-    if (millis() - tm > 200 || LongPress) {
+    if (launcherMillis() - tm > 200 || LongPress) {
         if (touch.touched()) {
             auto t = touch.getPointScaled();
             auto t2 = touch.getPointRaw();
-            Serial.printf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
-            Serial.printf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
+            launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
+            launcherConsolePrintf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
             if (rotation == 3) {
                 t.y = (tftHeight + 20) - t.y;
                 t.x = tftWidth - t.x;
@@ -83,8 +84,8 @@ void InputHandler(void) {
                 t.x = t.y;
                 t.y = (tftHeight + 20) - tmp;
             }
-            Serial.printf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
-            tm = millis();
+            launcherConsolePrintf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
+            tm = launcherMillis();
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 

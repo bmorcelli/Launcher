@@ -3,6 +3,7 @@
 #include <Keyboard.h>
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 // Cardputer and 1.1 keyboard
 Keyboard_Class Keyboard;
@@ -33,17 +34,17 @@ int handleSpecialKeys(uint8_t row, uint8_t col, bool pressed) {
     switch (keyVal) {
         case 0xFF:
             fn_key_pressed = pressed;
-            if (fn_key_pressed) Serial.println("FN Pressed");
-            else Serial.println("FN Released");
+            if (fn_key_pressed) launcherConsolePrintf("%s\n", String("FN Pressed").c_str());
+            else launcherConsolePrintf("%s\n", String("FN Released").c_str());
             return 1;
         case 0x81:
             shift_key_pressed = pressed;
-            if (shift_key_pressed) Serial.println("Shift Pressed");
-            else Serial.println("Shift Released");
+            if (shift_key_pressed) launcherConsolePrintf("%s\n", String("Shift Pressed").c_str());
+            else launcherConsolePrintf("%s\n", String("Shift Released").c_str());
             if (shift_key_pressed && fn_key_pressed) {
                 caps_lock = !caps_lock;
-                if (caps_lock) Serial.println("CAPS Lock activated");
-                else Serial.println("CAPS Lock DEactivated");
+                if (caps_lock) launcherConsolePrintf("%s\n", String("CAPS Lock activated").c_str());
+                else launcherConsolePrintf("%s\n", String("CAPS Lock DEactivated").c_str());
                 shift_key_pressed = false;
                 fn_key_pressed = false;
             }
@@ -79,42 +80,42 @@ inline void mapRawKeyToPhysical(uint8_t keyvalue, uint8_t &row, uint8_t &col) {
 ***************************************************************************************/
 void _setup_gpio() {
     //    Keyboard.begin();
-    pinMode(0, INPUT);
-    pinMode(10, INPUT); // Pin that reads the Battery voltage
-    pinMode(5, OUTPUT);
+    launcherGpioInput(0);
+    launcherGpioInput(10); // Pin that reads the Battery voltage
+    launcherGpioOutput(5);
     // Set GPIO5 HIGH for SD card compatibility (thx for the tip @bmorcelli & 7h30th3r0n3)
-    digitalWrite(5, HIGH);
+    launcherGpioWrite(5, HIGH);
 }
 bool kb_interrupt = false;
 void IRAM_ATTR gpio_isr_handler(void *arg) { kb_interrupt = true; }
 void _post_setup_gpio() {
     // Initialize TCA8418 I2C keyboard controller
-    Serial.println("DEBUG: Cardputer ADV - Initializing TCA8418 keyboard");
+    launcherConsolePrintf("%s\n", String("DEBUG: Cardputer ADV - Initializing TCA8418 keyboard").c_str());
 
     // Use correct I2C pins for Cardputer ADV
-    Serial.printf("DEBUG: Initializing I2C with SDA=%d, SCL=%d\n", TCA8418_SDA_PIN, TCA8418_SCL_PIN);
+    launcherConsolePrintf("DEBUG: Initializing I2C with SDA=%d, SCL=%d\n", TCA8418_SDA_PIN, TCA8418_SCL_PIN);
     Wire.begin(TCA8418_SDA_PIN, TCA8418_SCL_PIN);
-    delay(100);
+    launcherDelayMs(100);
 
     // Scan I2C bus to see what's available
-    Serial.println("DEBUG: Scanning I2C bus...");
+    launcherConsolePrintf("%s\n", String("DEBUG: Scanning I2C bus...").c_str());
     byte found_devices = 0;
     for (byte i = 1; i < 127; i++) {
         Wire.beginTransmission(i);
         if (Wire.endTransmission() == 0) {
-            Serial.printf("DEBUG: Found I2C device at address 0x%02X\n", i);
+            launcherConsolePrintf("DEBUG: Found I2C device at address 0x%02X\n", i);
             found_devices++;
         }
     }
-    Serial.printf("DEBUG: Found %d I2C devices\n", found_devices);
+    launcherConsolePrintf("DEBUG: Found %d I2C devices\n", found_devices);
 
     // Try to initialize TCA8418
-    Serial.printf("DEBUG: Attempting to initialize TCA8418 at address 0x%02X\n", TCA8418_I2C_ADDR);
+    launcherConsolePrintf("DEBUG: Attempting to initialize TCA8418 at address 0x%02X\n", TCA8418_I2C_ADDR);
     UseTCA8418 = tca.begin(TCA8418_I2C_ADDR, &Wire);
 
     if (!UseTCA8418) {
-        Serial.println("ADV  : Failed to initialize TCA8418!");
-        Serial.println("Probable standard Cardputer detected, switching to Keyboard library");
+        launcherConsolePrintf("%s\n", String("ADV  : Failed to initialize TCA8418!").c_str());
+        launcherConsolePrintf("%s\n", String("Probable standard Cardputer detected, switching to Keyboard library").c_str());
         Wire.end();
         Keyboard.begin();
         return;
@@ -122,7 +123,7 @@ void _post_setup_gpio() {
 
     tca.matrix(7, 8);
     tca.flush();
-    pinMode(11, INPUT);
+    launcherGpioInput(11);
     attachInterruptArg(digitalPinToInterrupt(11), gpio_isr_handler, &kb_interrupt, CHANGE);
     tca.enableInterrupts();
 }
@@ -159,10 +160,10 @@ void InputHandler(void) {
     static bool esc = false;
     static bool del = false;
 
-    if (millis() - tm < 200 && !LongPress) return;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
 
-    if (digitalRead(0) == LOW) { // GPIO0 button, shoulder button
-        tm = millis();
+    if (launcherGpioRead(0) == LOW) { // GPIO0 button, shoulder button
+        tm = launcherMillis();
         AnyKeyPress = true;
         if (!wakeUpScreen()) yield();
         else return;
@@ -185,7 +186,7 @@ void InputHandler(void) {
                 KeyStroke.del = del;
                 KeyStroke.pressed = true;
             }
-            tm = millis();
+            tm = launcherMillis();
             return;
         }
 
@@ -204,7 +205,7 @@ void InputHandler(void) {
         uint8_t row, col;
         mapRawKeyToPhysical(value, row, col);
 
-        // Serial.printf("Key event: raw=%d, pressed=%d, row=%d, col=%d\n", value, pressed, row, col);
+        // launcherConsolePrintf("Key event: raw=%d, pressed=%d, row=%d, col=%d\n", value, pressed, row, col);
 
         if (row >= 4 || col >= 14) return;
 
@@ -222,7 +223,7 @@ void InputHandler(void) {
         keyStroke key;
         char keyVal = getKeyChar(row, col);
 
-        // Serial.printf("Key pressed: %c (0x%02X) at row=%d, col=%d\n", keyVal, keyVal, row, col);
+        // launcherConsolePrintf("Key pressed: %c (0x%02X) at row=%d, col=%d\n", keyVal, keyVal, row, col);
 
         if (keyVal == KEY_BACKSPACE && col == 13) {
             del = pressed;
@@ -266,7 +267,7 @@ void InputHandler(void) {
         DownPress = down;
         SelPress = sel;
         EscPress = esc;
-        tm = millis();
+        tm = launcherMillis();
     } else {
         Keyboard.update();
         if (!Keyboard.isPressed()) {
@@ -274,7 +275,7 @@ void InputHandler(void) {
             LongPressTmp = false;
             return;
         }
-        tm = millis();
+        tm = launcherMillis();
         if (!wakeUpScreen()) yield();
         else return;
         AnyKeyPress = true;
@@ -305,6 +306,6 @@ void InputHandler(void) {
                 keyStr += i;
             }
         }
-        // Serial.println(keyStr);
+        // launcherConsolePrintf("%s\n", String(keyStr).c_str());
     }
 }

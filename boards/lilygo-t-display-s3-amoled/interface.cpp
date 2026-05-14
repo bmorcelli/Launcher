@@ -1,6 +1,7 @@
 #include "powerSave.h"
 #include <TouchDrv.hpp>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 #define BOARD_I2C_SDA 3
 #define BOARD_I2C_SCL 2
 #define BOARD_SENSOR_IRQ 21
@@ -9,14 +10,14 @@ TouchDrvCST816 touch;
 static bool touch_OK = false;
 
 void touchHomeKeyCallback(void *user_data) {
-    Serial.println("Home key pressed!");
+    launcherConsolePrintf("%s\n", String("Home key pressed!").c_str());
     static uint32_t checkMs = 0;
-    if (millis() > checkMs) {
+    if (launcherMillis() > checkMs) {
         EscPress = true;
         AnyKeyPress = true;
         wakeUpScreen();
     }
-    checkMs = millis() + 200;
+    checkMs = launcherMillis() + 200;
 }
 
 /***************************************************************************************
@@ -25,14 +26,14 @@ void touchHomeKeyCallback(void *user_data) {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(BOARD_TOUCH_RST, OUTPUT); // PIN_TOUCH_RES
-    pinMode(38 /* PMIC_EN */, OUTPUT);
-    pinMode(SEL_BTN, INPUT_PULLUP); // SEL_BTN
+    launcherGpioOutput(BOARD_TOUCH_RST); // PIN_TOUCH_RES
+    launcherGpioOutput(38 /* PMIC_EN */);
+    launcherGpioInputPullup(SEL_BTN); // SEL_BTN
 
-    digitalWrite(38 /* PMIC_EN */, HIGH);
-    digitalWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
-    delay(100);
-    digitalWrite(BOARD_TOUCH_RST, HIGH); // PIN_TOUCH_RES
+    launcherGpioWrite(38 /* PMIC_EN */, HIGH);
+    launcherGpioWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
+    launcherDelayMs(100);
+    launcherGpioWrite(BOARD_TOUCH_RST, HIGH); // PIN_TOUCH_RES
 
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
@@ -119,15 +120,15 @@ void InputHandler(void) {
         }
         touched = touch.getPoint(&t.x, &t.y, 1);
         vTaskDelay(pdMS_TO_TICKS(50));
-        if ((millis() - tm) > 200 || LongPress) { // one reading each 500ms
+        if ((launcherMillis() - tm) > 200 || LongPress) { // one reading each 500ms
 
-            // Serial.printf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
+            // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
             if (touched) {
 
-                Serial.printf(
-                    "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, millis(), tm
+                launcherConsolePrintf(
+                    "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), tm
                 );
-                tm = millis();
+                tm = launcherMillis();
 
                 if (!wakeUpScreen()) AnyKeyPress = true;
                 else return;
@@ -141,20 +142,20 @@ void InputHandler(void) {
         }
     } else {
         constexpr unsigned long kInputDebounceMs = 75;
-        if (millis() - tm < kInputDebounceMs && !LongPress) return;
+        if (launcherMillis() - tm < kInputDebounceMs && !LongPress) return;
         checkPowerSaveTime();
         // Check for pending NextPress timeout
-        if (pendingNextPress && millis() - pendingTime > kDoublePressIntervalMs) {
+        if (pendingNextPress && launcherMillis() - pendingTime > kDoublePressIntervalMs) {
             NextPress = true;
             pendingNextPress = false;
         }
 
-        bool buttonDown = (digitalRead(0) == LOW);
+        bool buttonDown = (launcherGpioRead(0) == LOW);
 
         if (buttonDown && !buttonWasDown) {
             buttonWasDown = true;
-            buttonDownAt = millis();
-            tm = millis();
+            buttonDownAt = launcherMillis();
+            tm = launcherMillis();
             AnyKeyPress = true;
             LongPress = false;
             if (wakeUpScreen()) return;
@@ -162,7 +163,7 @@ void InputHandler(void) {
 
         if (buttonDown) {
             AnyKeyPress = true;
-            if (millis() - buttonDownAt >= kSelectPressMs) {
+            if (launcherMillis() - buttonDownAt >= kSelectPressMs) {
                 LongPress = true;
                 if (drawn > 1) {
                     tft->fillRect(tftWidth - 3, 0, 3, tftHeight, GREENYELLOW);
@@ -170,7 +171,7 @@ void InputHandler(void) {
                     drawn = 1;
                 }
             }
-            if (millis() - buttonDownAt >= kBackPressMs && drawn > 0) {
+            if (launcherMillis() - buttonDownAt >= kBackPressMs && drawn > 0) {
                 tft->fillRect(tftWidth - 3, 0, 3, tftHeight, RED);
                 tft->fillRect(0, tftHeight - 3, tftWidth, 3, RED);
                 drawn = 0;
@@ -180,13 +181,13 @@ void InputHandler(void) {
 
         if (buttonWasDown) {
             buttonWasDown = false;
-            unsigned long heldMs = millis() - buttonDownAt;
+            unsigned long heldMs = launcherMillis() - buttonDownAt;
             tft->fillRect(tftWidth - 3, 0, 3, tftHeight, BGCOLOR);
             tft->fillRect(0, tftHeight - 3, tftWidth, 3, BGCOLOR);
             drawn = 2;
 
             // Reset click count if more than 300ms has passed since last release
-            if (millis() - lastButtonReleaseTime > kDoublePressIntervalMs) { clickCount = 0; }
+            if (launcherMillis() - lastButtonReleaseTime > kDoublePressIntervalMs) { clickCount = 0; }
 
             if (heldMs >= kBackPressMs) {
                 EscPress = true;
@@ -197,7 +198,7 @@ void InputHandler(void) {
             } else {
                 // Short click - handle double press detection
                 clickCount++;
-                lastButtonReleaseTime = millis();
+                lastButtonReleaseTime = launcherMillis();
 
                 if (clickCount >= 2) {
                     PrevPress = true;
@@ -209,7 +210,7 @@ void InputHandler(void) {
                 } else {
                     // First click - wait for potential double click
                     pendingNextPress = true;
-                    pendingTime = millis();
+                    pendingTime = launcherMillis();
                 }
             }
             AnyKeyPress = true;

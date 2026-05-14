@@ -2,6 +2,7 @@
 #include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <interface.h>
+#include "idf/launcher_platform.h"
 
 TouchDrvGT911 touch;
 
@@ -63,26 +64,26 @@ int pmicWriteReg(uint8_t devAddr, uint8_t regAddr, uint8_t *data, uint8_t len) {
 bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
     TwoWire *wire = activeI2c();
     if (wire == nullptr) {
-        Serial.println("EPD_Painter I2C bus is not available");
+        launcherConsolePrintf("%s\n", String("EPD_Painter I2C bus is not available").c_str());
         return false;
     }
 
     EPD_Painter::Config cfg = tft->getConfig();
 
-    pinMode(irq, OUTPUT);
-    digitalWrite(irq, HIGH);
+    launcherGpioOutput(irq);
+    launcherGpioWrite(irq, HIGH);
     touch.setPins(rst, irq);
     if (!touch.begin(*wire, touchAddress, cfg.i2c.sda, cfg.i2c.scl)) {
         while (1) {
-            Serial.println("Failed to find GT911 - check your wiring!");
-            delay(1000);
+            launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
+            launcherDelayMs(1000);
         }
     }
     touch.setMaxCoordinates(960, 540); // ED047TC2: 960x540 native resolution
     touch.setSwapXY(true);
     touch.setMirrorXY(false, true);
 
-    Serial.println("Started Touchscreen poll...");
+    launcherConsolePrintf("%s\n", String("Started Touchscreen poll...").c_str());
 
     // BQ25896 --- 0x6B
     wire->beginTransmission(0x6B);
@@ -90,14 +91,14 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
         // Reuse the EPD_Painter I2C bus through callbacks so XPowers does not
         // call TwoWire::begin() again on an already-initialized bus.
         if (!PPM.begin(BQ25896_SLAVE_ADDRESS, pmicReadReg, pmicWriteReg)) {
-            Serial.println("Failed to initialize XPowers PPM");
+            launcherConsolePrintf("%s\n", String("Failed to initialize XPowers PPM").c_str());
             return false;
         }
         // Set the minimum operating voltage. Below this voltage, the PPM will protect
         PPM.setSysPowerDownVoltage(3300);
         // Set input current limit, default is 500mA
         PPM.setInputCurrentLimit(3250);
-        Serial.printf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
+        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
         // Disable current limit pin
         PPM.disableCurrentLimitPin();
         // Set the charging target voltage, Range:3840 ~ 4608mV ,step:16 mV
@@ -109,7 +110,7 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
         PPM.setChargerConstantCurr(832);
         // Get the set charging current
         PPM.getChargerConstantCurr();
-        Serial.printf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
+        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
         PPM.enableMeasure();
         PPM.enableCharge();
         PPM.disableOTG();
@@ -124,12 +125,12 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(SEL_BTN, INPUT);
-    pinMode(DW_BTN, INPUT);
+    launcherGpioInput(SEL_BTN);
+    launcherGpioInput(DW_BTN);
 
     // CS pins of SPI devices to HIGH
-    pinMode(46, OUTPUT); // LORA module
-    digitalWrite(46, HIGH);
+    launcherGpioOutput(46); // LORA module
+    launcherGpioWrite(46, HIGH);
 }
 
 /***************************************************************************************
@@ -154,7 +155,7 @@ void _post_setup_gpio() {
     }
 
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(isH752_1 ? 11 : 40, OUTPUT);
+    launcherGpioOutput(isH752_1 ? 11 : 40);
     ledcAttach(isH752_1 ? 11 : 40, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(isH752_1 ? 11 : 40, bright);
 }
@@ -187,7 +188,7 @@ void _setBrightness(uint8_t brightval) {
 
     // log_i("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(isH752_1 ? 11 : 40, dutyCycle)) {
-        Serial.println("Failed to set brightness");
+        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(isH752_1 ? 11 : 40);
         ledcAttach(isH752_1 ? 11 : 40, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
         ledcWrite(isH752_1 ? 11 : 40, dutyCycle);
@@ -232,15 +233,15 @@ void InputHandler(void) {
         rot = rotation;
     }
     touched = touch.getPoint(&t.x, &t.y, 1);
-    if ((millis() - _tmptmp) > 250 || LongPress) { // one reading each 500ms
+    if ((launcherMillis() - _tmptmp) > 250 || LongPress) { // one reading each 500ms
 
-        // Serial.printf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
+        // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
 
-            // Serial.printf(
-            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, millis(), _tmptmp
+            // launcherConsolePrintf(
+            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), _tmptmp
             // );
-            _tmptmp = millis();
+            _tmptmp = launcherMillis();
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
@@ -263,7 +264,7 @@ void InputHandler(void) {
 void powerOff() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);
-    delay(1000);
+    launcherDelayMs(1000);
     PPM.shutdown();
-    while (1) delay(100);
+    while (1) launcherDelayMs(100);
 }

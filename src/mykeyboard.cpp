@@ -2,6 +2,7 @@
 #include "display.h"
 #include "powerSave.h"
 #include "settings.h"
+#include "idf/launcher_platform.h"
 #include <globals.h>
 
 #ifndef HAS_1_BUTTON // if not defined, use 0 for calculations
@@ -238,7 +239,7 @@ String generalKeyboard(
     bool last_caps = false;
     bool selection_made = false; // used for detecting if an key or a button was selected
     bool redraw = true;
-    long last_input_time = millis(); // used for input debouncing
+    long last_input_time = launcherMillis(); // used for input debouncing
     // cursor coordinates: kep track of where the next character should be printed (in screen pixels)
     int cursor_x = 0;
     int cursor_y = 0;
@@ -352,7 +353,7 @@ String generalKeyboard(
 #if defined(HAS_3_BUTTONS) // StickCs and Core for long press detection logic
     uint8_t longNextPress = 0;
     uint8_t longPrevPress = 0;
-    unsigned long LongPressTmp = millis();
+    unsigned long LongPressTmp = launcherMillis();
 #endif
 
     // main loop
@@ -560,7 +561,7 @@ String generalKeyboard(
             cursor_x = 5 + RES / 2 + current_text.length() * LW * FM;
         }
 
-        if (millis() - last_input_time > 250) { // INPUT DEBOUCING
+        if (launcherMillis() - last_input_time > 250) { // INPUT DEBOUCING
             // waits at least 250ms before accepting another input, to prevent rapid involuntary repeats
 
 #if defined(HAS_TOUCH) // CYD, Core2, CoreS3
@@ -692,13 +693,13 @@ String generalKeyboard(
             } else {
                 /* Down Btn to move in X axis (to the right) */
                 if (longNextPress || NextPress) {
-                    unsigned long now = millis();
+                    unsigned long now = launcherMillis();
                     if (!longNextPress) {
                         longNextPress = 1;
                         LongPress = true;
                         LongPressTmp = now;
                     }
-                    delay(1); // does not work without it
+                    launcherDelayMs(1); // does not work without it
                     // Check if the button is held long enough (long press)
                     if (now - LongPressTmp > 300) {
                         x--; // Long press action
@@ -713,7 +714,7 @@ String generalKeyboard(
                         continue;
                     }
                     LongPress = false;
-                    // delay(10);
+                    // wait 10 ms
                     if (y < 0 && x >= buttons_number) x = 0;
                     if (x >= KeyboardWidth) x = 0;
                     else if (x < 0) x = KeyboardWidth - 1;
@@ -721,13 +722,13 @@ String generalKeyboard(
                 }
                 /* UP Btn to move in Y axis (Downwards) */
                 if (longPrevPress || PrevPress) {
-                    unsigned long now = millis();
+                    unsigned long now = launcherMillis();
                     if (!longPrevPress) {
                         longPrevPress = 1;
                         LongPress = true;
                         LongPressTmp = now;
                     }
-                    delay(1); // does not work without it
+                    launcherDelayMs(1); // does not work without it
                     // Check if the button is held long enough (long press)
                     if (now - LongPressTmp > 300) {
                         y--; // Long press action
@@ -915,7 +916,7 @@ String generalKeyboard(
                 redraw = true;
             }
 
-            last_input_time = millis();
+            last_input_time = launcherMillis();
         }
     }
 
@@ -979,7 +980,7 @@ int getBattery() {
 #endif
     static bool adcInitialized = false;
     if (!adcInitialized) {
-        pinMode(ANALOG_BAT_PIN, INPUT);
+        launcherGpioInput(ANALOG_BAT_PIN);
         adcInitialized = true;
     }
     uint32_t adcReading = analogReadMilliVolts(ANALOG_BAT_PIN);
