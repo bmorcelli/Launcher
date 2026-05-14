@@ -482,3 +482,64 @@ Grafo de dependencias do `m5stack-tab5` nao lista:
 WiFi
 ESPmDNS
 ```
+
+## Complemento - commit fixes e otimizacao de logs WiFi
+
+Data: 2026-05-14
+
+Commit analisado: `c9aa495 fixes`
+
+Ambiente validado: `m5stack-cardputer`
+
+Comando executado:
+
+```powershell
+pio run -e m5stack-cardputer
+```
+
+Log completo salvo em `docs/fixes-optimized-m5stack-cardputer-build.log`.
+
+Resultado: build `SUCCESS`; o PowerShell retornou exit code `1` apenas pelo warning de LTO emitido em stderr depois do sucesso.
+
+### Alteracoes funcionais do commit fixes
+
+- `src/idf/ca_certs.h` adiciona um bundle PEM com raizes para os endpoints HTTPS usados pelo launcher.
+- `src/idf/idf_http_client.cpp` passa a validar TLS com `cert_pem` e implementa redirect manual em cima de `esp_http_client_open`/`esp_http_client_fetch_headers`.
+- `launcherHttpGetRange(...)` aceita dois headers, permitindo `Range` e `HWID` na mesma requisicao.
+- `src/onlineLauncher.cpp` envia `HWID` nos fluxos do LauncherHub, usa a URL final diretamente nos updates SPIFFS/FAT e corrige progresso usando `content_length`.
+- `src/idf/idf_wifi.cpp` corrige o estado de conexao STA para nao reiniciar o handshake a cada ciclo e reaproveita netifs ja criadas pelo framework/hosted.
+- `src/webInterface.cpp` corrige o tempo de vida do header `Set-Cookie`, evitando ponteiro para `String` temporaria em `httpd_resp_set_hdr`.
+
+### Otimizacao aplicada
+
+- Removidos `ESP_LOGE(...)`, `esp_err_to_name(...)`, `esp_log.h` e `esp_check.h` de `src/idf/idf_wifi.cpp`.
+- Motivo: o projeto usa `-DCORE_DEBUG_LEVEL=0`; nesse cenario logs via `ESP_LOGx` nao devem ser o mecanismo de diagnostico principal e as strings/caminhos de erro nao precisam permanecer no wrapper.
+- A mudanca preserva o contrato atual: as funcoes continuam retornando `false`/`-1` em falha, sem side effects adicionais.
+
+### Tamanhos
+
+| Artefato | Apos main.cpp sem WiFi.h | Commit fixes + logs WiFi removidos | Delta |
+| --- | ---: | ---: | ---: |
+| `.pio/build/m5stack-cardputer/firmware.bin` | 1.253.408 bytes | 1.258.832 bytes | +5.424 bytes |
+| `Launcher-m5stack-cardputer.bin` | 1.318.944 bytes | 1.324.368 bytes | +5.424 bytes |
+
+Resumo PlatformIO:
+
+```text
+RAM:   [==        ]  21.3% (used 69812 bytes from 327680 bytes)
+Flash: [==        ]  24.3% (used 1258423 bytes from 5177344 bytes)
+Launcher: [=================   ] 87.3% (used 0x133550 bytes of 0x160000 of test partition)
+```
+
+### Analise de flash
+
+O aumento de `5.424 bytes` contra o ultimo ponto medido e aceitavel para as correcoes funcionais entregues pelo commit `fixes`. O principal custo novo e o bundle de certificados em `src/idf/ca_certs.h` e a logica adicional de redirect/headers no cliente HTTP nativo.
+
+O corte seguro ja aplicado foi remover diagnosticos `ESP_LOGE` do wrapper WiFi. Como `CORE_DEBUG_LEVEL=0`, trocar `Serial.*` por `ESP_LOGx` nao deve ser tratado como estrategia geral de diagnostico neste projeto; para mensagens realmente necessarias em campo, usar retorno de erro visivel na UI ou um mecanismo explicito controlado por flag propria.
+
+### Proximas otimizacoes candidatas
+
+- Conversao dos certificados PEM para DER foi testada e descartada: reduziu apenas `912 bytes` no `m5stack-cardputer` e piora a manutencao/atualizacao das CAs.
+- Separar CAs por host em vez de sempre passar o bundle completo pode reduzir RAM/parse durante conexao, mas nao deve ser adotado agora pelo mesmo motivo de manutencao.
+- Nao remover nenhuma CA sem teste real de download/OTA. O commit `fixes` depende delas para recuperar os fluxos HTTPS, entao esse corte tem risco funcional alto.
+- Evitar nova camada de log baseada em `ESP_LOGx` enquanto `CORE_DEBUG_LEVEL=0`; se diagnostico for necessario, criar API minima em `src/idf/*` com compilacao condicional propria.

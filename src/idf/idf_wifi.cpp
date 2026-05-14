@@ -1,8 +1,6 @@
 #include "idf_wifi.h"
 
-#include "esp_check.h"
 #include "esp_event.h"
-#include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -11,8 +9,6 @@
 #include "mdns.h"
 #include <stdio.h>
 #include <string.h>
-
-static const char *TAG = "idf_wifi";
 
 #if CONFIG_ESP_HOSTED_ENABLED
 #include "esp32-hal-hosted.h"
@@ -51,50 +47,32 @@ bool okOrAlready(esp_err_t err) { return err == ESP_OK || err == ESP_ERR_INVALID
 
 bool ensureWifiInitialized() {
     if (!wifiEvents) wifiEvents = xEventGroupCreate();
-    if (!wifiEvents) {
-        ESP_LOGE(TAG, "xEventGroupCreate failed");
-        return false;
-    }
+    if (!wifiEvents) return false;
 
     esp_err_t err;
     err = esp_netif_init();
-    if (!okOrAlready(err)) {
-        ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
-        return false;
-    }
+    if (!okOrAlready(err)) return false;
 
     err = esp_event_loop_create_default();
-    if (!okOrAlready(err)) {
-        ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
-        return false;
-    }
+    if (!okOrAlready(err)) return false;
 
     if (!staNetif) {
         // Try to get an already-existing STA netif (Arduino framework may have created it)
         staNetif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
         if (!staNetif) staNetif = esp_netif_create_default_wifi_sta();
-        if (!staNetif) {
-            ESP_LOGE(TAG, "esp_netif_create_default_wifi_sta returned NULL");
-            return false;
-        }
-        // ESP_LOGI(TAG, "staNetif: %p", (void *)staNetif);
+        if (!staNetif) return false;
     }
     if (!apNetif) {
         // Try to get an already-existing AP netif (Arduino framework may have created it)
         apNetif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
         if (!apNetif) apNetif = esp_netif_create_default_wifi_ap();
-        if (!apNetif) {
-            ESP_LOGE(TAG, "esp_netif_create_default_wifi_ap returned NULL");
-            return false;
-        }
-        // ESP_LOGI(TAG, "apNetif: %p", (void *)apNetif);
+        if (!apNetif) return false;
     }
 
     if (!wifiInitialized) {
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         err = esp_wifi_init(&cfg);
         if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-            // ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
             return false;
         }
         wifiInitialized = true;
@@ -104,22 +82,15 @@ bool ensureWifiInitialized() {
         err = esp_event_handler_instance_register(
             WIFI_EVENT, ESP_EVENT_ANY_ID, wifiEventHandler, nullptr, nullptr
         );
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "WIFI_EVENT handler register failed: %s", esp_err_to_name(err));
-            return false;
-        }
+        if (err != ESP_OK) return false;
         err = esp_event_handler_instance_register(
             IP_EVENT, IP_EVENT_STA_GOT_IP, wifiEventHandler, nullptr, nullptr
         );
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "IP_EVENT handler register failed: %s", esp_err_to_name(err));
-            return false;
-        }
+        if (err != ESP_OK) return false;
         handlersRegistered = true;
     }
 
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    // ESP_LOGI(TAG, "WiFi initialized OK");
     return true;
 }
 
@@ -136,17 +107,10 @@ std::string ipFromNetif(esp_netif_t *netif) {
 bool launcherWifiStartSta() {
     if (!ensureWifiInitialized()) return false;
     esp_err_t err = esp_wifi_set_mode(WIFI_MODE_STA);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_wifi_set_mode STA failed: %s", esp_err_to_name(err));
-        return false;
-    }
+    if (err != ESP_OK) return false;
     esp_wifi_set_ps(WIFI_PS_NONE);
     err = esp_wifi_start();
-    if (!okOrAlready(err)) {
-        ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
-        return false;
-    }
-    // ESP_LOGI(TAG, "STA started");
+    if (!okOrAlready(err)) return false;
     return true;
 }
 
@@ -221,29 +185,19 @@ bool launcherWifiConnect(const char *ssid, const char *password, uint32_t timeou
 
 int launcherWifiScan(std::vector<LauncherWifiAp> &out) {
     out.clear();
-    if (!launcherWifiStartSta()) {
-        ESP_LOGE(TAG, "launcherWifiScan: STA start failed");
-        return -1;
-    }
+    if (!launcherWifiStartSta()) return -1;
 
     wifi_scan_config_t scanConfig = {};
     scanConfig.show_hidden = true;
     esp_err_t err = esp_wifi_scan_start(&scanConfig, true);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_wifi_scan_start failed: %s", esp_err_to_name(err));
-        return -1;
-    }
+    if (err != ESP_OK) return -1;
 
     uint16_t count = 0;
     esp_wifi_scan_get_ap_num(&count);
-    // ESP_LOGI(TAG, "Scan found %u APs", count);
     if (!count) return 0;
 
     std::vector<wifi_ap_record_t> records(count);
-    if (esp_wifi_scan_get_ap_records(&count, records.data()) != ESP_OK) {
-        ESP_LOGE(TAG, "esp_wifi_scan_get_ap_records failed");
-        return -1;
-    }
+    if (esp_wifi_scan_get_ap_records(&count, records.data()) != ESP_OK) return -1;
     out.reserve(count);
     for (uint16_t i = 0; i < count; ++i) {
         LauncherWifiAp ap;
