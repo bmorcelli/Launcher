@@ -1,9 +1,9 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <XPowersLib.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 static PowersSY6970 PMU;
 #define TOUCH_MODULES_CST_SELF
 #include <TouchDrvCSTXXX.hpp>
@@ -50,10 +50,10 @@ void _setup_gpio() {
     launcherGpioOutput(6);
     launcherGpioWrite(6, HIGH);
 
-    launcherGpioOutput(BOARD_TOUCH_RST);   // PIN_TOUCH_RES
+    launcherGpioOutput(BOARD_TOUCH_RST);     // PIN_TOUCH_RES
     launcherGpioWrite(BOARD_TOUCH_RST, LOW); // PIN_TOUCH_RES
     launcherDelayMs(500);
-    launcherGpioWrite(BOARD_TOUCH_RST, HIGH);      // PIN_TOUCH_RES
+    launcherGpioWrite(BOARD_TOUCH_RST, HIGH); // PIN_TOUCH_RES
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
     // Initialize capacitive touch
@@ -82,6 +82,7 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

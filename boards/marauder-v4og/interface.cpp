@@ -1,8 +1,8 @@
 #include "powerSave.h"
 #include <interface.h>
 
-#include <CYD28_TouchscreenR.h>
 #include "idf/launcher_platform.h"
+#include <CYD28_TouchscreenR.h>
 
 CYD28_TouchR touch(320, 240);
 
@@ -18,7 +18,6 @@ IRAM_ATTR void checkPosition() { encoder->tick(); }
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    launcherGpioOutput(TFT_BL);
 #ifdef WAVESENTRY
     launcherGpioInputPullup(ENCODER_KEY);
     encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::TWO03);
@@ -38,7 +37,7 @@ void _post_setup_gpio() {
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
 
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

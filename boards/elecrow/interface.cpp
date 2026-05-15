@@ -1,10 +1,10 @@
+#include "idf/launcher_platform.h"
 #include "nvs.h"
 #include "nvs_handle.hpp"
 #include "powerSave.h"
 #include <CYD28_TouchscreenR.h>
 #include <Wire.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 CYD28_TouchR touch(TFT_HEIGHT, TFT_WIDTH);
 
@@ -36,7 +36,7 @@ void _post_setup_gpio() {
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
     // Brightness control must be initialized after tft in this case @Pirata
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

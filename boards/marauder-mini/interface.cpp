@@ -1,6 +1,6 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -20,7 +20,7 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

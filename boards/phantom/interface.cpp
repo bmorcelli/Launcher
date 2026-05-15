@@ -1,8 +1,8 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Arduino.h>
 #include <CYD28_TouchscreenR.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 
@@ -31,7 +31,7 @@ void _post_setup_gpio() {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

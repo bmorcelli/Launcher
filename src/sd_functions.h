@@ -13,9 +13,9 @@
 #endif
 extern SPIClass sdcardSPI;
 bool eraseAppPartition();
-#ifndef PART_04MB
+
 bool eraseFAT();
-#endif
+
 bool setupSdCard();
 
 bool deleteFromSd(String path);

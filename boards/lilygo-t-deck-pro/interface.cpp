@@ -1,8 +1,8 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <TouchDrvCSTXXX.hpp>
 #include <Wire.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 TouchDrvCSTXXX touch;
 
 #include <bq27220.h>
@@ -176,7 +176,7 @@ void _post_setup_gpio() {
     keyboard->flush();
 
     // Brightness control must be initialized after tft in this case @Pirata
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }
@@ -342,7 +342,12 @@ void InputHandler(void) {
         if (touched) {
 
             launcherConsolePrintf(
-                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), _tmptmp
+                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
+                t.x,
+                t.y,
+                rotation,
+                launcherMillis(),
+                _tmptmp
             );
             _tmptmp = launcherMillis();
 

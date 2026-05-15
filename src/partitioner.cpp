@@ -14,7 +14,7 @@
 namespace {
 String hex32(uint32_t value) {
     char out[11] = {0};
-    snprintf(out, sizeof(out), "0x%06lX", static_cast<unsigned long>(value));
+    snprintf(out, sizeof(out), "0x%lX", static_cast<unsigned long>(value));
     return String(out);
 }
 
@@ -22,6 +22,254 @@ String sizeText(uint32_t value) {
     if ((value % 0x100000) == 0) return String(value / 0x100000) + "MB";
     if ((value % 0x400) == 0) return String(value / 0x400) + "KB";
     return String(value) + "B";
+}
+
+uint32_t alignUpLocal(uint32_t value, uint32_t alignment) {
+    if (alignment == 0) return value;
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+uint32_t alignDownLocal(uint32_t value, uint32_t alignment) {
+    if (alignment == 0) return value;
+    return value & ~(alignment - 1);
+}
+
+uint32_t partitionAlignment(uint8_t type) { return type == 0x00 ? 0x10000 : LAUNCHER_FLASH_SECTOR_SIZE; }
+
+uint32_t parseSizeText(String value) {
+    value.trim();
+    value.toUpperCase();
+    if (value.length() == 0) return 0;
+
+    uint32_t multiplier = 1;
+    if (value.endsWith("MB") || value.endsWith("M")) {
+        multiplier = 0x100000;
+        value = value.substring(0, value.indexOf('M'));
+    } else if (value.endsWith("KB") || value.endsWith("K")) {
+        multiplier = 0x400;
+        value = value.substring(0, value.indexOf('K'));
+    }
+    value.trim();
+
+    char *end = nullptr;
+    uint32_t base =
+        value.startsWith("0X") ? strtoul(value.c_str() + 2, &end, 16) : strtoul(value.c_str(), &end, 10);
+    if (base == 0 || (end && *end != '\0')) return 0;
+    return base * multiplier;
+}
+
+bool confirmAction(const String &message) {
+    bool confirmed = false;
+    std::vector<Option> confirmOptions = {
+        {"Confirm", [&]() { confirmed = true; } },
+        {"Cancel",  [&]() { confirmed = false; }},
+    };
+    displayRedStripe(message);
+    loopOptions(confirmOptions);
+    return confirmed;
+}
+
+String nextOtaAppLabel(const LauncherPartitionTable &table) {
+    int highest = 0;
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (strncmp(entry.label, "app", 3) != 0) continue;
+
+        const char *cursor = entry.label + 3;
+        if (*cursor == '\0') continue;
+
+        bool numeric = true;
+        int value = 0;
+        while (*cursor) {
+            if (*cursor < '0' || *cursor > '9') {
+                numeric = false;
+                break;
+            }
+            value = (value * 10) + (*cursor - '0');
+            cursor++;
+        }
+        if (numeric && value > highest) highest = value;
+    }
+    return "app" + String(highest + 1);
+}
+
+int sliderXForOffset(uint32_t offset, uint32_t minOffset, uint32_t maxOffset, int barX, int barWidth) {
+    if (maxOffset <= minOffset) return barX;
+    uint64_t numerator = static_cast<uint64_t>(offset - minOffset) * static_cast<uint64_t>(barWidth);
+    return barX + static_cast<int>(numerator / (maxOffset - minOffset));
+}
+
+uint32_t
+sliderOffsetForX(int x, uint32_t minOffset, uint32_t maxOffset, uint32_t step, int barX, int barWidth) {
+    if (maxOffset <= minOffset || barWidth <= 0) return minOffset;
+    if (x <= barX) return minOffset;
+    if (x >= barX + barWidth) return maxOffset;
+
+    uint64_t raw =
+        minOffset +
+        (static_cast<uint64_t>(x - barX) * static_cast<uint64_t>(maxOffset - minOffset)) / barWidth;
+    if (step == 0) return static_cast<uint32_t>(raw);
+
+    uint32_t relative = static_cast<uint32_t>(raw - minOffset);
+    uint32_t steps = (relative + (step / 2)) / step;
+    uint32_t snapped = minOffset + steps * step;
+    if (snapped > maxOffset) snapped = maxOffset;
+    return snapped;
+}
+
+void applySliderTouch(
+    int x, uint32_t minOffset, uint32_t maxOffset, uint32_t step, uint32_t minSize, uint32_t &start,
+    uint32_t &end, int &moveStart, bool &moveSelected
+) {
+    const int barX = 14;
+    const int barW = tftWidth > 34 ? tftWidth - 28 : tftWidth - 4;
+    const int startX = sliderXForOffset(start, minOffset, maxOffset, barX, barW);
+    const int endX = sliderXForOffset(end, minOffset, maxOffset, barX, barW);
+
+    moveStart = abs(x - startX) <= abs(x - endX) ? 1 : 0;
+    moveSelected = true;
+
+    uint32_t touchedOffset = sliderOffsetForX(x, minOffset, maxOffset, step, barX, barW);
+    if (moveStart) {
+        uint32_t maxStart = end > minSize ? end - minSize : minOffset;
+        if (touchedOffset < minOffset) touchedOffset = minOffset;
+        if (touchedOffset > maxStart) touchedOffset = maxStart;
+        start = alignDownLocal(touchedOffset, step);
+    } else {
+        uint32_t minEnd = start + minSize;
+        if (touchedOffset < minEnd) touchedOffset = minEnd;
+        if (touchedOffset > maxOffset) touchedOffset = maxOffset;
+        end = alignUpLocal(touchedOffset, step);
+        if (end > maxOffset) end = maxOffset;
+    }
+}
+
+void drawRangeSlider(
+    const String &title, uint32_t minOffset, uint32_t maxOffset, uint32_t start, uint32_t end, uint32_t step,
+    int moveStart
+) {
+    tft->fillScreen(BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    tftprintln(title, 8);
+    tftprintln(String(moveStart >= 0 ? (moveStart ? "Moving: Start" : "Moving: End") : "Moving: ----"), 8);
+    tftprintln(String("Range: ") + hex32(start) + " - " + hex32(end), 8);
+    tftprintln(String("Size: ") + hex32(end - start) + " (" + sizeText(end - start) + ")", 8);
+    tftprintln(String("Step: ") + hex32(step), 8);
+
+    const int barX = 14;
+    const int barW = tftWidth > 34 ? tftWidth - 28 : tftWidth - 4;
+    const int barY = tftHeight / 2;
+    const int startX = sliderXForOffset(start, minOffset, maxOffset, barX, barW);
+    const int endX = sliderXForOffset(end, minOffset, maxOffset, barX, barW);
+
+    tft->drawRect(barX, barY, barW, 10, DARKGREY);
+    if (endX > startX) tft->fillRect(startX, barY + 2, endX - startX, 6, ALCOLOR);
+    tft->fillRect(
+        startX - 2, barY - 6, 5, 22, moveStart >= 0 ? (moveStart ? FGCOLOR : LIGHTGREY) : LIGHTGREY
+    );
+    tft->fillRect(endX - 2, barY - 6, 5, 22, moveStart >= 0 ? (moveStart ? LIGHTGREY : FGCOLOR) : LIGHTGREY);
+
+    tft->setTextColor(moveStart >= 0 ? FGCOLOR : BGCOLOR, moveStart >= 0 ? BGCOLOR : FGCOLOR);
+    tft->drawCentreString(" Confirm/Exit ", tftWidth / 2, barY + 16, 1);
+
+    tft->setTextColor(ALCOLOR, BGCOLOR);
+    tft->setCursor(8, tftHeight - (LH * FP + 8));
+    tft->print("Prev/Next move  Sel ok  Esc cancel");
+}
+
+bool rangeSlider(
+    const String &title, uint32_t minOffset, uint32_t maxOffset, uint32_t step, uint32_t minSize,
+    uint32_t &start, uint32_t &end
+) {
+    if (step == 0) step = LAUNCHER_FLASH_SECTOR_SIZE;
+    minOffset = alignUpLocal(minOffset, step);
+    maxOffset = alignDownLocal(maxOffset, step);
+    start = alignUpLocal(start, step);
+    end = alignDownLocal(end, step);
+
+    if (maxOffset <= minOffset || maxOffset - minOffset < minSize) {
+        displayRedStripe("No usable range");
+        launcherDelayMs(2000);
+        return false;
+    }
+    if (start < minOffset) start = minOffset;
+    if (end > maxOffset) end = maxOffset;
+    if (end <= start || end - start < minSize) end = start + minSize;
+    if (end > maxOffset) {
+        end = maxOffset;
+        start = end - minSize;
+    }
+
+    int moveStart = -1;
+    bool moveSelected = false;
+
+    bool redraw = true;
+    while (true) {
+        if (redraw) {
+            if (moveStart > 1) moveStart = -1;
+            if (moveStart < -1) moveStart = 1;
+            drawRangeSlider(title, minOffset, maxOffset, start, end, step, moveStart);
+            redraw = false;
+        }
+
+#if defined(HAS_TOUCH)
+        if (touchPoint.pressed) {
+            const int touchX = touchPoint.x;
+            const int touchY = touchPoint.y;
+            touchPoint.Clear();
+
+            const int barY = tftHeight / 2;
+            const int sliderTop = barY - 16;
+            const int sliderBottom = barY + 14;
+            const int confirmTop = barY + 14;
+            const int confirmBottom = barY + 38;
+
+            if (touchY >= confirmTop && touchY <= confirmBottom) return true;
+            if (touchY >= sliderTop && touchY <= sliderBottom) {
+                applySliderTouch(
+                    touchX, minOffset, maxOffset, step, minSize, start, end, moveStart, moveSelected
+                );
+                redraw = true;
+                continue;
+            }
+        }
+#endif
+
+        if (check(PrevPress) || check(UpPress)) {
+            if (moveSelected) {
+                if (moveStart) {
+                    if (start >= minOffset + step) start -= step;
+                } else if (end >= start + minSize + step) {
+                    end -= step;
+                }
+            } else {
+                moveStart--;
+            }
+            redraw = true;
+        }
+        if (check(NextPress) || check(DownPress)) {
+            if (moveSelected) {
+                if (moveStart) {
+                    if (start + minSize + step <= end) start += step;
+                } else if (end + step <= maxOffset) {
+                    end += step;
+                }
+            } else {
+                moveStart++;
+            }
+            redraw = true;
+        }
+        if (check(SelPress)) {
+            if (moveSelected) {
+                moveSelected = false;
+                if (moveStart < 0) return true;
+            } else {
+                moveSelected = true;
+            }
+            redraw = true;
+        }
+        if (check(EscPress) || returnToMenu) return false;
+        yield();
+    }
 }
 
 String partitionTypeName(const LauncherPartitionEntry &entry) {
@@ -102,6 +350,9 @@ void showPartitionDetails(const LauncherPartitionEntry &entry) {
         entry.flags,
         isProtectedPartition(entry)
     );
+#if defined(HAS_TOUCH)
+    TouchFooter();
+#endif
     waitForSelectRelease();
 }
 
@@ -120,7 +371,245 @@ void showFreeRangeDetails(const LauncherPartitionRange &range) {
         range.size,
         range.offset + range.size
     );
+#if defined(HAS_TOUCH)
+    TouchFooter();
+#endif
     waitForSelectRelease();
+}
+
+int findEntryIndex(const LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
+    for (size_t i = 0; i < table.entries.size(); ++i) {
+        const LauncherPartitionEntry &entry = table.entries[i];
+        if (entry.type == target.type && entry.subtype == target.subtype && entry.offset == target.offset &&
+            strncmp(entry.label, target.label, 16) == 0) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+bool validateOrShow(const LauncherPartitionTable &table) {
+    String error;
+    if (launcherPartitionValidate(table, &error)) return true;
+    launcherConsolePrintf("Partition validation failed: %s\n", error.c_str());
+    displayRedStripe(error.length() ? error : "Invalid partition");
+    launcherDelayMs(2500);
+    return false;
+}
+
+bool editPartitionSize(LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
+    int index = findEntryIndex(table, target);
+    if (index < 0) return false;
+    if (isProtectedPartition(table.entries[index])) {
+        displayRedStripe("Protected partition");
+        launcherDelayMs(2000);
+        return false;
+    }
+
+    const uint32_t alignment = partitionAlignment(table.entries[index].type);
+    uint32_t minOffset = LAUNCHER_PARTITION_TABLE_OFFSET + LAUNCHER_PARTITION_TABLE_SIZE;
+    uint32_t maxOffset = table.flashSize;
+    const uint32_t currentStart = table.entries[index].offset;
+    const uint32_t currentEnd = table.entries[index].offset + table.entries[index].size;
+
+    for (size_t i = 0; i < table.entries.size(); ++i) {
+        if (static_cast<int>(i) == index) continue;
+        const LauncherPartitionEntry &entry = table.entries[i];
+        const uint32_t entryEnd = entry.offset + entry.size;
+        if (entryEnd <= currentStart && entryEnd > minOffset) minOffset = entryEnd;
+        if (entry.offset >= currentEnd && entry.offset < maxOffset) maxOffset = entry.offset;
+    }
+
+    uint32_t start = currentStart;
+    uint32_t end = currentEnd;
+    if (!rangeSlider("Partition Range", minOffset, maxOffset, alignment, alignment, start, end)) return false;
+
+    LauncherPartitionTable edited = table;
+    edited.entries[index].offset = start;
+    edited.entries[index].size = end - start;
+    if (!validateOrShow(edited)) return false;
+    table = edited;
+    return true;
+}
+
+bool removePartition(LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
+    int index = findEntryIndex(table, target);
+    if (index < 0) return false;
+    if (isProtectedPartition(table.entries[index])) {
+        displayRedStripe("Protected partition");
+        launcherDelayMs(2000);
+        return false;
+    }
+    if (!confirmAction("Remove partition?")) return false;
+
+    LauncherPartitionTable edited = table;
+    edited.entries.erase(edited.entries.begin() + index);
+    if (!validateOrShow(edited)) return false;
+    table = edited;
+    return true;
+}
+
+bool formatPartition(const LauncherPartitionEntry &entry, bool dirty) {
+    if (dirty) {
+        displayRedStripe("Apply changes first");
+        launcherDelayMs(2000);
+        return false;
+    }
+    if (isProtectedPartition(entry) || !entry.isData()) {
+        displayRedStripe("Cannot format");
+        launcherDelayMs(2000);
+        return false;
+    }
+    if (!confirmAction("Erase partition?")) return false;
+
+    displayRedStripe("Formatting...");
+    bool ok = launcherRawPrepareDataPartition(entry.offset, entry.size);
+    displayRedStripe(ok ? "Formatted" : launcherUpdateLastErrorName());
+    launcherDelayMs(2000);
+    return ok;
+}
+
+bool findFreeSliderRange(
+    const LauncherPartitionTable &table, uint32_t requiredSize, uint32_t alignment,
+    LauncherPartitionRange &range, String *error
+);
+
+bool normalizeFreeSliderRange(
+    const LauncherPartitionRange &candidate, uint32_t requiredSize, uint32_t alignment,
+    LauncherPartitionRange &range
+) {
+    if (alignment == 0) alignment = LAUNCHER_FLASH_SECTOR_SIZE;
+    const uint32_t alignedOffset = alignUpLocal(candidate.offset, alignment);
+    const uint32_t candidateEnd = candidate.offset + candidate.size;
+    if (candidateEnd <= alignedOffset) return false;
+
+    const uint32_t alignedEnd = alignDownLocal(candidateEnd, alignment);
+    if (alignedEnd <= alignedOffset) return false;
+
+    const uint32_t usableSize = alignedEnd - alignedOffset;
+    if (usableSize < requiredSize) return false;
+
+    range = {alignedOffset, usableSize};
+    return true;
+}
+
+bool createPartition(
+    LauncherPartitionTable &table, uint8_t type, uint8_t subtype, const char *defaultLabel,
+    const LauncherPartitionRange *preferredRange = nullptr
+) {
+    String label;
+    if (type == 0x00) {
+        label = nextOtaAppLabel(table);
+    } else {
+        label = keyboard(defaultLabel, 15, "Partition label");
+        if (label == "" || label == String(KEY_ESCAPE)) return false;
+    }
+
+    const uint32_t alignment = partitionAlignment(type);
+    uint32_t requestedSize = type == 0x00 ? 0x100000 : launcherPartitionDefaultFatSize(label.c_str());
+    if (subtype == 0x82) requestedSize = 0x10000;
+    requestedSize = alignUpLocal(requestedSize, alignment);
+
+    LauncherPartitionRange range;
+    String error;
+    if (preferredRange) {
+        if (!normalizeFreeSliderRange(*preferredRange, requestedSize, alignment, range)) {
+            displayRedStripe("No space in range");
+            launcherDelayMs(2000);
+            return false;
+        }
+    } else {
+        if (!findFreeSliderRange(table, requestedSize, alignment, range, &error)) {
+            launcherConsolePrintf("Partition range selection failed: %s\n", error.c_str());
+            displayRedStripe(error.length() ? error : "No free range");
+            launcherDelayMs(2500);
+            return false;
+        }
+    }
+
+    uint32_t start = range.offset;
+    uint32_t end = range.offset + range.size;
+    if (!rangeSlider(
+            String("Create ") + label,
+            range.offset,
+            range.offset + range.size,
+            alignment,
+            alignment,
+            start,
+            end
+        )) {
+        return false;
+    }
+
+    LauncherPartitionTable edited = table;
+    LauncherPartitionEntry created;
+    created.type = type;
+    created.subtype = subtype;
+    created.offset = start;
+    created.size = end - start;
+    created.flags = 0;
+    memset(created.label, 0, sizeof(created.label));
+    strncpy(created.label, label.c_str(), 15);
+
+    if (type == 0x00) {
+        int nextSubtype = launcherPartitionNextOtaSubtype(table);
+        if (nextSubtype < 0) {
+            displayRedStripe("No OTA slot");
+            launcherDelayMs(2000);
+            return false;
+        }
+        created.subtype = static_cast<uint8_t>(nextSubtype);
+    }
+
+    if (!launcherPartitionAdd(edited, created, &error)) {
+        launcherConsolePrintf("Partition create failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "Create failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+    table = edited;
+    return true;
+}
+
+bool hasFreeSpaceFor(const LauncherPartitionTable &table, uint32_t requiredSize, uint32_t alignment) {
+    LauncherPartitionRange range;
+    return launcherPartitionFindFreeRange(table, requiredSize, alignment, range, nullptr);
+}
+
+bool rangeHasFreeSpaceFor(const LauncherPartitionRange &range, uint32_t requiredSize, uint32_t alignment) {
+    LauncherPartitionRange normalized;
+    return normalizeFreeSliderRange(range, requiredSize, alignment, normalized);
+}
+
+bool findFreeSliderRange(
+    const LauncherPartitionTable &table, uint32_t requiredSize, uint32_t alignment,
+    LauncherPartitionRange &range, String *error
+) {
+    for (const LauncherPartitionRange &candidate : launcherPartitionFreeRanges(table)) {
+        if (normalizeFreeSliderRange(candidate, requiredSize, alignment, range)) return true;
+    }
+
+    if (error) *error = "No free partition range large enough";
+    return false;
+}
+
+bool applyPartitionChanges(const LauncherPartitionTable &table) {
+    if (!validateOrShow(table)) return false;
+    if (!confirmAction("Write table?")) return false;
+
+    String error;
+    if (!launcherPartitionWriteGeneratedTable(table, &error)) {
+        launcherConsolePrintf("Partition table write failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "Write failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    displayRedStripe("Restart needed");
+    waitForSelectRelease();
+    FREE_TFT
+    reboot();
+    return true;
 }
 } // namespace
 
@@ -345,19 +834,21 @@ Exit:
 void partList() {
     int idx = 0;
     LauncherPartitionTable table;
+    bool dirty = false;
     String error;
-    while (idx >= 0 && returnToMenu == false) {
-        if (!launcherPartitionReadCurrent(table, &error)) {
-            launcherConsolePrintf("Partition table read failed: %s\n", error.c_str());
-            displayRedStripe(error.length() ? error : "Partition read failed");
-            launcherDelayMs(2500);
-            return;
-        }
+    returnToMenu = false;
+    if (!launcherPartitionReadCurrent(table, &error)) {
+        launcherConsolePrintf("Partition table read failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "Partition read failed");
+        launcherDelayMs(2500);
+        return;
+    }
 
+    while (idx >= 0 && returnToMenu == false) {
         launcherConsolePrintf(
             "Partitions found: %d, flash size: 0x%08X\n", table.entries.size(), table.flashSize
         );
-        options.clear();
+        std::vector<Option> partitionOptions;
         for (const LauncherPartitionEntry &entry : table.entries) {
             launcherConsolePrintf(
                 "%s label=%s type=%s subtype=%s offset=%s size=%s (%s)\n",
@@ -369,7 +860,30 @@ void partList() {
                 hex32(entry.size).c_str(),
                 sizeText(entry.size).c_str()
             );
-            options.push_back({partitionRow(entry), [entry]() { showPartitionDetails(entry); }});
+            partitionOptions.push_back(
+                {partitionRow(entry),
+                 [&table, &dirty, entry]() {
+                     int selected = 100;
+                     std::vector<Option> entryOptions = {};
+                     entryOptions.push_back({"Details", [&]() { selected = 0; }});
+                     if (!isProtectedPartition(entry)) {
+                         entryOptions.push_back({"Edit Size", [&]() { selected = 1; }});
+                         entryOptions.push_back({"Remove", [&]() { selected = 2; }});
+                         entryOptions.push_back({"Format", [&]() { selected = 3; }});
+                     }
+                     entryOptions.push_back({"Back", [&]() { selected = 4; }});
+                     loopOptions(entryOptions);
+                     if (selected == 0) showPartitionDetails(entry);
+                     else if (selected == 1) {
+                         if (editPartitionSize(table, entry)) dirty = true;
+                     } else if (selected == 2) {
+                         if (removePartition(table, entry)) dirty = true;
+                     } else if (selected == 3) {
+                         formatPartition(entry, dirty);
+                     }
+                 },
+                 isProtectedPartition(entry) ? ALCOLOR : FGCOLOR}
+            );
         }
 
         for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
@@ -378,14 +892,67 @@ void partList() {
             row += hex32(range.offset);
             row += " ";
             row += sizeText(range.size);
-            options.push_back({row, [range]() { showFreeRangeDetails(range); }, ALCOLOR});
-        }
+            partitionOptions.push_back(
+                {row,
+                 [&table, &dirty, range]() {
+                     int selected = 100;
+                     std::vector<Option> freeOptions;
+                     freeOptions.push_back({"Details", [&]() { selected = 0; }});
+                     if (rangeHasFreeSpaceFor(range, 0x100000, 0x10000)) {
+                         freeOptions.push_back({"Add OTA", [&]() { selected = 1; }});
+                     }
+                     if (rangeHasFreeSpaceFor(
+                             range, launcherPartitionDefaultFatSize("vfs"), LAUNCHER_FLASH_SECTOR_SIZE
+                         )) {
+                         freeOptions.push_back({"Add FAT", [&]() { selected = 2; }});
+                     }
+                     if (rangeHasFreeSpaceFor(range, 0x10000, LAUNCHER_FLASH_SECTOR_SIZE)) {
+                         freeOptions.push_back({"Add SPIFFS", [&]() { selected = 3; }});
+                     }
+                     freeOptions.push_back({"Back", [&]() { selected = 4; }});
 
-        options.push_back({"* = protected", []() { displayRedStripe("Protected partition"); }});
-        options.push_back({"Back", [&]() { returnToMenu = true; }, ALCOLOR});
-        idx = loopOptions(options, false, ALCOLOR, BGCOLOR, false, idx);
+                     loopOptions(freeOptions);
+                     if (selected == 0) showFreeRangeDetails(range);
+                     else if (selected == 1) {
+                         if (createPartition(table, 0x00, 0x10, "app", &range)) dirty = true;
+                     } else if (selected == 2) {
+                         if (createPartition(table, 0x01, 0x81, "vfs", &range)) dirty = true;
+                     } else if (selected == 3) {
+                         if (createPartition(table, 0x01, 0x82, "spiffs", &range)) dirty = true;
+                     }
+                 },
+                 FGCOLOR}
+            );
+        }
+        partitionOptions.push_back({"* = protected", []() { yield(); }});
+        if (dirty) {
+            partitionOptions.push_back({"Apply Changes", [&]() { applyPartitionChanges(table); }, ALCOLOR});
+            partitionOptions.push_back(
+                {"Discard Changes", [&]() {
+                     if (confirmAction("Discard changes?")) {
+                         String readError;
+                         if (launcherPartitionReadCurrent(table, &readError)) dirty = false;
+                         else {
+                             displayRedStripe(readError.length() ? readError : "Reload failed");
+                             launcherDelayMs(2500);
+                         }
+                     }
+                 }}
+            );
+        }
+        partitionOptions.push_back(
+            {"Back",
+             [&]() {
+                 if (!dirty || confirmAction("Discard changes?")) returnToMenu = true;
+             },
+             ALCOLOR}
+        );
+        if (idx >= static_cast<int>(partitionOptions.size())) {
+            idx = partitionOptions.empty() ? 0 : static_cast<int>(partitionOptions.size()) - 1;
+        }
+        idx = loopOptions(partitionOptions, false, ALCOLOR, BGCOLOR, false, idx);
+        tft->fillScreen(BGCOLOR);
     }
-    tft->fillScreen(BGCOLOR);
 }
 
 #if 0

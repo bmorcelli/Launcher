@@ -1,13 +1,15 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 #ifndef TFT_BRIGHT_CHANNEL
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_FREQ 5000
 #define TFT_BRIGHT_Bits 8
+#ifndef TFT_BL
 #define TFT_BL GPIO_BCKL
+#endif
 #endif
 
 #if defined(HAS_CAPACITIVE_TOUCH)
@@ -142,7 +144,7 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 
@@ -173,7 +175,7 @@ void _setBrightness(uint8_t brightval) {
     else if (brightval == 0) dutyCycle = 0;
     else dutyCycle = ((brightval * 250) / 100);
 
-    log_i("dutyCycle for bright 0-255: %d", dutyCycle);
+    launcherConsolePrintf("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
         launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
         ledcDetach(TFT_BL);
@@ -188,7 +190,7 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
-    bool touched = touch.touched();            // read every cycle to skip bad readings
+    bool touched = touch.touched();                    // read every cycle to skip bad readings
     if (launcherMillis() - d_tmp > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;

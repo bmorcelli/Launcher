@@ -33,7 +33,6 @@ bool eraseAppPartition() {
     return true;
 }
 
-#ifndef PART_04MB
 /***************************************************************************************
 ** Function name: eraseFAT
 ** Description:   erase FAT partition to micropython compatibilities
@@ -69,7 +68,7 @@ bool eraseFAT() {
 Exit:
     return true;
 }
-#endif
+
 /***************************************************************************************
 ** Function name: setupSdCard
 ** Description:   Start SD Card
@@ -398,7 +397,9 @@ RESTART:
         if (!LongPressDetected) {
             PreFolder = Folder;
             Folder = fileToUse;
-            launcherConsolePrintf("Going : Folder    = %s\nPreFolder = %s\n", Folder.c_str(), PreFolder.c_str());
+            launcherConsolePrintf(
+                "Going : Folder    = %s\nPreFolder = %s\n", Folder.c_str(), PreFolder.c_str()
+            );
             goto RESTART;
         }
 
@@ -432,7 +433,9 @@ RESTART:
             if (PreFolder != "/") PreFolder = PreFolder.substring(0, PreFolder.lastIndexOf('/'));
             if (PreFolder == "") PreFolder = "/";
             if (_Folder == PreFolder) returnToMenu = true;
-            launcherConsolePrintf("Backing: Folder    = %s\nPreFolder = %s\n", Folder.c_str(), PreFolder.c_str());
+            launcherConsolePrintf(
+                "Backing: Folder    = %s\nPreFolder = %s\n", Folder.c_str(), PreFolder.c_str()
+            );
         }
     } else {
         std::vector<Option> opt = {
@@ -713,9 +716,7 @@ bool performFATUpdate(Stream &updateSource, size_t updateSize, const char *label
     }
 
     partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, label);
-    if (!partition) {
-        return false;
-    }
+    if (!partition) { return false; }
 
     log_i("Start updating: %s", partition->label);
     paroffset = partition->address;

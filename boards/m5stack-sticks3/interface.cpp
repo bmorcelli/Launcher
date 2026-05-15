@@ -1,7 +1,7 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_Bits 8
@@ -85,7 +85,6 @@ void _setup_gpio() {
     launcherGpioInputPullup(SEL_BTN);
     launcherGpioInputPullup(DW_BTN);
     attachInterrupt(digitalPinToInterrupt(DW_BTN), isr_dw_btn, CHANGE);
-    launcherGpioOutput(TFT_BL);
 }
 /***************************************************************************************
 ** Function name: _post_setup_gpio()
@@ -94,6 +93,7 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

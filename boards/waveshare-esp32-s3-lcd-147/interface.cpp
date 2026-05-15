@@ -1,8 +1,8 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Arduino.h>
 #include <SD_MMC.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -14,7 +14,7 @@ void _setup_gpio() {
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
 #endif
 
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     launcherGpioWrite(TFT_BL, HIGH);
 
     launcherGpioOutput(TFT_CS);

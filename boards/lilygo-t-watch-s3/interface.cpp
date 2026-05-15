@@ -1,3 +1,4 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SPI.h>
 #include <Wire.h>
@@ -5,7 +6,6 @@
 #include <driver/gpio.h>
 #include <esp_system.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 XPowersAXP2101 axp192;
 #include <TouchDrvFT6X36.hpp>
@@ -22,7 +22,7 @@ HapticDriver_DRV2605 drv;
 ***************************************************************************************/
 void _setup_gpio() {
     launcherGpioInput(16); // Touch IRQ
-    Wire.begin(10, 11); // sensors
+    Wire.begin(10, 11);    // sensors
     launcherDelayMs(10);
     Wire1.begin(39, 40); // touchscreen
     launcherDelayMs(10);
@@ -112,8 +112,7 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    launcherGpioOutput(TFT_BL);
-    launcherGpioWrite(TFT_BL, HIGH);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

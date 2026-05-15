@@ -1,9 +1,9 @@
 #include "CYD28_TouchscreenR.h"
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Arduino.h>
 #include <SD_MMC.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 CYD28_TouchR touch(320, 240);
 
 /***************************************************************************************
@@ -13,7 +13,6 @@ CYD28_TouchR touch(320, 240);
 ***************************************************************************************/
 void _setup_gpio() {
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
-    launcherGpioOutput(TFT_BL);
     launcherGpioWrite(TFT_BL, HIGH);
     launcherGpioOutput(CYD28_TouchR_CS);
     launcherGpioWrite(CYD28_TouchR_CS, HIGH);
@@ -30,12 +29,14 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     SPI.begin(CYD28_TouchR_CLK, CYD28_TouchR_MISO, CYD28_TouchR_MOSI);
-    if (!touch.begin(&SPI)) { launcherConsolePrintf("%s\n", String("Touchscreen initialization failed!").c_str()); }
+    if (!touch.begin(&SPI)) {
+        launcherConsolePrintf("%s\n", String("Touchscreen initialization failed!").c_str());
+    }
 #define TFT_BRIGHT_CHANNEL 0
 #define TFT_BRIGHT_Bits 8
 #define TFT_BRIGHT_FREQ 5000
     // Brightness control must be initialized after tft in this case @Pirata
-    launcherGpioOutput(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 }

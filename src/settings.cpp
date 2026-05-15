@@ -2,6 +2,7 @@
 #include "settings.h"
 #include "display.h"
 #include "esp_mac.h"
+#include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "nvs.h"
 #include "nvs_handle.hpp"
@@ -9,7 +10,6 @@
 #include "partitioner.h"
 #include "powerSave.h"
 #include "sd_functions.h"
-#include "idf/launcher_platform.h"
 #include <FS.h>
 #include <SD.h>
 #include <cstdio>
@@ -261,16 +261,9 @@ void settings_menu() {
                            saveConfigs();
                        }});
 #endif
-#if defined(PART_08MB) && defined(M5STACK) &&                                                                \
-    (defined(ARDUINO_M5STACK_CARDPUTER) || defined(ARDUINO_M5STICK_C_PLUS2))
-    options.push_back({"Partition Change", [=]() { partitioner(); }});
     options.push_back({"List of Partitions", [=]() { partList(); }});
-#endif
     options.push_back({"Erase App partition", [=]() { eraseAppPartition(); }});
-
-#ifndef PART_04MB
     options.push_back({"Clear FAT", [=]() { eraseFAT(); }});
-#endif
 
     if (MAX_SPIFFS > 0)
         options.push_back({"Backup SPIFFS", [=]() { dumpPartition("spiffs", "/bkp/spiffs"); }});
@@ -1149,7 +1142,9 @@ bool loadTouchCalibration() {
         return true;
     }
 
-    launcherConsolePrintf("loadTouchCalibration: Failed to load valid calibration data: %s\n", esp_err_to_name(err));
+    launcherConsolePrintf(
+        "loadTouchCalibration: Failed to load valid calibration data: %s\n", esp_err_to_name(err)
+    );
     return false;
 }
 
@@ -1190,7 +1185,9 @@ bool saveTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, ui
         return true;
     }
 
-    launcherConsolePrintf("saveTouchCalibration: Failed to save calibration data: %s\n", esp_err_to_name(err));
+    launcherConsolePrintf(
+        "saveTouchCalibration: Failed to save calibration data: %s\n", esp_err_to_name(err)
+    );
     return false;
 }
 void calibrateTouch() {

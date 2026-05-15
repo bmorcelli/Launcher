@@ -1,8 +1,8 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 #define TOUCH_MODULES_CST_SELF
 #include <TouchDrvCSTXXX.hpp>
@@ -43,11 +43,11 @@ void _setup_gpio() {
     gpio_hold_dis((gpio_num_t)21); // PIN_TOUCH_RES
     launcherGpioOutput(15);
     launcherGpioWrite(15, HIGH); // PIN_POWER_ON
-    launcherGpioOutput(21);    // PIN_TOUCH_RES
+    launcherGpioOutput(21);      // PIN_TOUCH_RES
     launcherGpioWrite(21, LOW);  // PIN_TOUCH_RES
     launcherDelayMs(500);
     launcherGpioWrite(21, HIGH); // PIN_TOUCH_RES
-    Wire.begin(18, 17);     // SDA, SCL
+    Wire.begin(18, 17);          // SDA, SCL
     // PWM backlight setup
     // setup buttons
     button_config_t bt1 = {
@@ -92,6 +92,7 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
+    pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 
@@ -185,7 +186,8 @@ void InputHandler(void) {
 
         if (touched) {
             // launcherConsolePrintf(
-            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), tm
+            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(),
+            //     tm
             // );
             tm = launcherMillis();
             static uint8_t rot = 5;

@@ -208,11 +208,15 @@ Implementation files:
 * `src/idf/idf_update.h`
 * `src/idf/idf_update.cpp`
 
-### Milestone 4 - Manual editor - Not started
+### Milestone 4 - Manual editor - Completed
 
-* [ ] Add create/edit/remove/format actions.
-* [ ] Validate changes before applying through the UI.
-* [ ] Write the generated table to flash from the editor flow.
+* [x] Add create/edit/remove/format actions.
+* [x] Validate changes before applying through the UI.
+* [x] Write the generated table to flash from the editor flow.
+
+Implementation file:
+
+* `src/partitioner.cpp`
 
 ### Milestone 5 - Online installer integration - Partially completed
 

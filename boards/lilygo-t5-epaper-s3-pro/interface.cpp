@@ -1,8 +1,8 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 TouchDrvGT911 touch;
 
@@ -155,7 +155,7 @@ void _post_setup_gpio() {
     }
 
     // Brightness control must be initialized after tft in this case @Pirata
-    launcherGpioOutput(isH752_1 ? 11 : 40);
+    pinMode(isH752_1 ? 11 : 40, OUTPUT);
     ledcAttach(isH752_1 ? 11 : 40, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(isH752_1 ? 11 : 40, bright);
 }
@@ -239,7 +239,8 @@ void InputHandler(void) {
         if (touched) {
 
             // launcherConsolePrintf(
-            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), _tmptmp
+            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(),
+            //     _tmptmp
             // );
             _tmptmp = launcherMillis();
 
