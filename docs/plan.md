@@ -171,53 +171,77 @@ For app flashing, use the same safety concept already used by the update wrapper
 
 ## Implementation Milestones
 
-### Milestone 1 - Parser and generator
+### Milestone 1 - Parser and generator - Completed
 
-* Parse the active partition table from flash.
-* Build a structured in-memory partition list.
-* Generate a valid binary partition table.
-* Add validation for overlaps, bounds, labels, alignment, protected partitions, and flash size.
+* [x] Parse the active partition table from flash.
+* [x] Build a structured in-memory partition list.
+* [x] Generate a valid binary partition table.
+* [x] Generate partition table MD5.
+* [x] Add validation for overlaps, bounds, labels, alignment, protected partitions, `otadata`, and flash size.
+* [x] Add helpers to calculate free ranges.
+* [x] Add helpers to create OTA app and data partition entries in the in-memory table.
 
-### Milestone 2 - Read-only UI
+Implementation files:
 
-* Replace or enhance the current partition list with a full layout view.
-* Show partition type, subtype, label, offset, size, free ranges, and protected status.
+* `src/partition_table_model.h`
+* `src/partition_table_model.cpp`
 
-### Milestone 3 - Raw flash writer
+### Milestone 2 - Read-only UI - Not started
 
-* Add raw install/write helpers using explicit offsets and sizes.
-* Support raw app flashing with deferred app header.
-* Support raw FAT/SPIFFS erase/write/format preparation.
+* [ ] Replace or enhance the current partition list with a full layout view.
+* [ ] Show partition type, subtype, label, offset, size, free ranges, and protected status.
 
-### Milestone 4 - Manual editor
+### Milestone 3 - Raw flash writer - Completed
 
-* Add create/edit/remove/format actions.
-* Validate changes before applying.
-* Write the generated table to flash.
+* [x] Add raw install/write helpers using explicit offsets and sizes.
+* [x] Support raw app flashing with deferred app header.
+* [x] Support generic raw data flashing by explicit offset/size.
+* [x] Add dedicated FAT/SPIFFS/data format preparation for newly created partitions.
+* [x] Add full app image verification beyond magic-byte and written-size checks.
 
-### Milestone 5 - Online installer integration
+Implementation files:
 
-* Calculate required app and data partition sizes before install.
-* Generate or modify the partition table in RAM.
-* Flash firmware/data by raw offset.
-* Write the new table.
-* Update `otadata`.
-* Reboot into the selected app.
+* `src/idf/idf_update.h`
+* `src/idf/idf_update.cpp`
 
-### Milestone 6 - Multi-app launcher
+### Milestone 4 - Manual editor - Not started
 
-* Add app metadata storage.
-* Create/update APP icons after install.
-* Allow selecting a specific installed app.
-* Set boot target manually through `otadata` when required.
+* [ ] Add create/edit/remove/format actions.
+* [ ] Validate changes before applying through the UI.
+* [ ] Write the generated table to flash from the editor flow.
 
-### Milestone 7 - Recovery and hardware validation
+### Milestone 5 - Online installer integration - Partially completed
 
-* Test interrupted download.
-* Test interrupted flash.
-* Test invalid image.
-* Test full flash/no room.
-* Test multiple apps.
-* Test FAT/SPIFFS creation.
-* Test fallback to TEST/FACTORY Launcher.
-* Test on 4 MB, 8 MB, 16 MB, ESP32, ESP32-S3, and ESP32-P4 targets where supported.
+* [x] Add low-level helpers needed to calculate free ranges and create app/data partitions in RAM.
+* [x] Add raw app/data flashing API needed by the installer.
+* [x] Add manual `otadata` writer compatible with ESP-IDF OTA selection rules.
+* [ ] Wire `onlineLauncher.cpp` to generate or modify the partition table in RAM.
+* [ ] Wire online firmware flashing to use raw offsets from the generated table.
+* [ ] Wire FAT/SPIFFS creation from firmware partition declarations.
+* [ ] Write the generated table as part of the online install transaction.
+* [ ] Call manual `otadata` activation after firmware and table verification.
+* [ ] Reboot into the selected app from the new dynamic flow.
+
+### Milestone 6 - Multi-app launcher - Partially completed
+
+* [x] Add low-level helper to set boot target manually through `otadata`.
+* [ ] Add app metadata storage.
+* [ ] Create/update APP icons after install.
+* [ ] Allow selecting a specific installed app.
+* [ ] Wire APP selection to the manual `otadata` helper.
+
+### Milestone 7 - Recovery and hardware validation - Not started
+
+* [ ] Test interrupted download.
+* [ ] Test interrupted flash.
+* [ ] Test invalid image.
+* [ ] Test full flash/no room.
+* [ ] Test multiple apps.
+* [ ] Test FAT/SPIFFS creation.
+* [ ] Test fallback to TEST/FACTORY Launcher.
+* [ ] Test on 4 MB, 8 MB, 16 MB, ESP32, ESP32-S3, and ESP32-P4 targets where supported.
+
+## Current Verification
+
+* [x] `pio run` passes for `m5stack-cardputer`.
+* [ ] No hardware validation has been performed yet.

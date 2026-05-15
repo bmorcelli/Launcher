@@ -42,4 +42,18 @@ bool launcherUpdateStream(
 );
 bool launcherUpdateTargetFromCommand(int command, LauncherUpdateTarget &target);
 
+bool launcherRawUpdateBegin(uint32_t address, size_t partitionSize, size_t imageSize, bool appImage);
+size_t launcherRawUpdateWrite(const uint8_t *data, size_t len);
+bool launcherRawUpdateEnd();
+bool launcherRawErase(uint32_t address, size_t size);
+bool launcherRawPrepareDataPartition(uint32_t address, size_t size);
+bool launcherRawUpdateStream(
+    Stream &source,
+    uint32_t address,
+    size_t partitionSize,
+    size_t imageSize,
+    bool appImage,
+    LauncherUpdateProgress cb = nullptr
+);
+
 #endif
