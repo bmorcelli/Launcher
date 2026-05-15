@@ -186,10 +186,14 @@ Implementation files:
 * `src/partition_table_model.h`
 * `src/partition_table_model.cpp`
 
-### Milestone 2 - Read-only UI - Not started
+### Milestone 2 - Read-only UI - Completed
 
-* [ ] Replace or enhance the current partition list with a full layout view.
-* [ ] Show partition type, subtype, label, offset, size, free ranges, and protected status.
+* [x] Replace or enhance the current partition list with a full layout view.
+* [x] Show partition type, subtype, label, offset, size, free ranges, and protected status.
+
+Implementation file:
+
+* `src/partitioner.cpp`
 
 ### Milestone 3 - Raw flash writer - Completed
 

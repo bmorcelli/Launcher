@@ -4,11 +4,125 @@
 #include "idf/idf_update.h"
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
+#include "partition_table_model.h"
 #include "sd_functions.h"
 #include <globals.h>
 
 // Define o tamanho da partição
 #define PARTITION_SIZE 4096
+
+namespace {
+String hex32(uint32_t value) {
+    char out[11] = {0};
+    snprintf(out, sizeof(out), "0x%06lX", static_cast<unsigned long>(value));
+    return String(out);
+}
+
+String sizeText(uint32_t value) {
+    if ((value % 0x100000) == 0) return String(value / 0x100000) + "MB";
+    if ((value % 0x400) == 0) return String(value / 0x400) + "KB";
+    return String(value) + "B";
+}
+
+String partitionTypeName(const LauncherPartitionEntry &entry) {
+    if (entry.type == 0x00) return "APP";
+    if (entry.type == 0x01) return "DATA";
+    if (entry.type == 0x02) return "BOOT";
+    if (entry.type == 0x03) return "PTBL";
+    return "UNK";
+}
+
+String partitionSubtypeName(const LauncherPartitionEntry &entry) {
+    if (entry.type == 0x00) {
+        if (entry.subtype == 0x00) return "factory";
+        if (entry.subtype >= 0x10 && entry.subtype <= 0x1F) return "ota_" + String(entry.subtype - 0x10);
+        if (entry.subtype == 0x20) return "test";
+    }
+    if (entry.type == 0x01) {
+        if (entry.subtype == 0x00) return "ota";
+        if (entry.subtype == 0x01) return "phy";
+        if (entry.subtype == 0x02) return "nvs";
+        if (entry.subtype == 0x03) return "coredump";
+        if (entry.subtype == 0x81) return "fat";
+        if (entry.subtype == 0x82) return "spiffs";
+        if (entry.subtype == 0x83) return "littlefs";
+    }
+    char out[5] = {0};
+    snprintf(out, sizeof(out), "%02X", entry.subtype);
+    return String(out);
+}
+
+bool isProtectedPartition(const LauncherPartitionEntry &entry) {
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (running && running->address == entry.offset) return true;
+    if (entry.isFactoryOrTestApp()) return true;
+    if (entry.type == 0x01 && entry.subtype <= 0x05) return true;
+    return false;
+}
+
+String partitionRow(const LauncherPartitionEntry &entry) {
+    String row = isProtectedPartition(entry) ? "* " : "  ";
+    row += String(entry.label);
+    row += " ";
+    row += partitionTypeName(entry);
+    row += "/";
+    row += partitionSubtypeName(entry);
+    row += " ";
+    row += hex32(entry.offset);
+    row += " ";
+    row += sizeText(entry.size);
+    return row;
+}
+
+void waitForSelectRelease() {
+    while (!check(SelPress)) yield();
+    while (check(SelPress)) yield();
+}
+
+void showPartitionDetails(const LauncherPartitionEntry &entry) {
+    tft->fillScreen(BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    tftprintln("Partition", 8);
+    tftprintln(String("Label: ") + entry.label, 8);
+    tftprintln(String("Type: ") + partitionTypeName(entry), 8);
+    tftprintln(String("Subtype: ") + partitionSubtypeName(entry), 8);
+    tftprintln(String("Offset: ") + hex32(entry.offset), 8);
+    tftprintln(String("Size: ") + hex32(entry.size) + " (" + sizeText(entry.size) + ")", 8);
+    tftprintln(String("Flags: ") + hex32(entry.flags), 8);
+    tftprintln(String("Status: ") + (isProtectedPartition(entry) ? "protected" : "editable"), 8);
+    tft->setTextColor(ALCOLOR);
+    tftprintln("Press Select", 8);
+    launcherConsolePrintf(
+        "Partition label=%s type=0x%02X subtype=0x%02X offset=0x%08X size=0x%08X flags=0x%08X protected=%d\n",
+        entry.label,
+        entry.type,
+        entry.subtype,
+        entry.offset,
+        entry.size,
+        entry.flags,
+        isProtectedPartition(entry)
+    );
+    waitForSelectRelease();
+}
+
+void showFreeRangeDetails(const LauncherPartitionRange &range) {
+    tft->fillScreen(BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    tftprintln("Free Range", 8);
+    tftprintln(String("Offset: ") + hex32(range.offset), 8);
+    tftprintln(String("Size: ") + hex32(range.size) + " (" + sizeText(range.size) + ")", 8);
+    tftprintln(String("End: ") + hex32(range.offset + range.size), 8);
+    tft->setTextColor(ALCOLOR);
+    tftprintln("Press Select", 8);
+    launcherConsolePrintf(
+        "Free range offset=0x%08X size=0x%08X end=0x%08X\n",
+        range.offset,
+        range.size,
+        range.offset + range.size
+    );
+    waitForSelectRelease();
+}
+} // namespace
 
 // Using "buff[4096]" to store and write the partitions
 #if defined(PART_08MB)
@@ -229,6 +343,53 @@ Exit:
 }
 
 void partList() {
+    int idx = 0;
+    LauncherPartitionTable table;
+    String error;
+    while (idx >= 0 && returnToMenu == false) {
+        if (!launcherPartitionReadCurrent(table, &error)) {
+            launcherConsolePrintf("Partition table read failed: %s\n", error.c_str());
+            displayRedStripe(error.length() ? error : "Partition read failed");
+            launcherDelayMs(2500);
+            return;
+        }
+
+        launcherConsolePrintf(
+            "Partitions found: %d, flash size: 0x%08X\n", table.entries.size(), table.flashSize
+        );
+        options.clear();
+        for (const LauncherPartitionEntry &entry : table.entries) {
+            launcherConsolePrintf(
+                "%s label=%s type=%s subtype=%s offset=%s size=%s (%s)\n",
+                isProtectedPartition(entry) ? "*" : " ",
+                entry.label,
+                partitionTypeName(entry).c_str(),
+                partitionSubtypeName(entry).c_str(),
+                hex32(entry.offset).c_str(),
+                hex32(entry.size).c_str(),
+                sizeText(entry.size).c_str()
+            );
+            options.push_back({partitionRow(entry), [entry]() { showPartitionDetails(entry); }});
+        }
+
+        for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
+            if (range.size == 0) continue;
+            String row = "  FREE ";
+            row += hex32(range.offset);
+            row += " ";
+            row += sizeText(range.size);
+            options.push_back({row, [range]() { showFreeRangeDetails(range); }, ALCOLOR});
+        }
+
+        options.push_back({"* = protected", []() { displayRedStripe("Protected partition"); }});
+        options.push_back({"Back", [&]() { returnToMenu = true; }, ALCOLOR});
+        idx = loopOptions(options, false, ALCOLOR, BGCOLOR, false, idx);
+    }
+    tft->fillScreen(BGCOLOR);
+}
+
+#if 0
+void partListOld() {
     // Obtemos a lista de partições
     const esp_partition_t *partition;
     esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
@@ -266,6 +427,7 @@ void partList() {
         while (check(SelPress)) yield();
     }
 }
+#endif
 
 void dumpPartition(const char *partitionLabel, const char *outputPath) {
     tft->fillScreen(BGCOLOR);
