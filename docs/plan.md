@@ -1,423 +1,223 @@
-# Plano de reducao do binario
-
-Objetivo: reduzir o tamanho final do firmware removendo dependencias pesadas de Arduino, ESPAsyncWebServer/AsyncTCP, Custom_Update e M5Stack-HTTPUpdate, mantendo as funcoes atuais de SD, WebUI, OTA online, OTA via upload e `launcher.local`.
-
-Este arquivo e um roteiro para agentes de IA. Cada milestone deve ser executado em PR/commit separado, com medicao antes/depois e sem misturar refactors nao relacionados.
-
-## Regras para agentes
+# Partitioner Upgrade
 
-- Trabalhe em milestones na ordem abaixo. Nao pule para a remocao total do framework Arduino antes de isolar WebUI e OTA.
-- Antes de editar, rode `git status --short` e preserve mudancas existentes do usuario.
-- Use somente o ambiente `m5stack-cardputer` para teste de compilacao nesta fase.
-- Sempre registre no resumo do milestone:
-  - comando de build usado;
-  - tamanho do firmware antes/depois;
-  - dependencias removidas ou ainda pendentes;
-  - fluxos manuais que precisam teste em hardware.
-- Nao aumente a superficie funcional. O WebUI deve continuar simples: 1 cliente normal, 2 clientes no maximo.
-- Prefira APIs ESP-IDF nativas. Use wrappers pequenos no projeto quando o codigo ainda precisar conviver com tipos Arduino durante a transicao.
-- Novos arquivos criados para camadas nativas devem ficar em `src/idf/`.
-- Nao remova nem substitua `Wire.h` e `SPI.h` neste plano. Eles continuam necessarios para Arduino GFX/display e cartao SD.
-- Nao remova `lib_modules` ou `lib` inteiros ate que `rg` prove que nao ha includes/links ativos.
-
-## Estado atual relevante
+## Current State
 
-- Build global em [platformio.ini](../platformio.ini) usa `framework = arduino`.
-- `src/webInterface.h` inclui `AsyncTCP.h`, `ESPAsyncWebServer.h`, `ESPmDNS.h`, `SPI.h`, `WiFi.h` e `webFiles.h`.
-- `src/webInterface.cpp` usa `AsyncWebServer`, `AsyncWebServerRequest`, `AsyncWebServerResponse`, `DefaultHeaders`, `MDNS`, `WiFi`, `Update`, upload multipart e handlers HTTP.
-- `src/onlineLauncher.h` inclui `HTTPClient.h`, `M5-HTTPUpdate.h`, `SPIFFS.h`, `WiFi.h`, `WiFiClientSecure.h`.
-- `src/onlineLauncher.cpp` usa `HTTPClient`, `WiFiClientSecure`, `httpUpdate`, redirects, Range requests, download para SD e OTA online.
-- `src/sd_functions.h` inclui `CustomUpdate.h`.
-- `src/sd_functions.cpp`, `src/webInterface.cpp` e `src/partitioner.cpp` usam `Update.begin/write/end` e constantes `U_FLASH`, `U_SPIFFS`, `UPDATE_ERROR_NO_PARTITION`.
-- `include/globals.h` inclui `Arduino.h`, `pins_arduino.h`, `ArduinoJson.h`, `LittleFS.h`, `functional`, `vector`.
+* The Launcher changes the partition scheme by writing hardcoded partition table binaries to flash.
+* Existing install/update flows still rely on ESP-IDF partition APIs for the active partition table.
+* This is not enough for dynamic installs because a newly written partition table is not visible to ESP-IDF partition iterators until reboot.
 
-## Milestone 0 - baseline e mapa de dependencias
+## Objective
 
-Meta: criar uma base quantitativa para comparar todo o trabalho.
+Create a dynamic partitioner similar to `fdisk`, able to build, validate, write, and use a new partition table during the same install flow.
 
-Tarefas:
-
-- Rodar builds limpos:
-  - `pio run -e m5stack-cardputer`
-- Salvar tamanhos em `docs/size-report.md` com:
-  - tamanho de `.pio/build/<env>/firmware.bin`;
-  - linhas `RAM`/`Flash` impressas por `--print-memory-usage`;
-  - tamanho de `Launcher-*.bin` se o script de merge gerar artefato final.
-- Gerar mapa de includes e usos:
-  - `rg -n "AsyncWebServer|AsyncTCP|HTTPClient|WiFiClientSecure|M5-HTTPUpdate|CustomUpdate|Update\\.|Arduino\\.h|WiFi\\.|MDNS" src include boards lib platformio.ini`
-- Identificar todos os ambientes que explicitamente alteram `framework`, `lib_deps` ou `lib_ignore`.
-
-Aceite:
-
-- `docs/size-report.md` existe e tem baseline para pelo menos `m5stack-cardputer`.
-- Lista de arquivos impactados esta no relatorio.
-- Nenhuma alteracao funcional alem de documentacao.
-
-## Milestone 1 - camada nativa de update/flash
-
-Meta: substituir `Custom_Update` e o objeto Arduino `Update` por uma API local baseada em ESP-IDF.
-
-Arquivos alvo:
-
-- Criar `src/idf/idf_update.h`
-- Criar `src/idf/idf_update.cpp`
-- Alterar `src/sd_functions.h`
-- Alterar `src/sd_functions.cpp`
-- Alterar `src/webInterface.cpp`
-- Alterar `src/partitioner.cpp`
-
-API sugerida:
-
-```cpp
-enum LauncherUpdateTarget {
-    LAUNCHER_UPDATE_APP,
-    LAUNCHER_UPDATE_SPIFFS,
-    LAUNCHER_UPDATE_FAT_VFS,
-    LAUNCHER_UPDATE_FAT_SYS,
-};
-
-using LauncherUpdateProgress = void (*)(size_t written, size_t total);
-
-bool launcherUpdateBegin(LauncherUpdateTarget target, size_t size);
-bool launcherUpdateWrite(const uint8_t *data, size_t len);
-bool launcherUpdateEnd();
-int launcherUpdateLastError();
-const char *launcherUpdateLastErrorName();
-bool launcherUpdateStream(Stream &source, size_t size, LauncherUpdateTarget target, LauncherUpdateProgress cb);
-```
-
-Implementacao:
-
-- Para app: usar `esp_ota_get_next_update_partition`, `esp_ota_begin`, `esp_ota_write`, `esp_ota_end`, `esp_ota_set_boot_partition`.
-- Para SPIFFS/FAT: usar `esp_partition_find_first`, `esp_partition_erase_range`, `esp_partition_write`.
-- Manter compatibilidade temporaria com `Stream` porque `File` e clientes de rede ainda sao Arduino nesta etapa.
-- Definir constantes locais equivalentes a `U_FLASH`, `U_SPIFFS`, `U_FAT_vfs`, `U_FAT_sys` somente se ainda forem necessarias para reduzir diff.
-- Remover `#include <CustomUpdate.h>` de `src/sd_functions.h`.
-
-Aceite:
-
-- `rg -n "CustomUpdate|Custom_Update|Update\\.|U_SPIFFS|UPDATE_ERROR_NO_PARTITION" src include` nao deve encontrar uso ativo, exceto comentarios temporarios justificados.
-- OTA por arquivo no SD continua chamando `progressHandler`.
-- Upload OTA pelo WebUI continua instalando app.
-- Build passa com `pio run -e m5stack-cardputer`.
-
-## Milestone 2 - cliente HTTP/HTTPS nativo para OTA online
-
-Meta: remover `M5Stack-HTTPUpdate`, `HTTPClient` e `WiFiClientSecure` dos fluxos OTA online, usando ESP-IDF.
-
-Arquivos alvo:
-
-- Criar `src/idf/idf_http_client.h`
-- Criar `src/idf/idf_http_client.cpp`
-- Alterar `src/onlineLauncher.h`
-- Alterar `src/onlineLauncher.cpp`
-
-API sugerida:
-
-```cpp
-struct LauncherHttpResponse {
-    int status;
-    int64_t content_length;
-    char content_range[96];
-};
-
-using LauncherHttpChunkCb = bool (*)(const uint8_t *data, size_t len, void *ctx);
-
-bool launcherHttpGetToBuffer(const char *url, std::string &out, size_t max_size);
-bool launcherHttpGetRange(const char *url, uint32_t offset, uint32_t size, LauncherHttpChunkCb cb, void *ctx, LauncherHttpResponse *resp);
-bool launcherHttpGetStream(const char *url, LauncherHttpChunkCb cb, void *ctx, LauncherHttpResponse *resp);
-```
-
-Implementacao:
-
-- Usar `esp_http_client`.
-- Habilitar redirects via config/event handling ou repetir manualmente em `Location`.
-- Para HTTPS, comecar equivalente ao comportamento atual `setInsecure()`: `cert_pem = NULL` e config apropriada para skip CN/cert se o IDF permitir no framework usado. Documentar risco.
-- Implementar headers:
-  - `Range: bytes=<start>-<end>` para tabela de particao, SPIFFS e FAT.
-  - `HWID: <mac>` no download quando o codigo atual envia esse header.
-- Substituir:
-  - `getInfo()` por GET para string e `deserializeJson`.
-  - `downloadFirmware()` por streaming para `File`.
-  - `installExtFirmware()` por Range nativo.
-  - `installFirmware()` por streaming direto para `launcherUpdate*`.
-  - `installFAT_OTA()` por Range nativo + `performFATUpdate` ou nova API de particao.
-
-Aceite:
-
-- `rg -n "M5-HTTPUpdate|httpUpdate|HTTPClient|WiFiClientSecure" src include` nao encontra uso ativo.
-- `lib/M5Stack-HTTPUpdate` nao e mais linkada.
-- OTA online ainda suporta:
-  - obter JSON do LauncherHub;
-  - Range request para tabela de particao em offset `0x8000`;
-  - instalar app completo;
-  - instalar app com offset;
-  - instalar SPIFFS/FAT quando presentes e habilitados.
-- Build passa com `pio run -e m5stack-cardputer`.
-
-## Milestone 3 - WebUI com esp_http_server
-
-Meta: substituir `ESPAsyncWebServer` e `AsyncTCP` por `esp_http_server`, reduzindo dependencias e mantendo os endpoints atuais.
-
-Arquivos alvo:
-
-- Criar `src/idf/idf_web_server.h`
-- Criar `src/idf/idf_web_server.cpp`
-- Reescrever `src/webInterface.h`
-- Reescrever internamente `src/webInterface.cpp`
-- Ajustar `platformio.ini`/`boards/*/platformio.ini` apenas depois que nao houver includes async.
-
-Config sugerida:
-
-```cpp
-httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-config.server_port = 80;
-config.max_open_sockets = 2;
-config.lru_purge_enable = true;
-config.recv_wait_timeout = 10;
-config.send_wait_timeout = 10;
-config.uri_match_fn = httpd_uri_match_wildcard;
-```
-
-Rotas que devem permanecer:
-
-- `GET /ping`
-- `POST /login`
-- `GET /logout`
-- `GET /logged-out`
-- `POST /UPDATE`
-- `POST /rename`
-- `POST /OTA`
-- `POST /OTAFILE`
-- `GET /scripts.js`
-- `GET /style.css`
-- `GET /`
-- `GET /systeminfo`
-- `GET /reboot`
-- `GET /listfiles`
-- `GET /file`
-- `GET /sdpins`
-- `GET /wifi`
-- fallback redirect para `/`
-
-Detalhes de implementacao:
-
-- Servir assets gzipados de `webFiles.h` com headers:
-  - `Content-Type`
-  - `Content-Encoding: gzip`
-  - `Access-Control-Allow-Origin: *`
-- Autenticacao:
-  - Ler header `Cookie`.
-  - Manter token `ESP32SESSION=<token>`.
-  - Em falha com pagina: retornar `login.html`.
-  - Em falha API: retornar `401 Unauthorized`.
-- Query/body params:
-  - Implementar helpers pequenos para URL decode, query string e form-urlencoded.
-  - Evitar parser generico grande.
-- Upload multipart:
-  - Implementar somente o necessario para o WebUI atual.
-  - Suportar campo de arquivo com `filename=`.
-  - Escrever chunks direto no SD ou no `launcherUpdateWrite`.
-  - Limitar memoria: buffer fixo <= 2 KiB.
-- Download de arquivo:
-  - Usar `httpd_resp_send_chunk` lendo `File` em blocos.
-- Ciclo de vida:
-  - `configureWebServer()` registra rotas.
-  - `startWebUi()` cria `httpd_handle_t`, chama `httpd_start`, encerra com `httpd_stop`.
-
-Aceite:
-
-- `rg -n "AsyncWebServer|AsyncTCP|ESPAsyncWebServer|DefaultHeaders|AsyncWeb" src include` nao encontra uso ativo.
-- `launcher.local` funciona via mDNS.
-- Browser acessa `http://launcher.local`.
-- Login, logout, listagem SD, upload arquivo, download arquivo, delete, rename, criar pasta, reboot e OTA via upload funcionam em hardware.
-- Build passa com `pio run -e m5stack-cardputer` e o tamanho do binario diminui em relacao ao baseline.
-
-## Milestone 4 - WiFi e mDNS por ESP-IDF
-
-Meta: remover o uso de `WiFi.h` e `ESPmDNS.h` dos modulos de rede principais.
-
-Arquivos alvo:
-
-- Criar `src/idf/idf_wifi.h`
-- Criar `src/idf/idf_wifi.cpp`
-- Alterar `src/onlineLauncher.cpp`
-- Alterar `src/webInterface.cpp`
-- Alterar ambientes que dependem de WiFi Arduino, com atencao especial para `boards/m5stack-tab5/interface.cpp`.
-
-API sugerida:
-
-```cpp
-bool launcherWifiStartSta();
-bool launcherWifiConnect(const char *ssid, const char *password, uint32_t timeout_ms);
-int launcherWifiScan(std::vector<LauncherWifiAp> &out);
-bool launcherWifiStartAp(const char *ssid, const char *password, uint8_t channel, uint8_t max_clients);
-bool launcherWifiStop();
-bool launcherWifiIsConnected();
-std::string launcherWifiLocalIp();
-std::string launcherWifiApIp();
-std::string launcherWifiMac();
-bool launcherMdnsStart(const char *host);
-void launcherMdnsStop();
-```
-
-Implementacao:
-
-- Usar `esp_wifi`, `esp_event`, `esp_netif`.
-- Inicializar WiFi uma unica vez; evitar init/deinit repetido se houver targets ESP32-P4/hosted WiFi.
-- Para STA:
-  - `esp_wifi_set_mode(WIFI_MODE_STA)`
-  - `esp_wifi_set_config`
-  - aguardar conectado via EventGroup.
-- Para AP:
-  - IP `172.0.0.1` como hoje.
-  - max clients 2 ou 4 somente se houver motivo para manter o comportamento atual.
-- Para scan:
-  - retornar SSID e `wifi_auth_mode_t`.
-- Para mDNS:
-  - usar `mdns_init`, `mdns_hostname_set("launcher")`, `mdns_service_add("http", "_http", "_tcp", 80, ...)`.
-
-Aceite:
-
-- `src/webInterface.*` e `src/onlineLauncher.*` nao incluem `WiFi.h` nem `ESPmDNS.h`.
-- `launcher.local` continua funcionando em STA e AP quando suportado.
-- Scan, conexao por rede salva, SSID oculto e AP mode funcionam.
-- Build passa com `pio run -e m5stack-cardputer`.
-
-## Milestone 5 - reduzir dependencia de Arduino.h no codigo do app
-
-Meta: remover `#include <Arduino.h>` dos headers centrais e diminuir dependencias implicitas de `String`, `Stream`, `File`, `Serial`, `millis`, `delay`, `random`, `pinMode`, `digitalWrite`.
-
-Arquivos alvo:
-
-- `include/globals.h`
-- `src/*.h`
-- `src/*.cpp`
-- `include/VectorDisplay.h`
-- `boards/*/interface.cpp` somente quando necessario.
-
-Ordem recomendada:
-
-1. Criar `src/idf/launcher_platform.h` com wrappers pequenos:
-   - tempo: `launcherMillis()`, `launcherDelayMs()`;
-   - log: wrappers explicitos para debug e mensagens funcionais;
-   - random: `esp_random`;
-   - GPIO: wrappers sobre `gpio_set_direction`, `gpio_set_level`, quando viavel.
-2. Mover includes Arduino para `.cpp`, nunca para headers compartilhados, quando o tipo nao aparece na assinatura publica.
-3. Trocar `String` por `std::string` ou buffers fixos nos novos modulos IDF.
-4. Manter `String` temporariamente em UI/menu/config ate milestone especifico posterior; nao reescrever tudo de uma vez.
-5. Repensar `Serial.*` por categoria, sem troca direta para `ESP_LOGx`:
-   - `ESP_LOGx` nao substitui mensagens funcionais enquanto o build usar `-DCORE_DEBUG_LEVEL=0`, porque esses logs ficam desabilitados.
-   - Debug/diagnostico opcional pode virar macro compilavel fora, por exemplo `LAUNCHER_LOGD(...)`.
-   - Mensagens funcionais que o usuario precisa ver em headless/WebUI devem usar wrapper proprio que continue emitindo mesmo com `CORE_DEBUG_LEVEL=0`, por exemplo `launcherConsolePrintf(...)` baseado em `printf`, `uart_write_bytes` ou `Serial` enquanto Arduino ainda existir.
-   - Mensagens ruidosas ou puramente temporarias devem ser removidas, nao migradas.
-   - Interfaces de board podem continuar usando `Serial.*` ate uma fase posterior.
-6. Manter `Wire.h` e `SPI.h` onde forem necessarios para display e SD; nao tratar esses includes como falha neste milestone.
-
-Aceite:
-
-- `rg -n "#include <Arduino\\.h>|#include \"Arduino\\.h\"" src include` mostra somente excecoes documentadas.
-- Headers centrais nao forcam `Arduino.h` por transitividade.
-- Build passa com `pio run -e m5stack-cardputer`.
-- Tamanho nao aumenta; se aumentar, justificar com dados.
-
-## Milestone 6 - limpeza de dependencias e configuracao de build
-
-Meta: impedir que bibliotecas removidas sejam compiladas/linkadas.
-
-Arquivos alvo:
-
-- `platformio.ini`
-- `boards/*/platformio.ini`
-- `.gitmodules` se submodulos forem realmente removidos em milestone separado.
-
-Tarefas:
-
-- Remover flags exclusivas de AsyncTCP:
-  - `CONFIG_ASYNC_TCP_RUNNING_CORE`
-  - `CONFIG_ASYNC_TCP_USE_WDT`
-- Adicionar `lib_ignore` global ou por ambiente para:
-  - `ESPAsyncWebServer`
-  - `AsyncTCP`
-  - `M5Stack-HTTPUpdate`
-  - `Custom_Update`
-- Verificar se `lib_extra_dirs = lib_modules` ainda e necessario para outras libs.
-- Nao apagar diretorios de biblioteca nesta etapa se o projeto usa submodulos; primeiro confirmar politica de repo.
-
-Aceite:
-
-- Build passa com `pio run -e m5stack-cardputer` sem compilar as libs removidas.
-- `pio run -e m5stack-cardputer -v` nao mostra includes dessas libs em comandos de compilacao.
-- `docs/size-report.md` atualizado com ganho acumulado.
-
-## Milestone 7 - avaliar migracao parcial ou total para framework ESP-IDF
-
-Meta: decidir com dados se o projeto pode sair de `framework = arduino` ou se deve manter Arduino como camada temporaria por causa de display/SD/libs de board.
-
-Tarefas:
-
-- Criar branch/prototipo separado, sem misturar no fluxo principal.
-- Testar `framework = espidf` ou `framework = arduino, espidf` conforme suporte da plataforma.
-- Levantar blockers:
-  - M5GFX/TFT/Arduino_GFX;
-  - SD/SD_MMC/FS;
-  - ArduinoJson;
-  - interfaces de board que usam `String`, `Serial`, `Wire`, `SPI`, `millis`.
-- Se a migracao total for grande demais, manter uma estrategia hibrida:
-  - WebUI, OTA, WiFi e HTTP nativos;
-  - display/input/SD ainda em Arduino ate milestones especificos.
-
-Aceite:
-
-- Documento curto em `docs/size-report.md` ou `docs/espidf-migration-notes.md` com:
-  - tamanho do prototipo;
-  - erros principais;
-  - lista de dependencias que bloqueiam `framework = espidf`;
-  - recomendacao objetiva: migrar agora, migrar parcialmente ou adiar.
-
-## Milestone 8 - validacao em hardware e regressao funcional
-
-Meta: garantir que a reducao nao quebrou os fluxos usados por usuarios.
-
-Checklist manual minimo:
-
-- Boot normal no Launcher.
-- Boot para app instalado.
-- SD list/read/write/delete/rename/create folder.
-- WebUI STA em `http://launcher.local`.
-- WebUI AP em `http://launcher.local` e IP exibido.
-- Login/logout e cookie persistido.
-- Upload de arquivo comum para SD.
-- Download de arquivo do SD via browser.
-- OTA via upload WebUI.
-- OTA a partir de arquivo no SD.
-- OTA online LauncherHub:
-  - listar firmwares;
-  - instalar firmware sem bootloader/partition table;
-  - instalar firmware com bootloader/partition table;
-  - instalar SPIFFS/FAT quando aplicavel.
-- Headless inicia WebUI em AP quando nao ha credencial.
-
-Aceite:
-
-- Todos os itens acima foram testados ou marcados como "nao testado" com motivo.
-- `docs/size-report.md` contem tabela final de tamanho por milestone.
-- PR final remove ou ignora dependencias obsoletas.
-
-## Riscos principais
-
-- `esp_http_server` nao fornece parser multipart pronto; implementar somente o subset usado pelo WebUI.
-- HTTPS sem certificado replica o comportamento atual, mas deve ser documentado como risco de seguranca.
-- Remover `Arduino.h` de uma vez tende a explodir escopo por causa de `String`, `File`, `Stream`, `Serial`, `Wire`, `SPI` e bibliotecas de display.
-- ESP32-P4/hosted WiFi pode exigir tratamento especial; preservar os `#if CONFIG_ESP_HOSTED_ENABLED` existentes ate validar hardware.
-- O ganho real so aparece quando a biblioteca deixa de compilar/linkar. Trocar includes sem `lib_ignore` pode nao reduzir binario.
-
-## Comandos uteis
-
-```powershell
-git status --short
-pio run -e m5stack-cardputer
-Get-Item .pio\build\m5stack-cardputer\firmware.bin | Select-Object Length
-rg -n "AsyncWebServer|AsyncTCP|ESPAsyncWebServer|HTTPClient|WiFiClientSecure|M5-HTTPUpdate|CustomUpdate|Update\.|Arduino\.h" src include lib platformio.ini boards
-rg -n "framework\s*=|lib_deps|lib_ignore|lib_extra_dirs" platformio.ini boards
-```
+The installer must not require a reboot between changing the partition table and flashing the selected firmware. This is required for the online installer and for the custom bootloader behavior.
+
+## Core Design
+
+### In-memory partition model
+
+Create a partition table model that becomes the source of truth during editing and installation.
+
+The model must support:
+
+* Reading the current partition table from flash.
+* Parsing app, data, and custom partition entries.
+* Creating, editing, removing, formatting, and listing partitions.
+* Calculating free ranges.
+* Generating a valid ESP partition table binary, including terminator and checksum/MD5.
+* Validating the generated table before anything is written to flash.
+
+After the new table is generated, the installer must use this in-memory model for offsets and sizes. Do not rely on `esp_partition_find_*()`, `esp_ota_get_next_update_partition()`, or similar APIs for partitions that only exist in the new table.
+
+### Raw flash install path
+
+When a firmware install requires a partition table change, use low-level flash APIs:
+
+* `esp_flash_erase_region()` to erase the target region.
+* `esp_flash_write()` to write firmware/data directly to the selected offset.
+* `esp_flash_read()` or equivalent validation reads to verify critical bytes.
+
+The update layer should gain a raw-offset install API, for example:
+
+* install app to explicit offset/size.
+* install SPIFFS/FAT image to explicit offset/size.
+* erase/format data partition by explicit offset/size.
+
+The current IDF update wrapper can remain for installs that use the already active partition table, but dynamic partition installs must use the raw path.
+
+## Required Install Transaction
+
+For dynamic online installs, the safe sequence is:
+
+1. Parse the current partition table.
+2. Build the desired new partition table in RAM.
+3. Validate the full table and target ranges.
+4. Select the app/data target partitions from the new in-memory table.
+5. Erase and flash the firmware directly to the new app partition offset.
+6. Erase and flash or prepare related FAT/SPIFFS partitions directly by offset.
+7. Verify the app image header and written size.
+8. Write the new partition table to flash at `0x8000`.
+9. Manually update `otadata` to select the new app partition when needed.
+10. Reboot.
+
+`otadata` must be updated only after the new table and firmware are valid. This keeps the old boot target available if flashing fails before the final activation step.
+
+## User Interface
+
+Add an interface where users can:
+
+* Create OTA, SPIFFS, and FAT partitions.
+* Edit partition size.
+* Remove partitions.
+* Format partitions.
+* See offsets, sizes, labels, free space, and protected status.
+* See how much flash is needed when an install cannot fit.
+
+The UI must not allow invalid layouts. It should snap sizes and offsets to valid erase/alignment boundaries and show the resulting values before applying changes.
+
+## Protected Partitions
+
+The partitioner must protect the running Launcher partition and required boot partitions.
+
+Rules:
+
+* Detect the running Launcher partition using the current boot state, not only by label.
+* TEST or FACTORY Launcher partition cannot be deleted.
+* TEST or FACTORY Launcher partition cannot be resized below the actual Launcher firmware size on flash.
+* Bootloader, partition table, `otadata`, NVS, and required recovery partitions must not be damaged.
+* Current running app partition must not be erased unless the operation is an intentional Launcher self-update with a recovery path.
+
+## Firmware Install Rules
+
+When installing firmware:
+
+* Check the firmware size before modifying flash.
+* If there is enough free room, create a new OTA app partition in the in-memory table and flash the firmware to that raw offset.
+* If there is no room, prompt the user to delete or resize partitions and show the exact missing size.
+* If replacing an existing app, preserve or update the app name metadata.
+* If the firmware includes or declares FAT partitions, create them according to their names:
+  * `sys`: `0x100000`
+  * `vfs`: `0x70000`
+  * any other FAT label: `0x80000`
+* SPIFFS/FAT partitions must be erased or written by explicit raw offset when they are part of the new table.
+
+## Boot Selection and `otadata`
+
+After installing firmware:
+
+* Add or update an APP entry with the firmware name.
+* If the firmware replaced an existing app, update that existing APP entry.
+* If there are multiple APPs, selecting one must set the correct boot target and reboot.
+
+Because the selected partition may come from a table that was just generated, boot selection cannot depend only on `esp_ota_set_boot_partition()`.
+
+The implementation must manually manipulate `otadata` when needed:
+
+* Locate the `otadata` partition from the current or generated table.
+* Write valid OTA select records compatible with the custom bootloader.
+* If the custom bootloader follows ESP-IDF OTA data format, write the correct sequence/state/CRC fields.
+* If the custom bootloader has custom rules, document them and implement that exact format.
+
+## App Metadata
+
+Maintain metadata for installed apps separately from the partition table.
+
+The metadata should include:
+
+* Display name.
+* Partition label.
+* Partition subtype or app slot number.
+* Offset and size.
+* Firmware source when available.
+* Install timestamp or version when available.
+
+Do not rely on partition labels alone as user-facing app names. Labels are short and constrained.
+
+## Validation Requirements
+
+Before writing anything:
+
+* No partition may overlap another partition.
+* No partition may exceed physical flash size.
+* Offsets and sizes must respect erase/write alignment.
+* Labels must be valid and unique where required.
+* App partitions must be large enough for the firmware.
+* Data partitions must be large enough for their image or requested format size.
+* The generated partition table must fit in the partition table sector.
+* Protected partitions must remain valid.
+
+Before activation:
+
+* The app image must have a valid ESP image magic byte.
+* The flashed size must match the expected firmware size.
+* Prefer image/hash verification when possible.
+* The partition table must be written successfully.
+* `otadata` must only be written after firmware and table verification.
+
+## Failure and Recovery
+
+The operation should be treated as a transaction with clear failure points.
+
+Required behavior:
+
+* If firmware flashing fails, do not write `otadata`.
+* If partition table generation fails, do not write flash.
+* If partition table writing fails, do not write `otadata`.
+* If activation fails, keep the previous boot target.
+* The bootloader should be able to fall back to TEST/FACTORY Launcher if the selected app cannot boot.
+* Keep a known-good default partition generator or restore option.
+
+For app flashing, use the same safety concept already used by the update wrapper: avoid making a partially written app look bootable. Defer writing the app magic/header until the image is completely written and validated.
+
+## Implementation Milestones
+
+### Milestone 1 - Parser and generator
+
+* Parse the active partition table from flash.
+* Build a structured in-memory partition list.
+* Generate a valid binary partition table.
+* Add validation for overlaps, bounds, labels, alignment, protected partitions, and flash size.
+
+### Milestone 2 - Read-only UI
+
+* Replace or enhance the current partition list with a full layout view.
+* Show partition type, subtype, label, offset, size, free ranges, and protected status.
+
+### Milestone 3 - Raw flash writer
+
+* Add raw install/write helpers using explicit offsets and sizes.
+* Support raw app flashing with deferred app header.
+* Support raw FAT/SPIFFS erase/write/format preparation.
+
+### Milestone 4 - Manual editor
+
+* Add create/edit/remove/format actions.
+* Validate changes before applying.
+* Write the generated table to flash.
+
+### Milestone 5 - Online installer integration
+
+* Calculate required app and data partition sizes before install.
+* Generate or modify the partition table in RAM.
+* Flash firmware/data by raw offset.
+* Write the new table.
+* Update `otadata`.
+* Reboot into the selected app.
+
+### Milestone 6 - Multi-app launcher
+
+* Add app metadata storage.
+* Create/update APP icons after install.
+* Allow selecting a specific installed app.
+* Set boot target manually through `otadata` when required.
+
+### Milestone 7 - Recovery and hardware validation
+
+* Test interrupted download.
+* Test interrupted flash.
+* Test invalid image.
+* Test full flash/no room.
+* Test multiple apps.
+* Test FAT/SPIFFS creation.
+* Test fallback to TEST/FACTORY Launcher.
+* Test on 4 MB, 8 MB, 16 MB, ESP32, ESP32-S3, and ESP32-P4 targets where supported.
