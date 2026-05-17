@@ -1,11 +1,16 @@
 #include "sd_functions.h"
+#include "app_registry.h"
 #include "display.h"
 #include "esp_log.h"
+#include "idf/idf_update.h"
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
+#include "partition_table_model.h"
 #include "settings.h"
 #include <algorithm> // for std::sort
+#include <esp_app_format.h>
 #include <esp_flash.h>
+#include <esp_image_format.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
@@ -506,11 +511,907 @@ bool performUpdate(Stream &updateSource, size_t updateSize, int command) {
 }
 
 static String installedAppNameFromPath(const String &path) {
-    int slash = path.lastIndexOf('/');
-    String fileName = slash >= 0 ? path.substring(slash + 1) : path;
-    int dot = fileName.lastIndexOf('.');
-    if (dot > 0) fileName = fileName.substring(0, dot);
-    return fileName;
+    return launcherAppNameFromFile(path);
+}
+
+static String nextSdAppLabel(const LauncherPartitionTable &table) {
+    int highest = 0;
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (strncmp(entry.label, "app", 3) != 0) continue;
+        const char *cursor = entry.label + 3;
+        if (*cursor == '\0') continue;
+
+        bool numeric = true;
+        int value = 0;
+        while (*cursor) {
+            if (*cursor < '0' || *cursor > '9') {
+                numeric = false;
+                break;
+            }
+            value = value * 10 + (*cursor - '0');
+            cursor++;
+        }
+        if (numeric && value > highest) highest = value;
+    }
+    return "app" + String(highest + 1);
+}
+
+static bool findOrCreateSdDataPartition(
+    LauncherPartitionTable &table,
+    uint8_t subtype,
+    const char *label,
+    uint32_t requestedSize,
+    LauncherPartitionEntry &entry,
+    String &error
+) {
+    LauncherPartitionEntry *existing = launcherPartitionFindByLabel(table, label);
+    if (existing) {
+        if (existing->isData() && existing->subtype == subtype && existing->size >= requestedSize) {
+            entry = *existing;
+            return true;
+        }
+        error = String("Partition ") + label + " is too small or incompatible";
+        return false;
+    }
+    return launcherPartitionCreateData(table, subtype, label, requestedSize, &entry, &error);
+}
+
+static uint32_t alignSdUp(uint32_t value, uint32_t alignment) {
+    if (alignment == 0) return value;
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+static uint32_t sdDefaultSpiffsSize() {
+    return 0x70000;
+}
+
+static uint32_t sdLargeSpiffsThreshold() {
+    return 0x500000;
+}
+
+static uint32_t sdUseRemainingSpiffsSize() {
+    return 0xFFFFFFFF;
+}
+
+static bool createSdDataInLargestFreeRange(
+    LauncherPartitionTable &table,
+    uint8_t subtype,
+    const char *label,
+    LauncherPartitionEntry &entry,
+    String &error
+) {
+    LauncherPartitionRange best;
+    for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
+        const uint32_t alignedOffset = alignSdUp(range.offset, LAUNCHER_FLASH_SECTOR_SIZE);
+        if (alignedOffset < range.offset || range.size < alignedOffset - range.offset) continue;
+        const uint32_t alignedSize = (range.size - (alignedOffset - range.offset)) & ~(LAUNCHER_FLASH_SECTOR_SIZE - 1);
+        if (alignedSize > best.size) best = {alignedOffset, alignedSize};
+    }
+    if (best.size == 0) {
+        error = "No free partition range large enough";
+        return false;
+    }
+
+    LauncherPartitionEntry created;
+    created.type = 0x01;
+    created.subtype = subtype;
+    created.offset = best.offset;
+    created.size = best.size;
+    created.flags = 0;
+    memset(created.label, 0, sizeof(created.label));
+    strncpy(created.label, label, sizeof(created.label) - 1);
+    if (!launcherPartitionAdd(table, created, &error)) return false;
+    entry = created;
+    return true;
+}
+
+static String sdHexSize(uint32_t value) {
+    char buffer[12];
+    snprintf(buffer, sizeof(buffer), "0x%06lX", static_cast<unsigned long>(value));
+    return String(buffer);
+}
+
+static String sdHumanSize(uint32_t value) {
+    if (value >= 1024 * 1024 && value % (1024 * 1024) == 0) {
+        return String(value / (1024 * 1024)) + "MB";
+    }
+    if (value >= 1024 && value % 1024 == 0) {
+        return String(value / 1024) + "KB";
+    }
+    return String(value) + " bytes";
+}
+
+static String sdSizeLabel(uint32_t value) {
+    return sdHexSize(value) + " (" + sdHumanSize(value) + ")";
+}
+
+static bool removeSdEntryByOffset(LauncherPartitionTable &table, uint32_t offset) {
+    for (auto it = table.entries.begin(); it != table.entries.end(); ++it) {
+        if (it->offset == offset) {
+            table.entries.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool isReplaceableSdApp(const LauncherPartitionEntry &entry) {
+    if (!entry.isOtaApp()) return false;
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (running && running->address == entry.offset) return false;
+    return true;
+}
+
+static bool isRemovableSdInstallData(const LauncherPartitionEntry &entry) {
+    if (!entry.isData()) return false;
+    if (entry.subtype != 0x81 && entry.subtype != 0x82 && entry.subtype != 0x83) return false;
+    return strcmp(entry.label, "spiffs") == 0 || strcmp(entry.label, "sys") == 0 ||
+           strcmp(entry.label, "vfs") == 0;
+}
+
+static bool removeSdInstallDataPartitions(LauncherPartitionTable &table, bool removeSpiffs) {
+    bool removed = false;
+    for (auto it = table.entries.begin(); it != table.entries.end();) {
+        bool removable = isRemovableSdInstallData(*it);
+        if (removable && !removeSpiffs && strcmp(it->label, "spiffs") == 0) removable = false;
+        if (removable) {
+            it = table.entries.erase(it);
+            removed = true;
+        } else {
+            ++it;
+        }
+    }
+    return removed;
+}
+
+static bool addManualSdAppEntry(
+    LauncherPartitionTable &table,
+    uint8_t subtype,
+    const char *label,
+    uint32_t offset,
+    uint32_t size,
+    LauncherPartitionEntry &created,
+    String &error
+) {
+    LauncherPartitionEntry entry;
+    entry.type = 0x00;
+    entry.subtype = subtype;
+    entry.offset = offset;
+    entry.size = alignSdUp(size, LAUNCHER_FLASH_SECTOR_SIZE);
+    entry.flags = 0;
+    memset(entry.label, 0, sizeof(entry.label));
+    strncpy(entry.label, label, sizeof(entry.label) - 1);
+    if (!launcherPartitionAdd(table, entry, &error)) return false;
+    created = entry;
+    return true;
+}
+
+static bool prepareSdDataPartitions(
+    LauncherPartitionTable &table,
+    bool spiffs,
+    uint32_t spiffsSize,
+    LauncherPartitionEntry &spiffsEntry,
+    bool &hasSpiffsEntry,
+    bool fat,
+    uint32_t fatSizeSys,
+    const char *fatLabelSys,
+    uint32_t fatSizeVfs,
+    const char *fatLabelVfs,
+    LauncherPartitionEntry &fatSysEntry,
+    bool &hasFatSys,
+    LauncherPartitionEntry &fatVfsEntry,
+    bool &hasFatVfs,
+    String &error
+) {
+    hasSpiffsEntry = false;
+    hasFatSys = false;
+    hasFatVfs = false;
+
+    auto prepareSpiffs = [&]() {
+        LauncherPartitionEntry *existing = launcherPartitionFindByLabel(table, "spiffs");
+        if (existing) {
+            if (!existing->isData() || existing->subtype != 0x82) {
+                error = "Partition spiffs is incompatible";
+                return false;
+            }
+            if (spiffsSize != sdUseRemainingSpiffsSize() && existing->size < spiffsSize) {
+                error = "Partition spiffs is too small or incompatible";
+                return false;
+            }
+            spiffsEntry = *existing;
+        } else if (spiffsSize == sdUseRemainingSpiffsSize()) {
+            if (!createSdDataInLargestFreeRange(table, 0x82, "spiffs", spiffsEntry, error)) return false;
+        } else {
+            if (!findOrCreateSdDataPartition(table, 0x82, "spiffs", spiffsSize, spiffsEntry, error)) return false;
+        }
+        hasSpiffsEntry = true;
+        return true;
+    };
+
+    if (spiffs && spiffsSize > 0 && spiffsSize != sdUseRemainingSpiffsSize()) {
+        if (!prepareSpiffs()) return false;
+    }
+
+    if (fat && fatSizeSys > 0) {
+        const char *label = fatLabelSys && fatLabelSys[0] ? fatLabelSys : "sys";
+        uint32_t desired = launcherPartitionDefaultFatSize(label);
+        if (desired < fatSizeSys) desired = fatSizeSys;
+        if (!findOrCreateSdDataPartition(table, 0x81, label, desired, fatSysEntry, error)) return false;
+        hasFatSys = true;
+    }
+
+    if (fat && fatSizeVfs > 0) {
+        const char *label = fatLabelVfs && fatLabelVfs[0] ? fatLabelVfs : "vfs";
+        uint32_t desired = launcherPartitionDefaultFatSize(label);
+        if (desired < fatSizeVfs) desired = fatSizeVfs;
+        if (!findOrCreateSdDataPartition(table, 0x81, label, desired, fatVfsEntry, error)) return false;
+        hasFatVfs = true;
+    }
+
+    if (spiffs && spiffsSize == sdUseRemainingSpiffsSize()) {
+        if (!prepareSpiffs()) return false;
+    }
+
+    return true;
+}
+
+static bool selectSdInstallLayout(
+    LauncherPartitionTable &table,
+    uint32_t appSize,
+    const String &defaultLabel,
+    bool spiffs,
+    uint32_t spiffsSize,
+    bool fat,
+    uint32_t fatSizeSys,
+    const char *fatLabelSys,
+    uint32_t fatSizeVfs,
+    const char *fatLabelVfs,
+    LauncherPartitionEntry &appEntry,
+    LauncherPartitionEntry &spiffsEntry,
+    bool &hasSpiffsEntry,
+    LauncherPartitionEntry &fatSysEntry,
+    bool &hasFatSys,
+    LauncherPartitionEntry &fatVfsEntry,
+    bool &hasFatVfs,
+    String &error
+) {
+    LauncherPartitionTable directCandidate = table;
+    LauncherPartitionEntry directApp;
+    LauncherPartitionEntry directSpiffs;
+    LauncherPartitionEntry directFatSys;
+    LauncherPartitionEntry directFatVfs;
+    bool directHasSpiffs = false;
+    bool directHasFatSys = false;
+    bool directHasFatVfs = false;
+    if (launcherPartitionCreateOtaApp(directCandidate, appSize, defaultLabel.c_str(), &directApp, &error) &&
+        prepareSdDataPartitions(
+            directCandidate,
+            spiffs,
+            spiffsSize,
+            directSpiffs,
+            directHasSpiffs,
+            fat,
+            fatSizeSys,
+            fatLabelSys,
+            fatSizeVfs,
+            fatLabelVfs,
+            directFatSys,
+            directHasFatSys,
+            directFatVfs,
+            directHasFatVfs,
+            error
+        ) &&
+        launcherPartitionValidate(directCandidate, &error)) {
+        table = directCandidate;
+        appEntry = directApp;
+        spiffsEntry = directSpiffs;
+        hasSpiffsEntry = directHasSpiffs;
+        fatSysEntry = directFatSys;
+        hasFatSys = directHasFatSys;
+        fatVfsEntry = directFatVfs;
+        hasFatVfs = directHasFatVfs;
+        return true;
+    }
+
+    LauncherPartitionTable original = table;
+    std::vector<Option> choices;
+    std::vector<String> choiceLabels;
+    choices.push_back({String("Need ") + sdSizeLabel(appSize), []() {}});
+    choiceLabels.push_back(choices.back().label);
+
+    auto addChoice = [&](const String &label,
+                         const LauncherPartitionTable &candidate,
+                         const LauncherPartitionEntry &candidateApp,
+                         const LauncherPartitionEntry &candidateSpiffs,
+                         bool candidateHasSpiffs,
+                         const LauncherPartitionEntry &candidateFatSys,
+                         bool candidateHasFatSys,
+                         const LauncherPartitionEntry &candidateFatVfs,
+                         bool candidateHasFatVfs) {
+        for (const String &existingLabel : choiceLabels) {
+            if (existingLabel == label) return;
+        }
+        choiceLabels.push_back(label);
+        choices.push_back({label,
+                           [&table,
+                            &appEntry,
+                            &spiffsEntry,
+                            &hasSpiffsEntry,
+                            &fatSysEntry,
+                            &hasFatSys,
+                            &fatVfsEntry,
+                            &hasFatVfs,
+                            candidate,
+                            candidateApp,
+                            candidateSpiffs,
+                            candidateHasSpiffs,
+                            candidateFatSys,
+                            candidateHasFatSys,
+                            candidateFatVfs,
+                            candidateHasFatVfs]() mutable {
+                               table = candidate;
+                               appEntry = candidateApp;
+                               spiffsEntry = candidateSpiffs;
+                               hasSpiffsEntry = candidateHasSpiffs;
+                               fatSysEntry = candidateFatSys;
+                               hasFatSys = candidateHasFatSys;
+                               fatVfsEntry = candidateFatVfs;
+                               hasFatVfs = candidateHasFatVfs;
+                           }});
+    };
+
+    for (const LauncherPartitionEntry &entry : original.entries) {
+        if (!isReplaceableSdApp(entry) || entry.size < appSize) continue;
+        LauncherPartitionTable candidate = original;
+        LauncherPartitionEntry candidateSpiffs;
+        LauncherPartitionEntry candidateFatSys;
+        LauncherPartitionEntry candidateFatVfs;
+        bool candidateHasSpiffs = false;
+        bool candidateHasFatSys = false;
+        bool candidateHasFatVfs = false;
+        if (prepareSdDataPartitions(
+                candidate,
+                spiffs,
+                spiffsSize,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                fat,
+                fatSizeSys,
+                fatLabelSys,
+                fatSizeVfs,
+                fatLabelVfs,
+                candidateFatSys,
+                candidateHasFatSys,
+                candidateFatVfs,
+                candidateHasFatVfs,
+                error
+            ) &&
+            launcherPartitionValidate(candidate, &error)) {
+            addChoice(
+                String("Use ") + entry.label + " partition",
+                candidate,
+                entry,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFatSys,
+                candidateHasFatSys,
+                candidateFatVfs,
+                candidateHasFatVfs
+            );
+        }
+    }
+
+    std::vector<LauncherPartitionEntry> apps;
+    for (const LauncherPartitionEntry &entry : original.entries) {
+        if (isReplaceableSdApp(entry)) apps.push_back(entry);
+    }
+    std::sort(apps.begin(), apps.end(), [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) {
+        return a.offset < b.offset;
+    });
+
+    for (size_t start = 0; start < apps.size(); ++start) {
+        if (apps[start].size >= appSize) continue;
+        LauncherPartitionTable candidate = original;
+        removeSdEntryByOffset(candidate, apps[start].offset);
+
+        LauncherPartitionEntry candidateApp;
+        if (!addManualSdAppEntry(
+                candidate,
+                apps[start].subtype,
+                apps[start].label,
+                apps[start].offset,
+                appSize,
+                candidateApp,
+                error
+            )) {
+            continue;
+        }
+
+        LauncherPartitionEntry candidateSpiffs;
+        LauncherPartitionEntry candidateFatSys;
+        LauncherPartitionEntry candidateFatVfs;
+        bool candidateHasSpiffs = false;
+        bool candidateHasFatSys = false;
+        bool candidateHasFatVfs = false;
+        if (prepareSdDataPartitions(
+                candidate,
+                spiffs,
+                spiffsSize,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                fat,
+                fatSizeSys,
+                fatLabelSys,
+                fatSizeVfs,
+                fatLabelVfs,
+                candidateFatSys,
+                candidateHasFatSys,
+                candidateFatVfs,
+                candidateHasFatVfs,
+                error
+            ) &&
+            launcherPartitionValidate(candidate, &error)) {
+            addChoice(
+                String("Repartition ") + apps[start].label + " + free",
+                candidate,
+                candidateApp,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFatSys,
+                candidateHasFatSys,
+                candidateFatVfs,
+                candidateHasFatVfs
+            );
+        }
+    }
+
+    if (std::any_of(original.entries.begin(), original.entries.end(), isRemovableSdInstallData)) {
+        for (int removalPass = 0; removalPass < 2 && choices.size() == 1; ++removalPass) {
+            const bool removeSpiffs = removalPass == 1;
+            LauncherPartitionTable candidate = original;
+            if (!removeSdInstallDataPartitions(candidate, removeSpiffs)) continue;
+
+            LauncherPartitionEntry candidateApp;
+            if (!launcherPartitionCreateOtaApp(candidate, appSize, defaultLabel.c_str(), &candidateApp, &error)) {
+                continue;
+            }
+
+            LauncherPartitionEntry candidateSpiffs;
+            LauncherPartitionEntry candidateFatSys;
+            LauncherPartitionEntry candidateFatVfs;
+            bool candidateHasSpiffs = false;
+            bool candidateHasFatSys = false;
+            bool candidateHasFatVfs = false;
+            if (!prepareSdDataPartitions(
+                    candidate,
+                    spiffs,
+                    spiffsSize,
+                    candidateSpiffs,
+                    candidateHasSpiffs,
+                    fat,
+                    fatSizeSys,
+                    fatLabelSys,
+                    fatSizeVfs,
+                    fatLabelVfs,
+                    candidateFatSys,
+                    candidateHasFatSys,
+                    candidateFatVfs,
+                    candidateHasFatVfs,
+                    error
+                ) ||
+                !launcherPartitionValidate(candidate, &error)) {
+                continue;
+            }
+
+            addChoice(
+                removeSpiffs ? "Remove data + use free" : "Remove FAT data + use free",
+                candidate,
+                candidateApp,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFatSys,
+                candidateHasFatSys,
+                candidateFatVfs,
+                candidateHasFatVfs
+            );
+        }
+    }
+
+    for (size_t start = 0; start < apps.size(); ++start) {
+        uint32_t rangeStart = apps[start].offset;
+        uint32_t rangeEnd = apps[start].offset + apps[start].size;
+        for (size_t end = start; end < apps.size(); ++end) {
+            if (end > start && apps[end].offset != rangeEnd) break;
+            if (end == start) continue;
+            rangeEnd = apps[end].offset + apps[end].size;
+            uint32_t usableStart = alignSdUp(rangeStart, 0x10000);
+            if (rangeEnd <= usableStart || rangeEnd - usableStart < appSize) continue;
+
+            LauncherPartitionTable candidate = original;
+            for (size_t i = start; i <= end; ++i) removeSdEntryByOffset(candidate, apps[i].offset);
+
+            LauncherPartitionEntry candidateApp;
+            if (!addManualSdAppEntry(
+                    candidate,
+                    apps[start].subtype,
+                    apps[start].label,
+                    usableStart,
+                    appSize,
+                    candidateApp,
+                    error
+                )) {
+                continue;
+            }
+
+            LauncherPartitionEntry candidateSpiffs;
+            LauncherPartitionEntry candidateFatSys;
+            LauncherPartitionEntry candidateFatVfs;
+            bool candidateHasSpiffs = false;
+            bool candidateHasFatSys = false;
+            bool candidateHasFatVfs = false;
+            if (!prepareSdDataPartitions(
+                    candidate,
+                    spiffs,
+                    spiffsSize,
+                    candidateSpiffs,
+                    candidateHasSpiffs,
+                    fat,
+                    fatSizeSys,
+                    fatLabelSys,
+                    fatSizeVfs,
+                    fatLabelVfs,
+                    candidateFatSys,
+                    candidateHasFatSys,
+                    candidateFatVfs,
+                    candidateHasFatVfs,
+                    error
+                ) ||
+                !launcherPartitionValidate(candidate, &error)) {
+                continue;
+            }
+
+            String label = String("Repartition ") + apps[start].label + "-" + apps[end].label;
+            addChoice(
+                label,
+                candidate,
+                candidateApp,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFatSys,
+                candidateHasFatSys,
+                candidateFatVfs,
+                candidateHasFatVfs
+            );
+        }
+    }
+
+    const bool needsDataRemoval = choices.size() == 1;
+    if (needsDataRemoval && std::any_of(original.entries.begin(), original.entries.end(), isRemovableSdInstallData)) {
+        for (int removalPass = 0; removalPass < 2 && choices.size() == 1; ++removalPass) {
+            const bool removeSpiffs = removalPass == 1;
+        for (size_t start = 0; start < apps.size(); ++start) {
+            uint32_t rangeStart = apps[start].offset;
+            uint32_t rangeEnd = apps[start].offset + apps[start].size;
+            for (size_t end = start; end < apps.size(); ++end) {
+                if (end > start && apps[end].offset != rangeEnd) break;
+                rangeEnd = apps[end].offset + apps[end].size;
+
+                LauncherPartitionTable candidate = original;
+                for (size_t i = start; i <= end; ++i) removeSdEntryByOffset(candidate, apps[i].offset);
+                if (!removeSdInstallDataPartitions(candidate, removeSpiffs)) continue;
+
+                LauncherPartitionEntry candidateApp;
+                const uint32_t usableStart = alignSdUp(rangeStart, 0x10000);
+                if (!addManualSdAppEntry(
+                        candidate,
+                        apps[start].subtype,
+                        apps[start].label,
+                        usableStart,
+                        appSize,
+                        candidateApp,
+                        error
+                    )) {
+                    continue;
+                }
+
+                LauncherPartitionEntry candidateSpiffs;
+                LauncherPartitionEntry candidateFatSys;
+                LauncherPartitionEntry candidateFatVfs;
+                bool candidateHasSpiffs = false;
+                bool candidateHasFatSys = false;
+                bool candidateHasFatVfs = false;
+                if (!prepareSdDataPartitions(
+                        candidate,
+                        spiffs,
+                        spiffsSize,
+                        candidateSpiffs,
+                        candidateHasSpiffs,
+                        fat,
+                        fatSizeSys,
+                        fatLabelSys,
+                        fatSizeVfs,
+                        fatLabelVfs,
+                        candidateFatSys,
+                        candidateHasFatSys,
+                        candidateFatVfs,
+                        candidateHasFatVfs,
+                        error
+                    ) ||
+                    !launcherPartitionValidate(candidate, &error)) {
+                    continue;
+                }
+
+                String label = String("Remove ") + apps[start].label;
+                if (end > start) label += String("-") + apps[end].label;
+                label += removeSpiffs ? " + free + all data" : " + free + FAT data";
+                addChoice(
+                    label,
+                    candidate,
+                    candidateApp,
+                    candidateSpiffs,
+                    candidateHasSpiffs,
+                    candidateFatSys,
+                    candidateHasFatSys,
+                    candidateFatVfs,
+                    candidateHasFatVfs
+                );
+            }
+        }
+        }
+    }
+
+    choices.push_back({"Cancel", []() {}});
+    const int selected = loopOptions(choices);
+    if (selected <= 0 || selected == static_cast<int>(choices.size()) - 1) {
+        error = "No install target selected";
+        return false;
+    }
+
+    if (appEntry.offset == 0) {
+        error = "Selected install target failed";
+        return false;
+    }
+    return true;
+}
+
+static bool flashRawFromSd(File &file, uint32_t sourceOffset, size_t imageSize, const LauncherPartitionEntry &target, bool appImage) {
+    if (!file.seek(sourceOffset)) return false;
+    if (!launcherRawUpdateBegin(target.offset, target.size, imageSize, appImage)) return false;
+
+    uint8_t buf[1024];
+    size_t written = 0;
+    progressHandler(0, imageSize);
+    while (written < imageSize) {
+        size_t toRead = min(sizeof(buf), imageSize - written);
+        int bytesRead = file.readBytes(reinterpret_cast<char *>(buf), toRead);
+        if (bytesRead <= 0) {
+            launcherRawUpdateEnd();
+            return false;
+        }
+        if (launcherRawUpdateWrite(buf, bytesRead) != static_cast<size_t>(bytesRead)) return false;
+        written += bytesRead;
+        progressHandler(written, imageSize);
+        launcherDelayMs(1);
+    }
+    return launcherRawUpdateEnd();
+}
+
+static bool readSdBytes(File &file, uint32_t offset, void *buffer, size_t len) {
+    if (!file.seek(offset)) return false;
+    return file.readBytes(reinterpret_cast<char *>(buffer), len) == len;
+}
+
+static uint32_t readLe32(const uint8_t *bytes) {
+    return static_cast<uint32_t>(bytes[0]) | (static_cast<uint32_t>(bytes[1]) << 8) |
+           (static_cast<uint32_t>(bytes[2]) << 16) | (static_cast<uint32_t>(bytes[3]) << 24);
+}
+
+static String readPartitionLabel(const uint8_t *entry) {
+    char label[17] = {0};
+    memcpy(label, entry + 12, 16);
+    label[16] = '\0';
+    return String(label);
+}
+
+static uint32_t boundedSdPartitionPayload(File &file, uint32_t offset, uint32_t declaredSize, uint32_t maxSize) {
+    if (offset == 0 || file.size() <= offset || declaredSize == 0) return 0;
+    uint32_t size = declaredSize;
+    if (maxSize > 0 && size > maxSize) size = maxSize;
+    if (file.size() < offset + size) size = file.size() - offset;
+    return size;
+}
+
+static uint32_t sdFatInstallSizeForLabel(const String &label) {
+    return launcherPartitionDefaultFatSize(label.c_str());
+}
+
+static bool measureSdEspImage(File &file, uint32_t imageOffset, uint32_t &imageSize) {
+    esp_image_header_t header;
+    if (!readSdBytes(file, imageOffset, &header, sizeof(header))) return false;
+    if (header.magic != ESP_IMAGE_HEADER_MAGIC || header.segment_count == 0 ||
+        header.segment_count > ESP_IMAGE_MAX_SEGMENTS) {
+        return false;
+    }
+
+    uint32_t cursor = imageOffset + sizeof(header);
+    const uint32_t fileSize = file.size();
+    if (cursor > fileSize) return false;
+
+    for (uint8_t i = 0; i < header.segment_count; ++i) {
+        uint8_t segmentHeader[sizeof(esp_image_segment_header_t)];
+        if (!readSdBytes(file, cursor, segmentHeader, sizeof(segmentHeader))) return false;
+        const uint32_t segmentSize = readLe32(segmentHeader + 4);
+        cursor += sizeof(segmentHeader);
+        if (segmentSize > fileSize || cursor > fileSize - segmentSize) return false;
+        cursor += segmentSize;
+    }
+
+    uint32_t end = alignSdUp(cursor, 16) + 1;
+    if (header.hash_appended) end += ESP_IMAGE_HASH_LEN;
+    end = alignSdUp(end, 16);
+    if (end <= imageOffset || end > fileSize) return false;
+
+    imageSize = end - imageOffset;
+    return true;
+}
+
+static uint32_t effectiveSdAppSize(File &file, uint32_t appOffset, uint32_t fallbackSize) {
+    uint32_t measuredSize = 0;
+    if (measureSdEspImage(file, appOffset, measuredSize)) {
+        if (fallbackSize == 0 || measuredSize < fallbackSize) {
+            launcherConsolePrintf(
+                "Measured SD app image at 0x%06X: 0x%06X (%u bytes), fallback was 0x%06X\n",
+                appOffset,
+                measuredSize,
+                measuredSize,
+                fallbackSize
+            );
+            return measuredSize;
+        }
+    }
+    return fallbackSize;
+}
+
+static bool installFromSdDynamic(
+    File &file,
+    const String &path,
+    uint32_t appSize,
+    uint32_t appOffset,
+    bool spiffs,
+    uint32_t spiffsOffset,
+    uint32_t spiffsSize,
+    uint32_t spiffsCopySize,
+    bool fat,
+    uint32_t fatOffsetSys,
+    uint32_t fatSizeSys,
+    uint32_t fatCopySizeSys,
+    const String &fatLabelSys,
+    uint32_t fatOffsetVfs,
+    uint32_t fatSizeVfs,
+    uint32_t fatCopySizeVfs,
+    const String &fatLabelVfs
+) {
+    String error;
+    LauncherPartitionTable table;
+    if (!launcherPartitionReadCurrent(table, &error)) {
+        displayRedStripe(error.length() ? error : "Partition read failed");
+        return false;
+    }
+
+    if (appSize == 0 || appOffset + appSize > file.size()) {
+        displayRedStripe("Invalid app image");
+        return false;
+    }
+
+    String appLabel = nextSdAppLabel(table);
+    LauncherPartitionEntry appEntry;
+    LauncherPartitionEntry spiffsEntry;
+    bool hasSpiffsEntry = false;
+    LauncherPartitionEntry fatSysEntry;
+    LauncherPartitionEntry fatVfsEntry;
+    bool hasFatSys = false;
+    bool hasFatVfs = false;
+
+    if (!selectSdInstallLayout(
+            table,
+            appSize,
+            appLabel,
+            spiffs,
+            spiffsSize,
+            fat,
+            fatSizeSys,
+            fatLabelSys.c_str(),
+            fatSizeVfs,
+            fatLabelVfs.c_str(),
+            appEntry,
+            spiffsEntry,
+            hasSpiffsEntry,
+            fatSysEntry,
+            hasFatSys,
+            fatVfsEntry,
+            hasFatVfs,
+            error
+        )) {
+        launcherConsolePrintf("SD install layout failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "No install space");
+        return false;
+    }
+
+    if (!launcherPartitionValidate(table, &error)) {
+        displayRedStripe(error.length() ? error : "Invalid table");
+        return false;
+    }
+
+    vTaskSuspend(xHandle);
+    bool success = false;
+    displayRedStripe("Installing APP");
+    prog_handler = 0;
+    if (!flashRawFromSd(file, appOffset, appSize, appEntry, true)) {
+        displayRedStripe(String("APP: ") + launcherUpdateLastErrorName());
+        goto DONE;
+    }
+
+    if (hasSpiffsEntry && spiffsCopySize > 0) {
+        const uint32_t copySize = spiffsCopySize > spiffsEntry.size ? spiffsEntry.size : spiffsCopySize;
+        displayRedStripe("Installing SPIFFS");
+        prog_handler = 1;
+        if (!flashRawFromSd(file, spiffsOffset, copySize, spiffsEntry, false)) {
+            displayRedStripe(String("SPIFFS: ") + launcherUpdateLastErrorName());
+            goto DONE;
+        }
+    }
+
+    if (hasFatSys && fatCopySizeSys > 0) {
+        displayRedStripe("Installing sys FAT");
+        prog_handler = 1;
+        if (!flashRawFromSd(file, fatOffsetSys, fatCopySizeSys, fatSysEntry, false)) {
+            displayRedStripe(String("FAT: ") + launcherUpdateLastErrorName());
+            goto DONE;
+        }
+    }
+    if (hasFatVfs && fatCopySizeVfs > 0) {
+        displayRedStripe("Installing vfs FAT");
+        prog_handler = 1;
+        if (!flashRawFromSd(file, fatOffsetVfs, fatCopySizeVfs, fatVfsEntry, false)) {
+            displayRedStripe(String("FAT: ") + launcherUpdateLastErrorName());
+            goto DONE;
+        }
+    }
+
+    displayRedStripe("Writing table");
+    if (!launcherPartitionWriteGeneratedTable(table, &error)) {
+        displayRedStripe(error.length() ? error : "Table failed");
+        goto DONE;
+    }
+
+    displayRedStripe("Setting boot");
+    if (!launcherPartitionSetOtaBoot(table, appEntry.subtype, &error)) {
+        displayRedStripe(error.length() ? error : "Boot failed");
+        goto DONE;
+    }
+
+    {
+        String installedLabel = String(appEntry.label);
+        for (const LauncherAppMetadata &registeredApp : launcherLoadAppRegistry()) {
+            if (!launcherPartitionFindByLabel(table, registeredApp.label.c_str())) {
+                launcherRemoveAppMetadata(registeredApp.label.c_str());
+            }
+        }
+
+        LauncherAppMetadata metadata;
+        metadata.name = installedAppNameFromPath(path);
+        if (metadata.name.isEmpty()) metadata.name = installedLabel;
+        metadata.label = installedLabel;
+        launcherSaveAppMetadata(metadata);
+        lastInstalledApp = metadata.name;
+        saveIntoNVS();
+    }
+
+    success = true;
+
+DONE:
+    vTaskResume(xHandle);
+    return success;
 }
 
 /***************************************************************************************
@@ -550,13 +1451,18 @@ void updateFromSD(String path) {
     uint8_t firstThreeBytes[16];
     uint32_t spiffs_offset = 0;
     uint32_t spiffs_size = 0;
+    uint32_t spiffs_copy_size = 0;
     uint32_t app_size = 0;
     uint32_t app_offset = 0;
     bool spiffs = false;
     uint32_t fat_offset_sys = 0;
     uint32_t fat_size_sys = 0;
+    uint32_t fat_copy_size_sys = 0;
+    String fat_label_sys = "sys";
     uint32_t fat_offset_vfs = 0;
     uint32_t fat_size_vfs = 0;
+    uint32_t fat_copy_size_vfs = 0;
+    String fat_label_vfs = "vfs";
     bool fat = false;
 
     File file = SDM.open(path);
@@ -566,10 +1472,10 @@ void updateFromSD(String path) {
     file.read(firstThreeBytes, 16);
 
     if (firstThreeBytes[0] != 0xAA || firstThreeBytes[1] != 0x50 || firstThreeBytes[2] != 0x01) {
-        if (!file.seek(0x0)) goto Exit;
-        if (!performUpdate(file, file.size(), LAUNCHER_UPDATE_COMMAND_FLASH)) goto Exit;
-        lastInstalledApp = installedAppNameFromPath(path);
-        saveIntoNVS();
+        app_size = effectiveSdAppSize(file, 0, file.size());
+        if (!installFromSdDynamic(file, path, app_size, 0, false, 0, 0, 0, false, 0, 0, 0, "sys", 0, 0, 0, "vfs")) {
+            goto Exit;
+        }
         file.close();
         tft->fillScreen(BGCOLOR);
         FREE_TFT
@@ -580,48 +1486,73 @@ void updateFromSD(String path) {
             if (!file.seek(0x8000 + i)) goto Exit;
             file.read(firstThreeBytes, 16);
 
-            if ((firstThreeBytes[0x03] == 0x00 || firstThreeBytes[0x03] == 0x10 ||
+            if (firstThreeBytes[0x02] == 0x00 &&
+                (firstThreeBytes[0x03] == 0x00 || firstThreeBytes[0x03] == 0x10 ||
                  firstThreeBytes[0x03] == 0x20) &&
                 app_size == 0) {
-                app_size = (firstThreeBytes[0x0A] << 16) | (firstThreeBytes[0x0B] << 8) | 0x00;
-                app_offset = (firstThreeBytes[0x06] << 16) | (firstThreeBytes[0x07] << 8) | 0x00;
-                if (file.size() < (app_size + app_offset)) app_size = file.size() - app_offset;
-                else if (app_size > MAX_APP) app_size = MAX_APP;
+                uint32_t declared_app_size = readLe32(firstThreeBytes + 0x08);
+                app_offset = readLe32(firstThreeBytes + 0x04);
+                if (file.size() < (declared_app_size + app_offset)) {
+                    app_size = file.size() - app_offset;
+                    launcherConsolePrintf(
+                        "Using SD app tail size at 0x%06X: 0x%06X (%u bytes), declared partition was 0x%06X\n",
+                        app_offset,
+                        app_size,
+                        app_size,
+                        declared_app_size
+                    );
+                } else {
+                    app_size = declared_app_size;
+                    app_size = effectiveSdAppSize(file, app_offset, app_size);
+                }
             }
 
-            if (firstThreeBytes[3] == 0x82) {
-                spiffs_offset =
-                    (firstThreeBytes[0x06] << 16) | (firstThreeBytes[0x07] << 8) | firstThreeBytes[0x08];
-                spiffs_size = (firstThreeBytes[0x0A] << 16) | (firstThreeBytes[0x0B] << 8) | 0x00;
-                if (file.size() < spiffs_offset) spiffs = false;
-                else if (spiffs_size > MAX_SPIFFS) {
-                    spiffs_size = MAX_SPIFFS;
+            if (firstThreeBytes[0x02] == 0x01 && firstThreeBytes[3] == 0x82) {
+                spiffs_offset = readLe32(firstThreeBytes + 0x04);
+                const uint32_t declaredSpiffsSize = readLe32(firstThreeBytes + 0x08);
+                spiffs_size = declaredSpiffsSize > sdLargeSpiffsThreshold()
+                                  ? sdUseRemainingSpiffsSize()
+                                  : sdDefaultSpiffsSize();
+                spiffs_copy_size = boundedSdPartitionPayload(
+                    file,
+                    spiffs_offset,
+                    declaredSpiffsSize,
+                    spiffs_size == sdUseRemainingSpiffsSize() ? declaredSpiffsSize : spiffs_size
+                );
+                if (file.size() < spiffs_offset) {
+                    spiffs = false;
+                    spiffs_copy_size = 0;
+                } else {
                     spiffs = true;
                 }
-                if (spiffs && file.size() < (spiffs_offset + spiffs_size))
-                    spiffs_size = file.size() - spiffs_offset;
             }
 
-            if (firstThreeBytes[3] == 0x81 && firstThreeBytes[0x0C] == 0x73) {
-                fat_offset_sys =
-                    (firstThreeBytes[0x06] << 16) | (firstThreeBytes[0x07] << 8) | firstThreeBytes[0x08];
-                fat_size_sys = (firstThreeBytes[0x0A] << 16) | (firstThreeBytes[0x0B] << 8) | 0x00;
-                if (file.size() < fat_offset_sys) fat = false;
-                else fat = true;
-                if (fat && fat_size_sys > MAX_FAT_sys) fat_size_sys = MAX_FAT_sys;
-                if (fat && file.size() < (fat_offset_sys + fat_size_sys))
-                    fat_size_sys = file.size() - fat_offset_sys;
-            }
-
-            if (firstThreeBytes[3] == 0x81 && firstThreeBytes[0x0C] == 0x76) {
-                fat_offset_vfs =
-                    (firstThreeBytes[0x06] << 16) | (firstThreeBytes[0x07] << 8) | firstThreeBytes[0x08];
-                fat_size_vfs = (firstThreeBytes[0x0A] << 16) | (firstThreeBytes[0x0B] << 8) | 0x00;
-                if (file.size() < fat_offset_vfs) fat = false;
-                else fat = true;
-                if (fat && fat_size_vfs > MAX_FAT_vfs) fat_size_vfs = MAX_FAT_vfs;
-                if (fat && file.size() < (fat_offset_vfs + fat_size_vfs))
-                    fat_size_vfs = file.size() - fat_offset_vfs;
+            if (firstThreeBytes[0x02] == 0x01 && firstThreeBytes[3] == 0x81) {
+                String label = readPartitionLabel(firstThreeBytes);
+                uint32_t offset = readLe32(firstThreeBytes + 0x04);
+                uint32_t declaredSize = readLe32(firstThreeBytes + 0x08);
+                uint32_t installSize = sdFatInstallSizeForLabel(label);
+                uint32_t copySize = boundedSdPartitionPayload(file, offset, declaredSize, installSize);
+                fat = true;
+                if (label == "sys" || label == "ffat") {
+                    fat_label_sys = label;
+                    fat_offset_sys = offset;
+                    fat_size_sys = installSize;
+                    fat_copy_size_sys = copySize;
+                } else if (fat_size_vfs == 0 || label == "vfs" || label == "vsf") {
+                    fat_label_vfs = label;
+                    fat_offset_vfs = offset;
+                    fat_size_vfs = installSize;
+                    fat_copy_size_vfs = copySize;
+                }
+                launcherConsolePrintf(
+                    "Found FAT %s at 0x%06X: create 0x%06X, copy 0x%06X of declared 0x%06X\n",
+                    label.c_str(),
+                    offset,
+                    installSize,
+                    copySize,
+                    declaredSize
+                );
             }
         }
 
@@ -635,6 +1566,8 @@ void updateFromSD(String path) {
         if (!fat) {
             fat_size_sys = 0;
             fat_size_vfs = 0;
+            fat_copy_size_sys = 0;
+            fat_copy_size_vfs = 0;
             fat_offset_sys = 0;
             fat_offset_vfs = 0;
         }
@@ -659,31 +1592,27 @@ void updateFromSD(String path) {
         log_i("FATsize[0]: %d - max: %d at offset: %d", fat_size_sys, MAX_FAT_sys, fat_offset_sys);
         log_i("FATsize[1]: %d - max: %d at offset: %d", fat_size_vfs, MAX_FAT_vfs, fat_offset_vfs);
 
-        if (!file.seek(app_offset)) goto Exit;
-        if (!performUpdate(file, app_size, LAUNCHER_UPDATE_COMMAND_FLASH)) goto Exit;
-
-        prog_handler = 1; // Install SPIFFS update
-        if (spiffs) {
-            if (!file.seek(spiffs_offset)) goto Exit;
-            if (!performUpdate(file, spiffs_size, LAUNCHER_UPDATE_COMMAND_SPIFFS)) goto Exit;
+        if (!installFromSdDynamic(
+                file,
+                path,
+                app_size,
+                app_offset,
+                spiffs,
+                spiffs_offset,
+                spiffs_size,
+                spiffs_copy_size,
+                fat,
+                fat_offset_sys,
+                fat_size_sys,
+                fat_copy_size_sys,
+                fat_label_sys,
+                fat_offset_vfs,
+                fat_size_vfs,
+                fat_copy_size_vfs,
+                fat_label_vfs
+            )) {
+            goto Exit;
         }
-
-        if (fat) {
-            displayRedStripe("Formating FAT");
-            if (fat_size_sys > 0) {
-                if (!file.seek(fat_offset_sys)) goto Exit;
-                if (!performFATUpdate(file, fat_size_sys, "sys")) goto Exit;
-                else displayRedStripe("sys FAT complete");
-            }
-            displayRedStripe("Formating FAT");
-            if (fat_size_vfs > 0) {
-                if (!file.seek(fat_offset_vfs)) goto Exit;
-                if (!performFATUpdate(file, fat_size_vfs, "vfs")) goto Exit;
-                else displayRedStripe("vfs FAT complete");
-            }
-        }
-        lastInstalledApp = installedAppNameFromPath(path);
-        saveIntoNVS();
         displayRedStripe("Complete");
         launcherDelayMs(1000);
         FREE_TFT

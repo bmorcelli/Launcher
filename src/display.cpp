@@ -1,10 +1,10 @@
 #include "display.h"
+#include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
 #include "powerSave.h"
 #include "sd_functions.h"
 #include "settings.h"
-#include "idf/launcher_platform.h"
 #include <cstring>
 #include <globals.h>
 
@@ -85,6 +85,11 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
     static String displayText = "";
     static int i = 0;
     static long _lastmillis = 0;
+#if defined(E_PAPER_DISPLAY)
+    const int deadTime = 1500;
+#else
+    const int deadTime = 200;
+#endif
     if (!displayText.startsWith(text)) i = 0;
     displayText = text + "        "; // Add spaces for smooth looping
     int scrollLen = len + 8;         // Full text plus space buffer
@@ -92,7 +97,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
     if (len < coord.size) {
         // Text fits within limit, no scrolling needed
         return;
-    } else if (launcherMillis() > _lastmillis + 200) {
+    } else if (launcherMillis() > _lastmillis + deadTime) {
         String scrollingPart =
             displayText.substring(i, i + (coord.size - 1)); // Display charLimit characters at a time
         tft->fillRect(
@@ -1050,19 +1055,8 @@ void loopVersions(String _fid) {
             // Definição da matriz "Options"
             options = {
                 {"OTA Install", [=]() {
-                     installFirmware(
-                         String(fid),
-                         String(file),
-                         app_size,
-                         app_offset,
-                         spiffs,
-                         spiffs_offset,
-                         spiffs_size,
-                         nb,
-                         fat,
-                         (uint32_t *)FAT_offset,
-                         (uint32_t *)FAT_size,
-                         String(name) + " - " + String(version)
+                     installFirmwareFromManifest(
+                         String(fid), String(version), String(name) + " - " + String(version)
                      );
                  }}
             };

@@ -21,6 +21,8 @@ constexpr uint8_t kSubtypeDataNvs = PART_SUBTYPE_DATA_NVS_KEYS;
 constexpr uint8_t kSubtypeDataRf = PART_SUBTYPE_DATA_RF;
 constexpr uint8_t kSubtypeDataWifi = PART_SUBTYPE_DATA_WIFI;
 constexpr uint8_t kSubtypeDataEfuse = PART_SUBTYPE_DATA_EFUSE_EM;
+uint8_t gPartitionTableRaw[LAUNCHER_PARTITION_TABLE_SIZE];
+uint8_t gPartitionTableVerify[LAUNCHER_PARTITION_TABLE_SIZE];
 
 uint16_t readU16(const uint8_t *p) {
     return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
@@ -95,13 +97,14 @@ bool LauncherPartitionEntry::isFactoryOrTestApp() const {
 }
 
 bool launcherPartitionReadCurrent(LauncherPartitionTable &table, String *error) {
-    uint8_t raw[LAUNCHER_PARTITION_TABLE_SIZE];
-    esp_err_t err = esp_flash_read(nullptr, raw, LAUNCHER_PARTITION_TABLE_OFFSET, sizeof(raw));
+    esp_err_t err = esp_flash_read(
+        nullptr, gPartitionTableRaw, LAUNCHER_PARTITION_TABLE_OFFSET, sizeof(gPartitionTableRaw)
+    );
     if (err != ESP_OK) {
         setError(error, "Could not read partition table from flash");
         return false;
     }
-    return launcherPartitionParse(raw, sizeof(raw), table, error);
+    return launcherPartitionParse(gPartitionTableRaw, sizeof(gPartitionTableRaw), table, error);
 }
 
 bool launcherPartitionParse(
@@ -276,24 +279,50 @@ bool launcherPartitionValidate(const LauncherPartitionTable &table, String *erro
 }
 
 bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, String *error) {
-    uint8_t raw[LAUNCHER_PARTITION_TABLE_SIZE];
-    if (!launcherPartitionBuild(table, raw, sizeof(raw), error)) return false;
+    if (!launcherPartitionBuild(table, gPartitionTableRaw, sizeof(gPartitionTableRaw), error)) return false;
 
-    esp_err_t err = esp_flash_erase_region(
-        nullptr, LAUNCHER_PARTITION_TABLE_OFFSET, LAUNCHER_PARTITION_TABLE_SIZE
-    );
-    if (err != ESP_OK) {
-        setError(error, "Could not erase partition table sector");
+    if (gPartitionTableRaw[0] != 0xAA || gPartitionTableRaw[1] != 0x50) {
+        setError(error, "Generated partition table has invalid magic");
         return false;
     }
 
-    err = esp_flash_write(nullptr, raw, LAUNCHER_PARTITION_TABLE_OFFSET, sizeof(raw));
-    if (err != ESP_OK) {
-        setError(error, "Could not write generated partition table");
-        return false;
+    constexpr size_t kWriteChunk = 256;
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        esp_err_t err = esp_flash_erase_region(
+            nullptr, LAUNCHER_PARTITION_TABLE_OFFSET, LAUNCHER_PARTITION_TABLE_SIZE
+        );
+        if (err != ESP_OK) {
+            setError(error, "Could not erase partition table sector");
+            continue;
+        }
+
+        bool writeOk = true;
+        for (size_t offset = 0; offset < sizeof(gPartitionTableRaw); offset += kWriteChunk) {
+            size_t len = std::min(kWriteChunk, sizeof(gPartitionTableRaw) - offset);
+            err = esp_flash_write(
+                nullptr, gPartitionTableRaw + offset, LAUNCHER_PARTITION_TABLE_OFFSET + offset, len
+            );
+            if (err != ESP_OK) {
+                writeOk = false;
+                break;
+            }
+        }
+        if (!writeOk) {
+            setError(error, "Could not write generated partition table");
+            continue;
+        }
+
+        err = esp_flash_read(
+            nullptr, gPartitionTableVerify, LAUNCHER_PARTITION_TABLE_OFFSET, sizeof(gPartitionTableVerify)
+        );
+        if (err == ESP_OK &&
+            memcmp(gPartitionTableRaw, gPartitionTableVerify, sizeof(gPartitionTableRaw)) == 0) {
+            return true;
+        }
+        setError(error, "Partition table verify failed");
     }
 
-    return true;
+    return false;
 }
 
 LauncherPartitionEntry *launcherPartitionFindByLabel(LauncherPartitionTable &table, const char *label) {
@@ -488,8 +517,8 @@ bool launcherPartitionCreateData(
 
 uint32_t launcherPartitionDefaultFatSize(const char *label) {
     if (label && strcmp(label, "sys") == 0) return 0x100000;
-    if (label && strcmp(label, "vfs") == 0) return 0x70000;
-    return 0x80000;
+    if (label && strcmp(label, "ffat") == 0) return 0x100000;
+    return 0x70000;
 }
 
 bool launcherPartitionSetOtaBoot(

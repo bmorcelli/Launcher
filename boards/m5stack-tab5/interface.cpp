@@ -1,8 +1,8 @@
-#include "powerSave.h"
 #include "idf/idf_wifi.h"
+#include "idf/launcher_platform.h"
+#include "powerSave.h"
 #include <M5Unified.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -180,9 +180,9 @@ void reboot() {
         M5.Rtc.setAlarmIRQ(alarm_dt.date, alarm_dt.time);
     }
     for (int i = 0; i < 3; ++i) {
-        ioe.launcherGpioWrite(4, HIGH);
+        ioe.digitalWrite(4, HIGH);
         launcherDelayMs(100);
-        ioe.launcherGpioWrite(4, LOW);
+        ioe.digitalWrite(4, LOW);
         launcherDelayMs(100);
     }
 }

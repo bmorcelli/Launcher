@@ -34,7 +34,11 @@ uint32_t alignDownLocal(uint32_t value, uint32_t alignment) {
     return value & ~(alignment - 1);
 }
 
-uint32_t partitionAlignment(uint8_t type) { return type == 0x00 ? 0x10000 : LAUNCHER_FLASH_SECTOR_SIZE; }
+uint32_t partitionAlignment(uint8_t type, uint8_t subtype = 0xFF) {
+    if (type == 0x00) return 0x10000;
+    if (type == 0x01 && (subtype == 0x81 || subtype == 0x82 || subtype == 0x83)) return 0x10000;
+    return LAUNCHER_FLASH_SECTOR_SIZE;
+}
 
 uint32_t parseSizeText(String value) {
     value.trim();
@@ -315,10 +319,11 @@ String partitionRow(const LauncherPartitionEntry &entry) {
     row += partitionTypeName(entry);
     row += "/";
     row += partitionSubtypeName(entry);
-    row += " ";
+    row += " ofs=";
     row += hex32(entry.offset);
-    row += " ";
-    row += sizeText(entry.size);
+    row += " size=";
+    row += hex32(entry.size);
+    row += " (" + sizeText(entry.size) + ")";
     return row;
 }
 
@@ -406,7 +411,7 @@ bool editPartitionSize(LauncherPartitionTable &table, const LauncherPartitionEnt
         return false;
     }
 
-    const uint32_t alignment = partitionAlignment(table.entries[index].type);
+    const uint32_t alignment = partitionAlignment(table.entries[index].type, table.entries[index].subtype);
     uint32_t minOffset = LAUNCHER_PARTITION_TABLE_OFFSET + LAUNCHER_PARTITION_TABLE_SIZE;
     uint32_t maxOffset = table.flashSize;
     const uint32_t currentStart = table.entries[index].offset;
@@ -505,7 +510,7 @@ bool createPartition(
         if (label == "" || label == String(KEY_ESCAPE)) return false;
     }
 
-    const uint32_t alignment = partitionAlignment(type);
+    const uint32_t alignment = partitionAlignment(type, subtype);
     uint32_t requestedSize = type == 0x00 ? 0x100000 : launcherPartitionDefaultFatSize(label.c_str());
     if (subtype == 0x82) requestedSize = 0x10000;
     requestedSize = alignUpLocal(requestedSize, alignment);
@@ -888,10 +893,11 @@ void partList() {
 
         for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
             if (range.size == 0) continue;
-            String row = "  FREE ";
+            String row = "  FREE ofs=";
             row += hex32(range.offset);
-            row += " ";
-            row += sizeText(range.size);
+            row += " size=";
+            row += hex32(range.size);
+            row += " (" + sizeText(range.size) + ")";
             partitionOptions.push_back(
                 {row,
                  [&table, &dirty, range]() {
@@ -906,7 +912,7 @@ void partList() {
                          )) {
                          freeOptions.push_back({"Add FAT", [&]() { selected = 2; }});
                      }
-                     if (rangeHasFreeSpaceFor(range, 0x10000, LAUNCHER_FLASH_SECTOR_SIZE)) {
+                     if (rangeHasFreeSpaceFor(range, 0x10000, 0x10000)) {
                          freeOptions.push_back({"Add SPIFFS", [&]() { selected = 3; }});
                      }
                      freeOptions.push_back({"Back", [&]() { selected = 4; }});

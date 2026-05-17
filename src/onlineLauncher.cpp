@@ -1,13 +1,16 @@
 #include "onlineLauncher.h"
+#include "app_registry.h"
 #include "display.h"
 #include "idf/idf_http_client.h"
 #include "idf/idf_update.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
+#include "partition_table_model.h"
 #include "powerSave.h"
 #include "sd_functions.h"
 #include "settings.h"
+#include <esp_ota_ops.h>
 #include <globals.h>
 
 #define M5_SERVER_PATH "https://m5burner-cdn.m5stack.com/firmware/"
@@ -279,6 +282,15 @@ struct HttpUpdateContext {
     bool started;
 };
 
+struct RawHttpUpdateContext {
+    uint32_t address;
+    size_t partitionSize;
+    size_t expected;
+    size_t written;
+    bool appImage;
+    bool started;
+};
+
 bool launcherUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
     HttpUpdateContext *updateCtx = static_cast<HttpUpdateContext *>(ctx);
     if (!updateCtx) return false;
@@ -292,6 +304,876 @@ bool launcherUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
     updateCtx->written += wrote;
     progressHandler(updateCtx->written, updateCtx->expected);
     return true;
+}
+
+bool launcherRawUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
+    RawHttpUpdateContext *updateCtx = static_cast<RawHttpUpdateContext *>(ctx);
+    if (!updateCtx) return false;
+    if (!updateCtx->started) {
+        if (!launcherRawUpdateBegin(
+                updateCtx->address, updateCtx->partitionSize, updateCtx->expected, updateCtx->appImage
+            )) {
+            return false;
+        }
+        updateCtx->started = true;
+        progressHandler(0, updateCtx->expected);
+    }
+    size_t wrote = launcherRawUpdateWrite(data, len);
+    if (wrote != len) return false;
+    updateCtx->written += wrote;
+    progressHandler(updateCtx->written, updateCtx->expected);
+    return true;
+}
+
+String nextOnlineAppLabel(const LauncherPartitionTable &table) {
+    int highest = 0;
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (strncmp(entry.label, "app", 3) != 0) continue;
+        const char *cursor = entry.label + 3;
+        if (*cursor == '\0') continue;
+        bool numeric = true;
+        int value = 0;
+        while (*cursor) {
+            if (*cursor < '0' || *cursor > '9') {
+                numeric = false;
+                break;
+            }
+            value = value * 10 + (*cursor - '0');
+            cursor++;
+        }
+        if (numeric && value > highest) highest = value;
+    }
+    return "app" + String(highest + 1);
+}
+
+bool findOrCreateDataPartition(
+    LauncherPartitionTable &table,
+    uint8_t subtype,
+    const char *label,
+    uint32_t requestedSize,
+    LauncherPartitionEntry &entry,
+    String &error
+) {
+    LauncherPartitionEntry *existing = launcherPartitionFindByLabel(table, label);
+    if (existing) {
+        if (existing->isData() && existing->subtype == subtype && existing->size >= requestedSize) {
+            entry = *existing;
+            return true;
+        }
+        error = String("Partition ") + label + " is too small or incompatible";
+        return false;
+    }
+    return launcherPartitionCreateData(table, subtype, label, requestedSize, &entry, &error);
+}
+
+uint32_t alignOnlineUp(uint32_t value, uint32_t alignment) {
+    if (alignment == 0) return value;
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+uint32_t onlineDefaultSpiffsSize() {
+    return 0x70000;
+}
+
+uint32_t onlineLargeSpiffsThreshold() {
+    return 0x500000;
+}
+
+uint32_t onlineUseRemainingSpiffsSize() {
+    return 0xFFFFFFFF;
+}
+
+bool createDataInLargestFreeRange(
+    LauncherPartitionTable &table,
+    uint8_t subtype,
+    const char *label,
+    LauncherPartitionEntry &entry,
+    String &error
+) {
+    LauncherPartitionRange best;
+    for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
+        const uint32_t alignedOffset = alignOnlineUp(range.offset, LAUNCHER_FLASH_SECTOR_SIZE);
+        if (alignedOffset < range.offset || range.size < alignedOffset - range.offset) continue;
+        const uint32_t alignedSize = (range.size - (alignedOffset - range.offset)) & ~(LAUNCHER_FLASH_SECTOR_SIZE - 1);
+        if (alignedSize > best.size) best = {alignedOffset, alignedSize};
+    }
+    if (best.size == 0) {
+        error = "No free partition range large enough";
+        return false;
+    }
+
+    LauncherPartitionEntry created;
+    created.type = 0x01;
+    created.subtype = subtype;
+    created.offset = best.offset;
+    created.size = best.size;
+    created.flags = 0;
+    memset(created.label, 0, sizeof(created.label));
+    strncpy(created.label, label, 15);
+    if (!launcherPartitionAdd(table, created, &error)) return false;
+    entry = created;
+    return true;
+}
+
+String onlineHexSize(uint32_t value) {
+    char buffer[12];
+    snprintf(buffer, sizeof(buffer), "0x%06lX", static_cast<unsigned long>(value));
+    return String(buffer);
+}
+
+String onlineHumanSize(uint32_t value) {
+    if (value >= 1024 * 1024 && value % (1024 * 1024) == 0) {
+        return String(value / (1024 * 1024)) + "MB";
+    }
+    if (value >= 1024 && value % 1024 == 0) {
+        return String(value / 1024) + "KB";
+    }
+    return String(value) + " bytes";
+}
+
+String onlineSizeLabel(uint32_t value) {
+    return onlineHexSize(value) + " (" + onlineHumanSize(value) + ")";
+}
+
+bool removeEntryByOffset(LauncherPartitionTable &table, uint32_t offset) {
+    for (auto it = table.entries.begin(); it != table.entries.end(); ++it) {
+        if (it->offset == offset) {
+            table.entries.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isReplaceableOnlineApp(const LauncherPartitionEntry &entry) {
+    if (!entry.isOtaApp()) return false;
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (running && running->address == entry.offset) return false;
+    return true;
+}
+
+bool isRemovableOnlineInstallData(const LauncherPartitionEntry &entry) {
+    if (!entry.isData()) return false;
+    if (entry.subtype != 0x81 && entry.subtype != 0x82 && entry.subtype != 0x83) return false;
+    return strcmp(entry.label, "spiffs") == 0 || strcmp(entry.label, "sys") == 0 ||
+           strcmp(entry.label, "vfs") == 0;
+}
+
+bool removeOnlineInstallDataPartitions(LauncherPartitionTable &table, bool removeSpiffs) {
+    bool removed = false;
+    for (auto it = table.entries.begin(); it != table.entries.end();) {
+        bool removable = isRemovableOnlineInstallData(*it);
+        if (removable && !removeSpiffs && strcmp(it->label, "spiffs") == 0) removable = false;
+        if (removable) {
+            it = table.entries.erase(it);
+            removed = true;
+        } else {
+            ++it;
+        }
+    }
+    return removed;
+}
+
+bool addManualAppEntry(
+    LauncherPartitionTable &table,
+    uint8_t subtype,
+    const char *label,
+    uint32_t offset,
+    uint32_t size,
+    LauncherPartitionEntry &created,
+    String &error
+) {
+    LauncherPartitionEntry entry;
+    entry.type = 0x00;
+    entry.subtype = subtype;
+    entry.offset = offset;
+    entry.size = alignOnlineUp(size, LAUNCHER_FLASH_SECTOR_SIZE);
+    entry.flags = 0;
+    memset(entry.label, 0, sizeof(entry.label));
+    strncpy(entry.label, label, 15);
+    if (!launcherPartitionAdd(table, entry, &error)) return false;
+    created = entry;
+    return true;
+}
+
+bool prepareDynamicDataPartitions(
+    LauncherPartitionTable &table,
+    bool spiffs,
+    uint32_t spiffsSize,
+    LauncherPartitionEntry &spiffsEntry,
+    bool &hasSpiffsEntry,
+    bool fat,
+    uint32_t fatSize[2],
+    String fatLabel[2],
+    LauncherPartitionEntry fatEntry[2],
+    bool hasFatEntry[2],
+    String &error
+) {
+    hasSpiffsEntry = false;
+    hasFatEntry[0] = false;
+    hasFatEntry[1] = false;
+
+    auto prepareSpiffs = [&]() {
+        LauncherPartitionEntry *existing = launcherPartitionFindByLabel(table, "spiffs");
+        if (existing) {
+            if (!existing->isData() || existing->subtype != 0x82) {
+                error = "Partition spiffs is incompatible";
+                return false;
+            }
+            if (spiffsSize != onlineUseRemainingSpiffsSize() && existing->size < spiffsSize) {
+                error = "Partition spiffs is too small or incompatible";
+                return false;
+            }
+            spiffsEntry = *existing;
+        } else if (spiffsSize == onlineUseRemainingSpiffsSize()) {
+            if (!createDataInLargestFreeRange(table, 0x82, "spiffs", spiffsEntry, error)) return false;
+        } else {
+            if (!findOrCreateDataPartition(table, 0x82, "spiffs", spiffsSize, spiffsEntry, error)) return false;
+        }
+        hasSpiffsEntry = true;
+        return true;
+    };
+
+    if (spiffs && spiffsSize > 0 && spiffsSize != onlineUseRemainingSpiffsSize()) {
+        if (!prepareSpiffs()) return false;
+    }
+
+    if (fat) {
+        for (int i = 0; i < 2; ++i) {
+            if (fatSize[i] == 0) continue;
+            const char *label = fatLabel[i].isEmpty() ? (i == 0 ? "sys" : "vfs") : fatLabel[i].c_str();
+            uint32_t desiredSize = launcherPartitionDefaultFatSize(label);
+            if (desiredSize < fatSize[i]) desiredSize = fatSize[i];
+            if (!findOrCreateDataPartition(table, 0x81, label, desiredSize, fatEntry[i], error)) return false;
+            hasFatEntry[i] = true;
+        }
+    }
+
+    if (spiffs && spiffsSize == onlineUseRemainingSpiffsSize()) {
+        if (!prepareSpiffs()) return false;
+    }
+    return true;
+}
+
+bool selectInstallLayout(
+    LauncherPartitionTable &table,
+    size_t updateSize,
+    const String &defaultLabel,
+    bool spiffs,
+    uint32_t spiffsSize,
+    bool fat,
+    uint32_t fatSize[2],
+    String fatLabel[2],
+    LauncherPartitionEntry &appEntry,
+    LauncherPartitionEntry &spiffsEntry,
+    bool &hasSpiffsEntry,
+    LauncherPartitionEntry fatEntry[2],
+    bool hasFatEntry[2],
+    String &error
+) {
+    std::vector<LauncherPartitionEntry> originalApps;
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (isReplaceableOnlineApp(entry)) originalApps.push_back(entry);
+    }
+
+    LauncherPartitionTable directCandidate = table;
+    LauncherPartitionEntry directApp;
+    LauncherPartitionEntry directSpiffs;
+    LauncherPartitionEntry directFat[2];
+    bool directHasSpiffs = false;
+    bool directHasFat[2] = {false, false};
+    if (launcherPartitionCreateOtaApp(directCandidate, updateSize, defaultLabel.c_str(), &directApp, &error) &&
+        prepareDynamicDataPartitions(
+            directCandidate,
+            spiffs,
+            spiffsSize,
+            directSpiffs,
+            directHasSpiffs,
+            fat,
+            fatSize,
+            fatLabel,
+            directFat,
+            directHasFat,
+            error
+        ) &&
+        launcherPartitionValidate(directCandidate, &error)) {
+        table = directCandidate;
+        appEntry = directApp;
+        spiffsEntry = directSpiffs;
+        hasSpiffsEntry = directHasSpiffs;
+        for (int i = 0; i < 2; ++i) {
+            fatEntry[i] = directFat[i];
+            hasFatEntry[i] = directHasFat[i];
+        }
+        return true;
+    }
+
+    directCandidate = table;
+    directApp = LauncherPartitionEntry();
+    directSpiffs = LauncherPartitionEntry();
+    directFat[0] = LauncherPartitionEntry();
+    directFat[1] = LauncherPartitionEntry();
+    directHasSpiffs = false;
+    directHasFat[0] = false;
+    directHasFat[1] = false;
+    if (prepareDynamicDataPartitions(
+            directCandidate,
+            spiffs,
+            spiffsSize,
+            directSpiffs,
+            directHasSpiffs,
+            fat,
+            fatSize,
+            fatLabel,
+            directFat,
+            directHasFat,
+            error
+        ) &&
+        launcherPartitionCreateOtaApp(directCandidate, updateSize, defaultLabel.c_str(), &directApp, &error) &&
+        launcherPartitionValidate(directCandidate, &error)) {
+        table = directCandidate;
+        appEntry = directApp;
+        spiffsEntry = directSpiffs;
+        hasSpiffsEntry = directHasSpiffs;
+        for (int i = 0; i < 2; ++i) {
+            fatEntry[i] = directFat[i];
+            hasFatEntry[i] = directHasFat[i];
+        }
+        return true;
+    }
+
+    if (originalApps.empty() &&
+        std::any_of(table.entries.begin(), table.entries.end(), isRemovableOnlineInstallData)) {
+        for (int removalPass = 0; removalPass < 2; ++removalPass) {
+            const bool removeSpiffs = removalPass == 1;
+            directCandidate = table;
+            directApp = LauncherPartitionEntry();
+            directSpiffs = LauncherPartitionEntry();
+            directFat[0] = LauncherPartitionEntry();
+            directFat[1] = LauncherPartitionEntry();
+            directHasSpiffs = false;
+            directHasFat[0] = false;
+            directHasFat[1] = false;
+
+            if (!removeOnlineInstallDataPartitions(directCandidate, removeSpiffs)) continue;
+            if (launcherPartitionCreateOtaApp(directCandidate, updateSize, defaultLabel.c_str(), &directApp, &error) &&
+                prepareDynamicDataPartitions(
+                    directCandidate,
+                    spiffs,
+                    spiffsSize,
+                    directSpiffs,
+                    directHasSpiffs,
+                    fat,
+                    fatSize,
+                    fatLabel,
+                    directFat,
+                    directHasFat,
+                    error
+                ) &&
+                launcherPartitionValidate(directCandidate, &error)) {
+                table = directCandidate;
+                appEntry = directApp;
+                spiffsEntry = directSpiffs;
+                hasSpiffsEntry = directHasSpiffs;
+                for (int i = 0; i < 2; ++i) {
+                    fatEntry[i] = directFat[i];
+                    hasFatEntry[i] = directHasFat[i];
+                }
+                launcherConsolePrintf(
+                    "OTA recreated %s data partition(s) for initial install\n",
+                    removeSpiffs ? "all" : "FAT"
+                );
+                return true;
+            }
+        }
+    }
+
+    launcherConsolePrintf("OTA direct layout failed: %s\n", error.c_str());
+    for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
+        launcherConsolePrintf("OTA free range: offset=0x%06X size=0x%06X\n", range.offset, range.size);
+    }
+
+    LauncherPartitionTable original = table;
+    std::vector<Option> choices;
+    std::vector<String> choiceLabels;
+    choices.push_back({String("Need ") + onlineSizeLabel(updateSize), []() {}});
+    choiceLabels.push_back(choices.back().label);
+
+    auto addChoice = [&](const String &label,
+                         const LauncherPartitionTable &candidate,
+                         const LauncherPartitionEntry &candidateApp,
+                         const LauncherPartitionEntry &candidateSpiffs,
+                         bool candidateHasSpiffs,
+                         const LauncherPartitionEntry candidateFat[2],
+                         const bool candidateHasFat[2]) {
+        for (const String &existingLabel : choiceLabels) {
+            if (existingLabel == label) return;
+        }
+        choiceLabels.push_back(label);
+        choices.push_back({label,
+                           [&table,
+                            &appEntry,
+                            &spiffsEntry,
+                            &hasSpiffsEntry,
+                            fatEntry,
+                            hasFatEntry,
+                            candidate,
+                            candidateApp,
+                            candidateSpiffs,
+                            candidateHasSpiffs,
+                            candidateFat0 = candidateFat[0],
+                            candidateFat1 = candidateFat[1],
+                            candidateHasFat0 = candidateHasFat[0],
+                            candidateHasFat1 = candidateHasFat[1]]() mutable {
+                               table = candidate;
+                               appEntry = candidateApp;
+                               spiffsEntry = candidateSpiffs;
+                               hasSpiffsEntry = candidateHasSpiffs;
+                               fatEntry[0] = candidateFat0;
+                               fatEntry[1] = candidateFat1;
+                               hasFatEntry[0] = candidateHasFat0;
+                               hasFatEntry[1] = candidateHasFat1;
+                           }});
+    };
+
+    for (const LauncherPartitionEntry &entry : original.entries) {
+        if (!isReplaceableOnlineApp(entry) || entry.size < updateSize) continue;
+        LauncherPartitionTable candidate = original;
+        LauncherPartitionEntry candidateApp = entry;
+        LauncherPartitionEntry candidateSpiffs;
+        LauncherPartitionEntry candidateFat[2];
+        bool candidateHasSpiffs = false;
+        bool candidateHasFat[2] = {false, false};
+        if (prepareDynamicDataPartitions(
+                candidate,
+                spiffs,
+                spiffsSize,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                fat,
+                fatSize,
+                fatLabel,
+                candidateFat,
+                candidateHasFat,
+                error
+            ) &&
+            launcherPartitionValidate(candidate, &error)) {
+            addChoice(
+                String("Use ") + entry.label + " partition",
+                candidate,
+                candidateApp,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFat,
+                candidateHasFat
+            );
+        }
+    }
+
+    std::vector<LauncherPartitionEntry> apps = originalApps;
+    std::sort(apps.begin(), apps.end(), [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) {
+        return a.offset < b.offset;
+    });
+
+    for (size_t start = 0; start < apps.size(); ++start) {
+        if (apps[start].size >= updateSize) continue;
+        LauncherPartitionTable candidate = original;
+        removeEntryByOffset(candidate, apps[start].offset);
+
+        LauncherPartitionEntry candidateApp;
+        if (!addManualAppEntry(
+                candidate,
+                apps[start].subtype,
+                apps[start].label,
+                apps[start].offset,
+                updateSize,
+                candidateApp,
+                error
+            )) {
+            continue;
+        }
+
+        LauncherPartitionEntry candidateSpiffs;
+        LauncherPartitionEntry candidateFat[2];
+        bool candidateHasSpiffs = false;
+        bool candidateHasFat[2] = {false, false};
+        if (prepareDynamicDataPartitions(
+                candidate,
+                spiffs,
+                spiffsSize,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                fat,
+                fatSize,
+                fatLabel,
+                candidateFat,
+                candidateHasFat,
+                error
+            ) &&
+            launcherPartitionValidate(candidate, &error)) {
+            addChoice(
+                String("Repartition ") + apps[start].label + " + free",
+                candidate,
+                candidateApp,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFat,
+                candidateHasFat
+            );
+        }
+    }
+
+    if (std::any_of(original.entries.begin(), original.entries.end(), isRemovableOnlineInstallData)) {
+        for (int removalPass = 0; removalPass < 2 && choices.size() == 1; ++removalPass) {
+            const bool removeSpiffs = removalPass == 1;
+            LauncherPartitionTable candidate = original;
+            if (!removeOnlineInstallDataPartitions(candidate, removeSpiffs)) continue;
+
+            LauncherPartitionEntry candidateApp;
+            if (!launcherPartitionCreateOtaApp(candidate, updateSize, defaultLabel.c_str(), &candidateApp, &error)) {
+                continue;
+            }
+
+            LauncherPartitionEntry candidateSpiffs;
+            LauncherPartitionEntry candidateFat[2];
+            bool candidateHasSpiffs = false;
+            bool candidateHasFat[2] = {false, false};
+            if (!prepareDynamicDataPartitions(
+                    candidate,
+                    spiffs,
+                    spiffsSize,
+                    candidateSpiffs,
+                    candidateHasSpiffs,
+                    fat,
+                    fatSize,
+                    fatLabel,
+                    candidateFat,
+                    candidateHasFat,
+                    error
+                ) ||
+                !launcherPartitionValidate(candidate, &error)) {
+                continue;
+            }
+
+            addChoice(
+                removeSpiffs ? "Remove data + use free" : "Remove FAT data + use free",
+                candidate,
+                candidateApp,
+                candidateSpiffs,
+                candidateHasSpiffs,
+                candidateFat,
+                candidateHasFat
+            );
+        }
+    }
+
+    for (size_t start = 0; start < apps.size(); ++start) {
+        uint32_t rangeStart = apps[start].offset;
+        uint32_t rangeEnd = apps[start].offset + apps[start].size;
+        for (size_t end = start; end < apps.size(); ++end) {
+            if (end > start && apps[end].offset != rangeEnd) break;
+            if (end == start) continue;
+            rangeEnd = apps[end].offset + apps[end].size;
+            uint32_t usableStart = alignOnlineUp(rangeStart, 0x10000);
+            if (rangeEnd <= usableStart || rangeEnd - usableStart < updateSize) continue;
+
+            LauncherPartitionTable candidate = original;
+            for (size_t i = start; i <= end; ++i) removeEntryByOffset(candidate, apps[i].offset);
+
+            LauncherPartitionEntry candidateApp;
+            if (!addManualAppEntry(
+                    candidate,
+                    apps[start].subtype,
+                    apps[start].label,
+                    usableStart,
+                    updateSize,
+                    candidateApp,
+                    error
+                )) {
+                continue;
+            }
+
+            LauncherPartitionEntry candidateSpiffs;
+            LauncherPartitionEntry candidateFat[2];
+            bool candidateHasSpiffs = false;
+            bool candidateHasFat[2] = {false, false};
+            if (!prepareDynamicDataPartitions(
+                    candidate,
+                    spiffs,
+                    spiffsSize,
+                    candidateSpiffs,
+                    candidateHasSpiffs,
+                    fat,
+                    fatSize,
+                    fatLabel,
+                    candidateFat,
+                    candidateHasFat,
+                    error
+                ) ||
+                !launcherPartitionValidate(candidate, &error)) {
+                continue;
+            }
+
+            String label = String("Repartition ") + apps[start].label + "-" + apps[end].label;
+            addChoice(label, candidate, candidateApp, candidateSpiffs, candidateHasSpiffs, candidateFat, candidateHasFat);
+        }
+    }
+
+    const bool needsDataRemoval = choices.size() == 1;
+    if (needsDataRemoval && std::any_of(original.entries.begin(), original.entries.end(), isRemovableOnlineInstallData)) {
+        for (int removalPass = 0; removalPass < 2 && choices.size() == 1; ++removalPass) {
+            const bool removeSpiffs = removalPass == 1;
+        for (size_t start = 0; start < apps.size(); ++start) {
+            uint32_t rangeStart = apps[start].offset;
+            uint32_t rangeEnd = apps[start].offset + apps[start].size;
+            for (size_t end = start; end < apps.size(); ++end) {
+                if (end > start && apps[end].offset != rangeEnd) break;
+                rangeEnd = apps[end].offset + apps[end].size;
+
+                LauncherPartitionTable candidate = original;
+                for (size_t i = start; i <= end; ++i) removeEntryByOffset(candidate, apps[i].offset);
+                if (!removeOnlineInstallDataPartitions(candidate, removeSpiffs)) continue;
+
+                LauncherPartitionEntry candidateApp;
+                const uint32_t usableStart = alignOnlineUp(rangeStart, 0x10000);
+                if (!addManualAppEntry(
+                        candidate,
+                        apps[start].subtype,
+                        apps[start].label,
+                        usableStart,
+                        updateSize,
+                        candidateApp,
+                        error
+                    )) {
+                    continue;
+                }
+
+                LauncherPartitionEntry candidateSpiffs;
+                LauncherPartitionEntry candidateFat[2];
+                bool candidateHasSpiffs = false;
+                bool candidateHasFat[2] = {false, false};
+                if (!prepareDynamicDataPartitions(
+                        candidate,
+                        spiffs,
+                        spiffsSize,
+                        candidateSpiffs,
+                        candidateHasSpiffs,
+                        fat,
+                        fatSize,
+                        fatLabel,
+                        candidateFat,
+                        candidateHasFat,
+                        error
+                    ) ||
+                    !launcherPartitionValidate(candidate, &error)) {
+                    continue;
+                }
+
+                String label = String("Remove ") + apps[start].label;
+                if (end > start) label += String("-") + apps[end].label;
+                label += removeSpiffs ? " + free + all data" : " + free + FAT data";
+                addChoice(label, candidate, candidateApp, candidateSpiffs, candidateHasSpiffs, candidateFat, candidateHasFat);
+            }
+        }
+        }
+    }
+
+    choices.push_back({"Cancel", []() {}});
+    const int selected = loopOptions(choices);
+    if (selected <= 0 || selected == static_cast<int>(choices.size()) - 1) {
+        error = "No install target selected";
+        return false;
+    }
+
+    if (appEntry.offset == 0) {
+        error = "Selected install target failed";
+        return false;
+    }
+    return true;
+}
+
+bool flashRawRangeFromHttp(
+    const String &url,
+    uint32_t sourceOffset,
+    size_t imageSize,
+    const LauncherPartitionEntry &target,
+    bool appImage,
+    const char *hwid = nullptr
+) {
+    RawHttpUpdateContext update = {target.offset, target.size, imageSize, 0, appImage, false};
+    LauncherHttpResponse response;
+    bool ok = launcherHttpGetRange(
+                  url.c_str(), sourceOffset, imageSize, launcherRawUpdateHttpCb, &update, &response, hwid
+              ) &&
+              (response.status == 206 || response.content_length == static_cast<int64_t>(imageSize)) &&
+              update.written == imageSize && launcherRawUpdateEnd();
+    if (!ok) {
+        launcherConsolePrintf(
+            "HTTP range flash failed: status=%d len=%lld written=%u expected=%u\n",
+            response.status,
+            static_cast<long long>(response.content_length),
+            static_cast<unsigned>(update.written),
+            static_cast<unsigned>(imageSize)
+        );
+    }
+    if (!ok) launcherRawUpdateEnd();
+    return ok;
+}
+
+bool installFirmwareDynamic(
+    const String &fileAddr,
+    const String &file,
+    uint32_t appSize,
+    uint32_t appPartitionSize,
+    uint32_t appOffset,
+    bool spiffs,
+    uint32_t spiffsOffset,
+    uint32_t spiffsSize,
+    uint32_t spiffsCopySize,
+    bool nb,
+    bool fat,
+    uint32_t fatOffset[2],
+    uint32_t fatSize[2],
+    uint32_t fatCopySize[2],
+    String fatLabel[2],
+    const String &installedName
+) {
+    String error;
+    LauncherPartitionTable table;
+    if (!launcherPartitionReadCurrent(table, &error)) {
+        displayRedStripe(error.length() ? error : "Partition read failed");
+        return false;
+    }
+
+    size_t updateSize = appSize;
+    String hwid = String(launcherWifiMac().c_str());
+    if (updateSize == 0) {
+        size_t remoteSize = 0;
+        if (!getRemoteFileSize(fileAddr, remoteSize, hwid.c_str())) {
+            displayRedStripe("Size failed");
+            return false;
+        }
+        if (nb) {
+            updateSize = remoteSize;
+        } else {
+            if (appOffset >= remoteSize) {
+                displayRedStripe("Bad app offset");
+                return false;
+            }
+            updateSize = remoteSize - appOffset;
+        }
+    }
+    if (updateSize == 0) {
+        displayRedStripe("Invalid app size");
+        return false;
+    }
+    if (appPartitionSize == 0 || appPartitionSize < updateSize) appPartitionSize = updateSize;
+
+    String appLabel = nextOnlineAppLabel(table);
+    LauncherPartitionEntry appEntry;
+    LauncherPartitionEntry spiffsEntry;
+    bool hasSpiffsEntry = false;
+    LauncherPartitionEntry fatEntry[2];
+    bool hasFatEntry[2] = {false, false};
+
+    if (!selectInstallLayout(
+            table,
+            appPartitionSize,
+            appLabel,
+            spiffs,
+            spiffsSize,
+            fat,
+            fatSize,
+            fatLabel,
+            appEntry,
+            spiffsEntry,
+            hasSpiffsEntry,
+            fatEntry,
+            hasFatEntry,
+            error
+        )) {
+        launcherConsolePrintf("Dynamic install layout failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "No install space");
+        return false;
+    }
+
+    vTaskSuspend(xHandle);
+    bool success = false;
+    displayRedStripe("Installing APP");
+    prog_handler = 0;
+    progressHandler(0, updateSize);
+    if (!flashRawRangeFromHttp(fileAddr, nb ? 0 : appOffset, updateSize, appEntry, true, hwid.c_str())) {
+        displayRedStripe(String("APP: ") + launcherUpdateLastErrorName());
+        goto DONE;
+    }
+
+    if (hasSpiffsEntry) {
+        if (spiffsCopySize > 0) {
+            const uint32_t copySize = spiffsCopySize > spiffsEntry.size ? spiffsEntry.size : spiffsCopySize;
+            if (copySize > 0) {
+                displayRedStripe("Installing SPIFFS");
+                prog_handler = 1;
+                progressHandler(0, copySize);
+                if (!flashRawRangeFromHttp(fileAddr, spiffsOffset, copySize, spiffsEntry, false, hwid.c_str())) {
+                    displayRedStripe(String("SPIFFS: ") + launcherUpdateLastErrorName());
+                    goto DONE;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < 2; ++i) {
+        if (!hasFatEntry[i]) continue;
+        if (fatCopySize[i] == 0) continue;
+        displayRedStripe("Installing FAT");
+        prog_handler = 1;
+        progressHandler(0, fatCopySize[i]);
+        if (!flashRawRangeFromHttp(fileAddr, fatOffset[i], fatCopySize[i], fatEntry[i], false, hwid.c_str())) {
+            displayRedStripe(String("FAT: ") + launcherUpdateLastErrorName());
+            goto DONE;
+        }
+    }
+
+    displayRedStripe("Writing table");
+    if (!launcherPartitionWriteGeneratedTable(table, &error)) {
+        displayRedStripe(error.length() ? error : "Table failed");
+        goto DONE;
+    }
+
+    displayRedStripe("Setting boot");
+    if (!launcherPartitionSetOtaBoot(table, appEntry.subtype, &error)) {
+        displayRedStripe(error.length() ? error : "Boot failed");
+        goto DONE;
+    }
+
+    {
+        String installedLabel = String(appEntry.label);
+        for (const LauncherAppMetadata &registeredApp : launcherLoadAppRegistry()) {
+            if (!launcherPartitionFindByLabel(table, registeredApp.label.c_str())) {
+                launcherRemoveAppMetadata(registeredApp.label.c_str());
+            }
+        }
+
+        LauncherAppMetadata metadata;
+        metadata.name = installedName;
+        if (metadata.name.isEmpty()) metadata.name = launcherAppNameFromFile(file);
+        if (metadata.name.isEmpty()) metadata.name = installedLabel;
+        metadata.label = installedLabel;
+        launcherSaveAppMetadata(metadata);
+        lastInstalledApp = metadata.name;
+    }
+
+    saveIntoNVS();
+    success = true;
+
+DONE:
+    vTaskResume(xHandle);
+    if (success) {
+        displayRedStripe("Restarting");
+        launcherDelayMs(500);
+        reboot();
+    }
+    return success;
 }
 
 bool getInfo(String serverUrl, JsonDocument &_doc) {
@@ -365,6 +1247,125 @@ JsonDocument getVersionInfo(String fid) {
     }
     return versions;
 }
+
+String encodeQueryValue(const String &value) {
+    String encoded;
+    for (size_t i = 0; i < value.length(); ++i) {
+        char c = value[i];
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' ||
+            c == '_' || c == '.' || c == '~') {
+            encoded += c;
+        } else {
+            char hex[4];
+            snprintf(hex, sizeof(hex), "%%%02X", static_cast<unsigned char>(c));
+            encoded += hex;
+        }
+    }
+    return encoded;
+}
+
+void installFirmwareFromManifest(String fid, String version, String installedName) {
+    displayRedStripe("Getting install info");
+
+    JsonDocument detail;
+    String serverUrl =
+        "https://api.launcherhub.net/firmwares?fid=" + fid + "&version=" + encodeQueryValue(version);
+    if (!getInfo(serverUrl, detail)) {
+        displayRedStripe("Install info failed");
+        launcherDelayMs(2000);
+        return;
+    }
+
+    JsonObject versionObj = detail["version"].as<JsonObject>();
+    JsonObject install = versionObj["install"].as<JsonObject>();
+    JsonObject app = install["app"].as<JsonObject>();
+    JsonArray partitions = install["partitions"].as<JsonArray>();
+    String file = versionObj["file"].as<String>();
+    if (file.isEmpty() || app.isNull()) {
+        displayRedStripe("Bad install info");
+        launcherDelayMs(2000);
+        return;
+    }
+
+    uint32_t appOffset = app["source_offset"] | 0;
+    uint32_t appCopySize = app["image_size"] | 0;
+    uint32_t appPartitionSize = appCopySize;
+    bool nb = appOffset == 0;
+
+    bool spiffs = false;
+    uint32_t spiffsOffset = 0;
+    uint32_t spiffsSize = 0;
+    uint32_t spiffsCopySize = 0;
+
+    bool fat = false;
+    uint32_t fatOffset[2] = {0, 0};
+    uint32_t fatSize[2] = {0, 0};
+    uint32_t fatCopySize[2] = {0, 0};
+    String fatLabel[2] = {"sys", "vfs"};
+    int fatCount = 0;
+
+    for (JsonObject part : partitions) {
+        String type = part["type"].as<String>();
+        String subtype = part["subtype"].as<String>();
+        if (type == "app" && subtype == "ota") {
+            appOffset = part["source_offset"] | appOffset;
+            appCopySize = part["copy_size"] | appCopySize;
+            appPartitionSize = appCopySize;
+            nb = appOffset == 0;
+        } else if (type == "data" && subtype == "spiffs") {
+            spiffs = true;
+            uint32_t declaredSize = part["size"] | 0;
+            spiffsOffset = part["source_offset"] | 0;
+            spiffsCopySize = part["copy_size"] | 0;
+            spiffsSize = declaredSize > onlineLargeSpiffsThreshold()
+                             ? onlineUseRemainingSpiffsSize()
+                             : onlineDefaultSpiffsSize();
+        } else if (type == "data" && subtype == "fat" && fatCount < 2) {
+            fat = true;
+            fatLabel[fatCount] = part["label"].as<String>();
+            if (fatLabel[fatCount].isEmpty()) fatLabel[fatCount] = fatCount == 0 ? "sys" : "vfs";
+            fatSize[fatCount] = launcherPartitionDefaultFatSize(fatLabel[fatCount].c_str());
+            fatOffset[fatCount] = part["source_offset"] | 0;
+            fatCopySize[fatCount] = part["copy_size"] | 0;
+            if (fatCopySize[fatCount] > fatSize[fatCount]) fatCopySize[fatCount] = fatSize[fatCount];
+            fatCount++;
+        }
+    }
+
+    if (appCopySize == 0 || appPartitionSize == 0) {
+        displayRedStripe("Invalid app size");
+        launcherDelayMs(2000);
+        return;
+    }
+
+    if (!file.startsWith("https://")) file = M5_SERVER_PATH + file;
+    String fileAddr = "https://api.launcherhub.net/download?fid=" + fid + "&file=" + file;
+    if (fid == "") fileAddr = file;
+
+    String manifestName = detail["name"].as<String>();
+    if (!manifestName.isEmpty()) installedName = manifestName;
+
+    if (!installFirmwareDynamic(
+            fileAddr,
+            file,
+            appCopySize,
+            appPartitionSize,
+            appOffset,
+            spiffs,
+            spiffsOffset,
+            spiffsSize,
+            spiffsCopySize,
+            nb,
+            fat,
+            fatOffset,
+            fatSize,
+            fatCopySize,
+            fatLabel,
+            installedName
+        )) {
+        launcherDelayMs(2500);
+    }
+}
 /***************************************************************************************
 ** Function name: downloadFirmware
 ** Description:   Downloads the firmware and save into the SDCard
@@ -430,7 +1431,10 @@ retry:
         SDM.remove(filePath);
         goto retry;
     }
-    launcherConsolePrintf("File size in get() = %d\nFile size in SD    = %d\n", (int)response.content_length, sdSize);
+    launcherConsolePrintf(
+        "HTTP status          = %d\nFile size in get() = %d\nFile size in SD    = %d\nDownloaded bytes   = %d\n",
+        response.status, (int)response.content_length, sdSize, (int)download.downloaded
+    );
     if (!ok || (response.content_length > 0 && sdSize != (size_t)response.content_length)) {
         SDM.remove(filePath);
         displayRedStripe("Download FAILED");
@@ -502,6 +1506,7 @@ bool installExtFirmware(String url) {
             // if (bytes[3] == 0x20) Serial.println(": TEST partition               |");
             if (bytes[3] == 0x81) {
                 launcherConsolePrintln(": FAT partition                |");
+                fat = true;
                 int a = 0;
                 if (fat_offset[0] != 0) a = 1;
                 fat_offset[a] = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
@@ -512,6 +1517,7 @@ bool installExtFirmware(String url) {
             }
             if (bytes[3] == 0x82 || bytes[3] == 0x83) {
                 launcherConsolePrintln(": Spiffs/LittleFs partition    |");
+                spiffs = true;
                 spiffs_offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
                                 bytes[0x08]; // Write the offset of spiffs partition
                 bytes[0x0C] = 0;
@@ -640,9 +1646,33 @@ void installFirmware( // adicionar "fid"
     if (fat && fat_size[0] > MAX_FAT_vfs && fat_size[1] == 0) fat_size[0] = MAX_FAT_vfs;
     else if (fat && fat_size[0] > MAX_FAT_sys) fat_size[0] = MAX_FAT_sys;
     if (fat && fat_size[1] > MAX_FAT_vfs) fat_size[1] = MAX_FAT_vfs;
+    uint32_t fat_copy_size[2] = {fat_size[0], fat_size[1]};
+    String fat_label[2] = {"sys", "vfs"};
 
     tft->fillRect(7, 40, tftWidth - 14, 88, BGCOLOR); // Erase the information below the firmware name
     displayRedStripe("Connecting FW");
+
+    if (!installFirmwareDynamic(
+            fileAddr,
+            file,
+            app_size,
+            app_size,
+            app_offset,
+            spiffs,
+            spiffs_offset,
+            spiffs_size,
+            spiffs_size,
+            nb,
+            fat,
+            fat_offset,
+            fat_size,
+            fat_copy_size,
+            fat_label,
+            installedName
+        )) {
+        launcherDelayMs(2500);
+    }
+    return;
 
     /* Install App */
     prog_handler = 0;

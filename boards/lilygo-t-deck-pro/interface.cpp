@@ -54,15 +54,12 @@ void _setup_gpio() {
     launcherGpioOutput(BOARD_LORA_CS);
     launcherGpioWrite(BOARD_LORA_CS, HIGH);
     // Assuming that the previous touch was in sleep state, wake it up
-    launcherGpioOutput(TOUCH_INT);
-    launcherGpioWrite(TOUCH_INT, HIGH);
-    launcherDelayMs(1);
-    launcherGpioWrite(TOUCH_INT, LOW);
+    pinMode(TOUCH_INT, INPUT);
 
-    launcherGpioOutput(TOUCH_RST);
-    launcherGpioWrite(TOUCH_RST, LOW);
+    pinMode(TOUCH_RST, OUTPUT);
+    digitalWrite(TOUCH_RST, LOW);
     launcherDelayMs(1);
-    launcherGpioWrite(TOUCH_RST, HIGH);
+    digitalWrite(TOUCH_RST, HIGH);
 
     launcherConsoleBegin(115200);
 
@@ -340,6 +337,7 @@ void InputHandler(void) {
 
         // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
+            touch.reset();
 
             launcherConsolePrintf(
                 "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",

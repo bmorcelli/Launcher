@@ -10,6 +10,7 @@ void installFirmware(
     String fid, String file, uint32_t app_size, uint32_t app_offset, bool spiffs, uint32_t spiffs_offset,
     uint32_t spiffs_size, bool nb, bool fat, uint32_t fat_offset[2], uint32_t fat_size[2], String installedName = ""
 );
+void installFirmwareFromManifest(String fid, String version, String installedName = "");
 
 void connectWifi();
 

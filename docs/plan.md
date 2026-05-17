@@ -218,25 +218,37 @@ Implementation file:
 
 * `src/partitioner.cpp`
 
-### Milestone 5 - Online installer integration - Partially completed
+### Milestone 5 - Online installer integration - Completed
 
 * [x] Add low-level helpers needed to calculate free ranges and create app/data partitions in RAM.
 * [x] Add raw app/data flashing API needed by the installer.
 * [x] Add manual `otadata` writer compatible with ESP-IDF OTA selection rules.
-* [ ] Wire `onlineLauncher.cpp` to generate or modify the partition table in RAM.
-* [ ] Wire online firmware flashing to use raw offsets from the generated table.
-* [ ] Wire FAT/SPIFFS creation from firmware partition declarations.
-* [ ] Write the generated table as part of the online install transaction.
-* [ ] Call manual `otadata` activation after firmware and table verification.
-* [ ] Reboot into the selected app from the new dynamic flow.
+* [x] Wire `onlineLauncher.cpp` to generate or modify the partition table in RAM.
+* [x] Wire online firmware flashing to use raw offsets from the generated table.
+* [x] Wire FAT/SPIFFS creation from firmware partition declarations.
+* [x] Write the generated table as part of the online install transaction.
+* [x] Call manual `otadata` activation after firmware and table verification.
+* [x] Reboot into the selected app from the new dynamic flow.
 
-### Milestone 6 - Multi-app launcher - Partially completed
+Implementation files:
+
+* `src/onlineLauncher.cpp`
+* `src/app_registry.h`
+* `src/app_registry.cpp`
+
+### Milestone 6 - Multi-app launcher - Completed
 
 * [x] Add low-level helper to set boot target manually through `otadata`.
-* [ ] Add app metadata storage.
-* [ ] Create/update APP icons after install.
-* [ ] Allow selecting a specific installed app.
-* [ ] Wire APP selection to the manual `otadata` helper.
+* [x] Add app metadata storage.
+* [x] Create/update APP menu entries after install.
+* [x] Allow selecting a specific installed app.
+* [x] Wire APP selection to the manual `otadata` helper.
+
+Implementation files:
+
+* `src/app_registry.h`
+* `src/app_registry.cpp`
+* `src/main.cpp`
 
 ### Milestone 7 - Recovery and hardware validation - Not started
 
@@ -251,5 +263,6 @@ Implementation file:
 
 ## Current Verification
 
-* [x] `pio run` passes for `m5stack-cardputer`.
+* [x] `pio run -e m5stack-cardputer` passes.
+* [x] `pio run -e CYD-2432S028` passes.
 * [ ] No hardware validation has been performed yet.

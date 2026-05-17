@@ -7,7 +7,9 @@
 
 namespace {
 constexpr int kTimeoutMs = 15000;
-constexpr int kBufferSize = 1024;
+constexpr int kHttpRxBufferSize = 8192;
+constexpr int kHttpTxBufferSize = 1024;
+constexpr int kStreamBufferSize = 1024;
 constexpr int kMaxRedirects = 5;
 
 esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
@@ -22,7 +24,7 @@ esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
 }
 
 bool readResponse(esp_http_client_handle_t client, LauncherHttpChunkCb cb, void *ctx) {
-    uint8_t buffer[kBufferSize];
+    uint8_t buffer[kStreamBufferSize];
 
     while (true) {
         int read = esp_http_client_read(client, reinterpret_cast<char *>(buffer), sizeof(buffer));
@@ -46,8 +48,8 @@ bool executeGet(
     config.url = url;
     config.method = HTTP_METHOD_GET;
     config.timeout_ms = kTimeoutMs;
-    config.buffer_size = kBufferSize;
-    config.buffer_size_tx = 512;
+    config.buffer_size = kHttpRxBufferSize;
+    config.buffer_size_tx = kHttpTxBufferSize;
     config.max_redirection_count = kMaxRedirects;
     config.event_handler = httpEventHandler;
     config.user_data = resp;
@@ -57,6 +59,7 @@ bool executeGet(
     if (!client) return false;
 
     auto applyHeaders = [&]() {
+        esp_http_client_set_header(client, "Accept-Encoding", "identity");
         if (headerKey && headerValue) esp_http_client_set_header(client, headerKey, headerValue);
         if (header2Key && header2Value) esp_http_client_set_header(client, header2Key, header2Value);
     };

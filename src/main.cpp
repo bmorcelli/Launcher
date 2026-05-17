@@ -22,6 +22,10 @@
 #include <string>
 #include <vector>
 
+#if defined(SET_LOOP_TASK_STACK_SIZE)
+SET_LOOP_TASK_STACK_SIZE(16384)
+#endif
+
 // Public Globals
 uint32_t MAX_SPIFFS = 0;
 uint32_t MAX_APP = 0;
@@ -124,6 +128,7 @@ uint8_t buff[1024] = {0};
 #include "massStorage.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
+#include "app_registry.h"
 #include "partitioner.h"
 #include "sd_functions.h"
 #include "settings.h"
@@ -146,7 +151,7 @@ void get_partition_sizes() {
         }
         it = esp_partition_next(it);
     }
-    esp_partition_iterator_release(it);
+    if (it != NULL) esp_partition_iterator_release(it);
 
     // Iterar sobre as partições do tipo DATA
     it = esp_partition_find(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, NULL);
@@ -163,7 +168,7 @@ void get_partition_sizes() {
         }
         it = esp_partition_next(it);
     }
-    esp_partition_iterator_release(it);
+    if (it != NULL) esp_partition_iterator_release(it);
     if (MAX_SPIFFS == 0 && askSpiffs) askSpiffs = false;
 
     // Logar os tamanhos das partições
@@ -246,7 +251,7 @@ void setup() {
 #if CONFIG_IDF_TARGET_ESP32P4
     const esp_partition_t *partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    esp_ota_set_boot_partition(partition);
+    if (partition) esp_ota_set_boot_partition(partition);
     esp_err_t nve;
     std::unique_ptr<nvs::NVSHandle> nvsHandle = nvs::open_nvs_handle("launcher", NVS_READWRITE, &nve);
     bool init = false;
@@ -322,8 +327,14 @@ void setup() {
     // Checks if the fw in the OTA partition is valid. reading the firstByte looking for 0xE9
     const esp_partition_t *ota_partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    uint8_t firstByte;
-    esp_partition_read(ota_partition, 0, &firstByte, 1);
+    uint8_t firstByte = 0x00;
+    bool otaAppAvailable = false;
+    if (ota_partition) {
+        esp_err_t readErr = esp_partition_read(ota_partition, 0, &firstByte, 1);
+        otaAppAvailable = (readErr == ESP_OK && firstByte == 0xE9);
+    } else {
+        launcherConsolePrintln("No OTA_0 partition found; staying in Launcher.");
+    }
 
     // Init post setup GPIO before SD Card initializes
     _post_setup_gpio();
@@ -402,7 +413,7 @@ void setup() {
 
     // If nothing is done, check if there are any app installed in the ota partition, if it does, restart
     // device to start installed App.
-    if (firstByte == 0xE9) {
+    if (otaAppAvailable) {
         if (!bootToApp) goto Launcher;
         tft->fillScreen(BLACK);
         FREE_TFT
@@ -486,8 +497,10 @@ void loop() {
         }
     };
 
-    if (!lastInstalledApp.isEmpty()) {
-        menuItems.push_back({"APP", lastInstalledApp, [=]() { reboot(); }});
+    for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
+        String appLabel = app.label;
+        String appName = app.name.isEmpty() ? app.label : app.name;
+        menuItems.push_back({"APP", appName, [appLabel]() { launcherBootAppByLabel(appLabel.c_str()); }});
     }
 
 #if !defined(CARDPUTER)
