@@ -414,7 +414,7 @@ void progressHandler(size_t progress, size_t total) {
         String txt;
         switch (prog_handler) {
             case 0: txt = "Installing FW"; break;
-            case 1: txt = "Installing SPIFFS"; break;
+            case 1: txt = "Copying Data"; break;
             case 2: txt = "Downloading"; break;
         }
         displayRedStripe(txt);

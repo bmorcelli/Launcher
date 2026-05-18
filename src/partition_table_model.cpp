@@ -1,5 +1,6 @@
 #include "partition_table_model.h"
 
+#include "idf/launcher_platform.h"
 #include "pre_compiler.h"
 
 #include <algorithm>
@@ -7,6 +8,7 @@
 #include <cstring>
 #include <esp_flash.h>
 #include <esp_flash_partitions.h>
+#include <esp_partition.h>
 #include <mbedtls/md5.h>
 
 namespace {
@@ -25,6 +27,7 @@ constexpr uint8_t kSubtypeDataWifi = PART_SUBTYPE_DATA_WIFI;
 constexpr uint8_t kSubtypeDataEfuse = PART_SUBTYPE_DATA_EFUSE_EM;
 uint8_t gPartitionTableRaw[LAUNCHER_PARTITION_TABLE_SIZE];
 uint8_t gPartitionTableVerify[LAUNCHER_PARTITION_TABLE_SIZE];
+uint8_t gPartitionMoveBuffer[LAUNCHER_FLASH_SECTOR_SIZE];
 
 uint16_t readU16(const uint8_t *p) {
     return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
@@ -57,6 +60,22 @@ uint32_t alignUp(uint32_t value, uint32_t alignment) {
 bool isProtectedDataSubtype(uint8_t subtype) {
     return subtype == kSubtypeDataOta || subtype == kSubtypeDataNvs || subtype == kSubtypeDataRf ||
            subtype == kSubtypeDataWifi || subtype == kSubtypeDataEfuse;
+}
+
+bool samePartitionIdentity(const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) {
+    return a.type == b.type && strncmp(a.label, b.label, 16) == 0;
+}
+
+const LauncherPartitionEntry *findSourcePartition(
+    const LauncherPartitionTable &table, const LauncherPartitionEntry &target
+) {
+    const LauncherPartitionEntry *fallback = nullptr;
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (!samePartitionIdentity(entry, target)) continue;
+        if (entry.subtype == target.subtype) return &entry;
+        if (!fallback) fallback = &entry;
+    }
+    return fallback;
 }
 
 void setError(String *error, const char *message) {
@@ -267,6 +286,132 @@ bool launcherPartitionValidate(const LauncherPartitionTable &table, String *erro
     if (!hasOtaData) {
         setError(error, "Partition table must keep otadata");
         return false;
+    }
+
+    return true;
+}
+
+uint32_t launcherPartitionAlignment(uint8_t type, uint8_t subtype) {
+    if (type == kTypeApp) return LAUNCHER_APP_PARTITION_ALIGNMENT;
+    if (type == kTypeData &&
+        (subtype == ESP_PARTITION_SUBTYPE_DATA_FAT || subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS ||
+         subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS)) {
+        return LAUNCHER_APP_PARTITION_ALIGNMENT;
+    }
+    return LAUNCHER_FLASH_SECTOR_SIZE;
+}
+
+bool launcherPartitionCompact(LauncherPartitionTable &table, String *error) {
+    uint32_t flashSize = table.flashSize;
+    if (flashSize == 0 && !getFlashSize(flashSize, error)) return false;
+    table.flashSize = flashSize;
+
+    std::sort(
+        table.entries.begin(),
+        table.entries.end(),
+        [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) { return a.offset < b.offset; }
+    );
+
+    uint32_t cursor = LAUNCHER_PARTITION_TABLE_OFFSET + LAUNCHER_PARTITION_TABLE_SIZE;
+    for (LauncherPartitionEntry &entry : table.entries) {
+        cursor = alignUp(cursor, launcherPartitionAlignment(entry.type, entry.subtype));
+        if (cursor > flashSize || entry.size > flashSize || cursor + entry.size > flashSize) {
+            setError(error, "Compacted partition table exceeds flash size");
+            return false;
+        }
+        if (entry.offset != cursor) {
+            entry.offset = cursor;
+        }
+        cursor += entry.size;
+    }
+
+    return launcherPartitionValidate(table, error);
+}
+
+bool launcherPartitionMigrateMovedData(
+    const LauncherPartitionTable &currentTable, const LauncherPartitionTable &targetTable, String *error
+) {
+    if (!launcherPartitionValidate(currentTable, error) || !launcherPartitionValidate(targetTable, error)) {
+        return false;
+    }
+
+    for (const LauncherPartitionEntry &target : targetTable.entries) {
+        const LauncherPartitionEntry *source = findSourcePartition(currentTable, target);
+        if (!source) continue;
+        if (source->offset == target.offset) continue;
+
+        const uint32_t copySize = std::min(source->size, target.size);
+        if (copySize == 0) continue;
+        if ((source->offset % LAUNCHER_FLASH_SECTOR_SIZE) != 0 ||
+            (target.offset % LAUNCHER_FLASH_SECTOR_SIZE) != 0 ||
+            (copySize % LAUNCHER_FLASH_SECTOR_SIZE) != 0) {
+            setError(error, "Partition move is not sector aligned");
+            return false;
+        }
+
+        launcherConsolePrintf(
+            "Moving partition label=%s type=0x%02X subtype=0x%02X from=0x%08X to=0x%08X size=0x%08X\n",
+            target.label,
+            target.type,
+            target.subtype,
+            source->offset,
+            target.offset,
+            copySize
+        );
+
+        const bool copyForward = target.offset < source->offset;
+        if (copyForward) {
+            for (uint32_t offset = 0; offset < copySize; offset += LAUNCHER_FLASH_SECTOR_SIZE) {
+                esp_err_t err = esp_flash_read(
+                    nullptr, gPartitionMoveBuffer, source->offset + offset, sizeof(gPartitionMoveBuffer)
+                );
+                if (err != ESP_OK) {
+                    setError(error, "Could not read partition while moving");
+                    return false;
+                }
+                err = esp_flash_erase_region(
+                    nullptr, target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
+                );
+                if (err != ESP_OK) {
+                    setError(error, "Could not erase destination while moving");
+                    return false;
+                }
+                err = esp_flash_write(
+                    nullptr, gPartitionMoveBuffer, target.offset + offset, sizeof(gPartitionMoveBuffer)
+                );
+                if (err != ESP_OK) {
+                    setError(error, "Could not write partition while moving");
+                    return false;
+                }
+                yield();
+            }
+        } else {
+            for (uint32_t remaining = copySize; remaining > 0; remaining -= LAUNCHER_FLASH_SECTOR_SIZE) {
+                const uint32_t offset = remaining - LAUNCHER_FLASH_SECTOR_SIZE;
+                esp_err_t err = esp_flash_read(
+                    nullptr, gPartitionMoveBuffer, source->offset + offset, sizeof(gPartitionMoveBuffer)
+                );
+                if (err != ESP_OK) {
+                    setError(error, "Could not read partition while moving");
+                    return false;
+                }
+                err = esp_flash_erase_region(
+                    nullptr, target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
+                );
+                if (err != ESP_OK) {
+                    setError(error, "Could not erase destination while moving");
+                    return false;
+                }
+                err = esp_flash_write(
+                    nullptr, gPartitionMoveBuffer, target.offset + offset, sizeof(gPartitionMoveBuffer)
+                );
+                if (err != ESP_OK) {
+                    setError(error, "Could not write partition while moving");
+                    return false;
+                }
+                yield();
+            }
+        }
     }
 
     return true;

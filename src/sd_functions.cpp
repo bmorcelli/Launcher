@@ -678,6 +678,15 @@ static bool prepareSdDataPartitions(
                 error = "Partition spiffs is incompatible";
                 return false;
             }
+            if (spiffsSize == sdUseRemainingSpiffsSize()) {
+                uint32_t oldOffset = existing->offset;
+                if (!removeSdEntryByOffset(table, oldOffset)) {
+                    error = "Could not resize spiffs partition";
+                    return false;
+                }
+                if (!createSdDataInLargestFreeRange(table, 0x82, "spiffs", spiffsEntry, error)) return false;
+                return true;
+            }
             if (spiffsSize != sdUseRemainingSpiffsSize() && existing->size < spiffsSize) {
                 error = "Partition spiffs is too small or incompatible";
                 return false;
@@ -1419,6 +1428,8 @@ static bool installFromSdDynamic(
         metadata.name = installedAppNameFromPath(path);
         if (metadata.name.isEmpty()) metadata.name = installedLabel;
         metadata.label = installedLabel;
+        if (hasFatSys) metadata.fatLabels.push_back(String(fatSysEntry.label));
+        if (hasFatVfs) metadata.fatLabels.push_back(String(fatVfsEntry.label));
         launcherSaveAppMetadata(metadata);
         lastInstalledApp = metadata.name;
         saveIntoNVS();
@@ -1538,11 +1549,13 @@ void updateFromSD(String path) {
                     declaredSpiffsSize,
                     spiffs_size == sdUseRemainingSpiffsSize() ? declaredSpiffsSize : spiffs_size
                 );
+                spiffs = true;
                 if (file.size() < spiffs_offset) {
-                    spiffs = false;
                     spiffs_copy_size = 0;
-                } else {
-                    spiffs = true;
+                    launcherConsolePrintf(
+                        "Found SPIFFS table entry without payload: create 0x%06X, copy 0\n",
+                        spiffs_size
+                    );
                 }
             }
 
@@ -1592,12 +1605,13 @@ void updateFromSD(String path) {
             fat_offset_vfs = 0;
         }
 
-        prog_handler = 0;                       // Install flash update
-        if (askSpiffs == false) spiffs = false; // avoid Spiffs
-        if (spiffs && askSpiffs) {
+        prog_handler = 0; // Install flash update
+        if (askSpiffs == false) spiffs_copy_size = 0;
+        if (spiffs && askSpiffs && spiffs_copy_size > 0) {
+            bool copySpiffs = true;
             options = {
-                {"SPIFFS No",  [&]() { spiffs = false; }     },
-                {"SPIFFS Yes", [&]() { spiffs = true; }      },
+                {"SPIFFS No",  [&]() { copySpiffs = false; } },
+                {"SPIFFS Yes", [&]() { copySpiffs = true; }  },
                 {"Cancel",     [&]() { returnToMenu = true; }}
             };
             if (loopOptions(options) < 0 || returnToMenu) {
@@ -1605,6 +1619,7 @@ void updateFromSD(String path) {
                 tft->fillScreen(BGCOLOR);
                 return;
             }
+            if (!copySpiffs) spiffs_copy_size = 0;
             tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
         }
 

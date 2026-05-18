@@ -535,6 +535,15 @@ bool prepareDynamicDataPartitions(
                 error = "Partition spiffs is incompatible";
                 return false;
             }
+            if (spiffsSize == onlineUseRemainingSpiffsSize()) {
+                uint32_t oldOffset = existing->offset;
+                if (!removeEntryByOffset(table, oldOffset)) {
+                    error = "Could not resize spiffs partition";
+                    return false;
+                }
+                if (!createDataInLargestFreeRange(table, 0x82, "spiffs", spiffsEntry, error)) return false;
+                return true;
+            }
             if (spiffsSize != onlineUseRemainingSpiffsSize() && existing->size < spiffsSize) {
                 error = "Partition spiffs is too small or incompatible";
                 return false;
@@ -1282,6 +1291,9 @@ bool installFirmwareDynamic(
         if (metadata.name.isEmpty()) metadata.name = launcherAppNameFromFile(file);
         if (metadata.name.isEmpty()) metadata.name = installedLabel;
         metadata.label = installedLabel;
+        for (int i = 0; i < 2; ++i) {
+            if (hasFatEntry[i]) metadata.fatLabels.push_back(String(fatEntry[i].label));
+        }
         launcherSaveAppMetadata(metadata);
         lastInstalledApp = metadata.name;
     }
@@ -1759,14 +1771,18 @@ void installFirmware( // adicionar "fid"
     String fileAddr = "https://api.launcherhub.net/download?fid=" + fid + "&file=" + file;
     if (fid == "") fileAddr = file;
 
+    uint32_t spiffsCopySize = spiffs_size;
+
     // Release RAM Memory from Json Objects
-    if (askSpiffs == false) spiffs = false; // avoid Spiffs
-    if (spiffs && askSpiffs) {
+    if (askSpiffs == false) spiffsCopySize = 0;
+    if (spiffs && askSpiffs && spiffsCopySize > 0) {
+        bool copySpiffs = true;
         options = {
-            {"SPIFFS No",  [&]() { spiffs = false; }},
-            {"SPIFFS Yes", [&]() { spiffs = true; } },
+            {"SPIFFS No",  [&]() { copySpiffs = false; }},
+            {"SPIFFS Yes", [&]() { copySpiffs = true; } },
         };
         loopOptions(options);
+        if (!copySpiffs) spiffsCopySize = 0;
     }
 
     if (spiffs && spiffs_size > MAX_SPIFFS) spiffs_size = MAX_SPIFFS;
@@ -1791,7 +1807,7 @@ void installFirmware( // adicionar "fid"
             spiffs,
             spiffs_offset,
             spiffs_size,
-            spiffs_size,
+            spiffsCopySize,
             nb,
             fat,
             fat_offset,

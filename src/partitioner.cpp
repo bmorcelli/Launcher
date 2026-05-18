@@ -37,9 +37,7 @@ uint32_t alignDownLocal(uint32_t value, uint32_t alignment) {
 }
 
 uint32_t partitionAlignment(uint8_t type, uint8_t subtype = 0xFF) {
-    if (type == 0x00) return 0x10000;
-    if (type == 0x01 && (subtype == 0x81 || subtype == 0x82 || subtype == 0x83)) return 0x10000;
-    return LAUNCHER_FLASH_SECTOR_SIZE;
+    return launcherPartitionAlignment(type, subtype);
 }
 
 bool confirmAction(const String &message) {
@@ -382,6 +380,15 @@ bool validateOrShow(const LauncherPartitionTable &table) {
     return false;
 }
 
+bool compactOrShow(LauncherPartitionTable &table) {
+    String error;
+    if (launcherPartitionCompact(table, &error)) return true;
+    launcherConsolePrintf("Partition compact failed: %s\n", error.c_str());
+    displayRedStripe(error.length() ? error : "Compact failed");
+    launcherDelayMs(2500);
+    return false;
+}
+
 bool editPartitionSize(LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
     int index = findEntryIndex(table, target);
     if (index < 0) return false;
@@ -413,6 +420,7 @@ bool editPartitionSize(LauncherPartitionTable &table, const LauncherPartitionEnt
     edited.entries[index].offset = start;
     edited.entries[index].size = end - start;
     if (!validateOrShow(edited)) return false;
+    if (!compactOrShow(edited)) return false;
     table = edited;
     return true;
 }
@@ -430,6 +438,7 @@ bool removePartition(LauncherPartitionTable &table, const LauncherPartitionEntry
     LauncherPartitionTable edited = table;
     edited.entries.erase(edited.entries.begin() + index);
     if (!validateOrShow(edited)) return false;
+    if (!compactOrShow(edited)) return false;
     table = edited;
     return true;
 }
@@ -552,6 +561,7 @@ bool createPartition(
         launcherDelayMs(2500);
         return false;
     }
+    if (!compactOrShow(edited)) return false;
     table = edited;
     return true;
 }
@@ -579,11 +589,30 @@ bool findFreeSliderRange(
 }
 
 bool applyPartitionChanges(const LauncherPartitionTable &table) {
-    if (!validateOrShow(table)) return false;
+    LauncherPartitionTable target = table;
+    if (!compactOrShow(target)) return false;
+    if (!validateOrShow(target)) return false;
     if (!confirmAction("Write table?")) return false;
 
     String error;
-    if (!launcherPartitionWriteGeneratedTable(table, &error)) {
+    LauncherPartitionTable current;
+    if (!launcherPartitionReadCurrent(current, &error)) {
+        launcherConsolePrintf("Partition table read failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "Read failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    displayRedStripe("Moving data");
+    if (!launcherPartitionMigrateMovedData(current, target, &error)) {
+        launcherConsolePrintf("Partition data move failed: %s\n", error.c_str());
+        displayRedStripe(error.length() ? error : "Move failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    displayRedStripe("Writing table");
+    if (!launcherPartitionWriteGeneratedTable(target, &error)) {
         launcherConsolePrintf("Partition table write failed: %s\n", error.c_str());
         displayRedStripe(error.length() ? error : "Write failed");
         launcherDelayMs(2500);

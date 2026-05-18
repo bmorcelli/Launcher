@@ -51,6 +51,13 @@ bool launcherPartitionBuild(
 );
 bool launcherPartitionValidate(const LauncherPartitionTable &table, String *error = nullptr);
 bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, String *error = nullptr);
+uint32_t launcherPartitionAlignment(uint8_t type, uint8_t subtype);
+bool launcherPartitionCompact(LauncherPartitionTable &table, String *error = nullptr);
+bool launcherPartitionMigrateMovedData(
+    const LauncherPartitionTable &currentTable,
+    const LauncherPartitionTable &targetTable,
+    String *error = nullptr
+);
 
 LauncherPartitionEntry *launcherPartitionFindByLabel(LauncherPartitionTable &table, const char *label);
 const LauncherPartitionEntry *launcherPartitionFindByLabel(

@@ -38,6 +38,56 @@ String loadAppNameForLabel(const char *label) {
     return String(buffer);
 }
 
+String fatKeyForLabel(const char *label) {
+    String key = "f_";
+    key += label ? label : "";
+    if (key.length() > 15) key = key.substring(0, 15);
+    return key;
+}
+
+std::vector<String> parseFatLabels(const String &stored) {
+    std::vector<String> labels;
+    int start = 0;
+    while (start < static_cast<int>(stored.length())) {
+        int comma = stored.indexOf(',', start);
+        String label = comma >= 0 ? stored.substring(start, comma) : stored.substring(start);
+        label.trim();
+        if (!label.isEmpty()) labels.push_back(label);
+        if (comma < 0) break;
+        start = comma + 1;
+    }
+    return labels;
+}
+
+String encodeFatLabels(const std::vector<String> &labels) {
+    String out;
+    for (const String &label : labels) {
+        if (label.isEmpty()) continue;
+        if (!out.isEmpty()) out += ",";
+        out += label;
+    }
+    return out;
+}
+
+std::vector<String> loadFatLabelsForLabel(const char *label) {
+    std::vector<String> labels;
+    if (!label || !label[0]) return labels;
+
+    esp_err_t err = ESP_OK;
+    auto handle = openNamespace(kNamespace, NVS_READONLY, err);
+    if (!handle) return labels;
+
+    String key = fatKeyForLabel(label);
+    char buffer[48] = {0};
+    err = handle->get_string(key.c_str(), buffer, sizeof(buffer));
+    if (err == ESP_ERR_NVS_NOT_FOUND) return labels;
+    if (err != ESP_OK) {
+        launcherConsolePrintf("App registry: FAT read failed label=%s err=%d\n", label, err);
+        return labels;
+    }
+    return parseFatLabels(String(buffer));
+}
+
 bool saveAppNameForLabel(const char *label, const String &name) {
     if (!label || !label[0]) return false;
     esp_err_t err = ESP_OK;
@@ -52,6 +102,27 @@ bool saveAppNameForLabel(const char *label, const String &name) {
     if (err == ESP_OK) err = handle->commit();
     if (err != ESP_OK) {
         launcherConsolePrintf("App registry: save failed label=%s err=%d\n", label, err);
+    }
+    return err == ESP_OK;
+}
+
+bool saveFatLabelsForLabel(const char *label, const std::vector<String> &fatLabels) {
+    if (!label || !label[0]) return false;
+    esp_err_t err = ESP_OK;
+    auto handle = openNamespace(kNamespace, NVS_READWRITE, err);
+    if (!handle) return false;
+
+    String key = fatKeyForLabel(label);
+    String stored = encodeFatLabels(fatLabels);
+    if (stored.isEmpty()) {
+        err = handle->erase_item(key.c_str());
+        if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
+    } else {
+        err = handle->set_string(key.c_str(), stored.c_str());
+    }
+    if (err == ESP_OK) err = handle->commit();
+    if (err != ESP_OK) {
+        launcherConsolePrintf("App registry: FAT save failed label=%s err=%d\n", label, err);
     }
     return err == ESP_OK;
 }
@@ -87,6 +158,7 @@ std::vector<LauncherAppMetadata> launcherLoadAppRegistry() {
         LauncherAppMetadata app;
         app.label = String(entry.label);
         app.name = loadAppNameForLabel(entry.label);
+        app.fatLabels = loadFatLabelsForLabel(entry.label);
         if (!app.name.isEmpty()) apps.push_back(app);
     }
     return apps;
@@ -96,10 +168,12 @@ bool launcherSaveAppMetadata(const LauncherAppMetadata &app) {
     if (app.label.isEmpty()) return false;
 
     bool saved = saveAppNameForLabel(app.label.c_str(), app.name);
+    if (saved) saved = saveFatLabelsForLabel(app.label.c_str(), app.fatLabels);
     launcherConsolePrintf(
-        "App registry: save label=%s name=%s ok=%d\n",
+        "App registry: save label=%s name=%s fat=%s ok=%d\n",
         app.label.c_str(),
         app.name.c_str(),
+        encodeFatLabels(app.fatLabels).c_str(),
         saved
     );
     return saved;
@@ -112,13 +186,19 @@ bool launcherRemoveAppMetadata(const char *label) {
     auto handle = openNamespace(kNamespace, NVS_READWRITE, err);
     if (!handle) return false;
     err = handle->erase_item(label);
-    if (err == ESP_ERR_NVS_NOT_FOUND) return true;
+    if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
+    if (err == ESP_OK) {
+        esp_err_t fatErr = handle->erase_item(fatKeyForLabel(label).c_str());
+        if (fatErr != ESP_OK && fatErr != ESP_ERR_NVS_NOT_FOUND) err = fatErr;
+    }
     if (err == ESP_OK) err = handle->commit();
     if (err != ESP_OK) {
         launcherConsolePrintf("App registry: remove failed label=%s err=%d\n", label, err);
     }
     return err == ESP_OK;
 }
+
+std::vector<String> launcherAppFatLabelsForLabel(const char *label) { return loadFatLabelsForLabel(label); }
 
 String launcherAppDisplayNameForLabel(const char *label) {
     if (!label) return "";
@@ -235,11 +315,35 @@ bool launcherDeleteAppByLabel(const char *label) {
     }
 
     String appName = launcherAppDisplayNameForLabel(label);
-    if (!confirmAppDelete(String("Delete ") + appName + "?")) return false;
+    std::vector<String> linkedFatLabels = launcherAppFatLabelsForLabel(label);
+    if (!confirmAppDelete(
+            linkedFatLabels.empty() ? String("Delete ") + appName + "?"
+                                    : String("Delete ") + appName + " + FAT?"
+        ))
+        return false;
 
     LauncherPartitionTable edited = table;
     edited.entries.erase(edited.entries.begin() + appIndex);
+    std::vector<LauncherPartitionEntry> removedEntries;
+    removedEntries.push_back(appEntry);
+    for (const String &fatLabel : linkedFatLabels) {
+        for (size_t i = 0; i < edited.entries.size(); ++i) {
+            LauncherPartitionEntry &entry = edited.entries[i];
+            if (entry.type == ESP_PARTITION_TYPE_DATA &&
+                entry.subtype == ESP_PARTITION_SUBTYPE_DATA_FAT &&
+                fatLabel == String(entry.label)) {
+                removedEntries.push_back(entry);
+                edited.entries.erase(edited.entries.begin() + i);
+                break;
+            }
+        }
+    }
     normalizeOtaSubtypes(edited);
+    if (!launcherPartitionCompact(edited, &error)) {
+        displayRedStripe(error.length() ? error : "Compact failed");
+        launcherDelayMs(2500);
+        return false;
+    }
     if (!launcherPartitionValidate(edited, &error)) {
         displayRedStripe(error.length() ? error : "Invalid table");
         launcherDelayMs(2500);
@@ -253,18 +357,33 @@ bool launcherDeleteAppByLabel(const char *label) {
         return false;
     }
 
-    displayRedStripe("Writing table");
-    if (!launcherPartitionWriteGeneratedTable(edited, &error)) {
-        displayRedStripe(error.length() ? error : "Write failed");
+    displayRedStripe("Erasing removed");
+    for (const LauncherPartitionEntry &removed : removedEntries) {
+        esp_err_t err = esp_flash_erase_region(nullptr, removed.offset, removed.size);
+        if (err != ESP_OK) {
+            launcherConsolePrintf(
+                "Partition erase failed label=%s offset=0x%08X size=0x%08X err=%d\n",
+                removed.label,
+                removed.offset,
+                removed.size,
+                err
+            );
+            displayRedStripe("Erase failed");
+            launcherDelayMs(2500);
+            return false;
+        }
+    }
+
+    displayRedStripe("Moving data");
+    if (!launcherPartitionMigrateMovedData(table, edited, &error)) {
+        displayRedStripe(error.length() ? error : "Move failed");
         launcherDelayMs(2500);
         return false;
     }
 
-    displayRedStripe("Erasing app");
-    esp_err_t err = esp_flash_erase_region(nullptr, appEntry.offset, appEntry.size);
-    if (err != ESP_OK) {
-        launcherConsolePrintf("App erase failed label=%s err=%d\n", label, err);
-        displayRedStripe("Erase failed");
+    displayRedStripe("Writing table");
+    if (!launcherPartitionWriteGeneratedTable(edited, &error)) {
+        displayRedStripe(error.length() ? error : "Write failed");
         launcherDelayMs(2500);
         return false;
     }
