@@ -4,6 +4,8 @@
 #include "settings.h"
 #include <globals.h>
 #include <memory>
+#include <esp_flash.h>
+#include <esp_partition.h>
 #include <nvs.h>
 #include <nvs_handle.hpp>
 #include <nvs_flash.h>
@@ -52,6 +54,25 @@ bool saveAppNameForLabel(const char *label, const String &name) {
         launcherConsolePrintf("App registry: save failed label=%s err=%d\n", label, err);
     }
     return err == ESP_OK;
+}
+
+bool confirmAppDelete(const String &title) {
+    bool confirmed = false;
+    std::vector<Option> confirmOptions = {
+        {"Delete", [&]() { confirmed = true; }},
+        {"Cancel", [&]() { confirmed = false; }},
+    };
+    displayRedStripe(title);
+    loopOptions(confirmOptions);
+    return confirmed;
+}
+
+void normalizeOtaSubtypes(LauncherPartitionTable &table) {
+    uint8_t nextSubtype = ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    for (LauncherPartitionEntry &entry : table.entries) {
+        if (!entry.isOtaApp()) continue;
+        entry.subtype = nextSubtype++;
+    }
 }
 }
 
@@ -183,14 +204,103 @@ bool launcherBootAppByLabel(const char *label) {
     return true;
 }
 
+bool launcherDeleteAppByLabel(const char *label) {
+    if (!label || !label[0]) {
+        displayRedStripe("App not found");
+        launcherDelayMs(2000);
+        return false;
+    }
+
+    LauncherPartitionTable table;
+    String error;
+    if (!launcherPartitionReadCurrent(table, &error)) {
+        displayRedStripe(error.length() ? error : "Partition read failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    int appIndex = -1;
+    LauncherPartitionEntry appEntry;
+    for (size_t i = 0; i < table.entries.size(); ++i) {
+        if (strcmp(table.entries[i].label, label) == 0 && table.entries[i].isOtaApp()) {
+            appIndex = static_cast<int>(i);
+            appEntry = table.entries[i];
+            break;
+        }
+    }
+    if (appIndex < 0) {
+        displayRedStripe("App not found");
+        launcherDelayMs(2000);
+        return false;
+    }
+
+    String appName = launcherAppDisplayNameForLabel(label);
+    if (!confirmAppDelete(String("Delete ") + appName + "?")) return false;
+
+    LauncherPartitionTable edited = table;
+    edited.entries.erase(edited.entries.begin() + appIndex);
+    normalizeOtaSubtypes(edited);
+    if (!launcherPartitionValidate(edited, &error)) {
+        displayRedStripe(error.length() ? error : "Invalid table");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    displayRedStripe("Clearing boot");
+    if (!launcherPartitionClearOtaBoot(table, &error)) {
+        displayRedStripe(error.length() ? error : "Boot clear failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    displayRedStripe("Writing table");
+    if (!launcherPartitionWriteGeneratedTable(edited, &error)) {
+        displayRedStripe(error.length() ? error : "Write failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    displayRedStripe("Erasing app");
+    esp_err_t err = esp_flash_erase_region(nullptr, appEntry.offset, appEntry.size);
+    if (err != ESP_OK) {
+        launcherConsolePrintf("App erase failed label=%s err=%d\n", label, err);
+        displayRedStripe("Erase failed");
+        launcherDelayMs(2500);
+        return false;
+    }
+
+    launcherRemoveAppMetadata(label);
+    displayRedStripe("Restart needed");
+    launcherDelayMs(1500);
+    FREE_TFT
+    reboot();
+    return true;
+}
+
+void launcherShowAppActions(const char *label) {
+    if (!label || !label[0]) {
+        displayRedStripe("App not found");
+        launcherDelayMs(2000);
+        return;
+    }
+
+    String appLabel = String(label);
+    std::vector<Option> appOptions = {
+        {"Launch", [appLabel]() { launcherBootAppByLabel(appLabel.c_str()); }},
+        {"Delete", [appLabel]() { launcherDeleteAppByLabel(appLabel.c_str()); }},
+        {"Cancel", []() {}},
+    };
+    loopOptions(appOptions);
+}
+
 void launcherShowAppLauncher() {
     std::vector<Option> appOptions;
     for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
         String label = app.label;
         String title = app.name.isEmpty() ? app.label : app.name;
-        appOptions.push_back({title, [label]() { launcherBootAppByLabel(label.c_str()); }});
+        appOptions.push_back({title, [label]() { launcherShowAppActions(label.c_str()); }});
     }
-    appOptions.push_back({"Back", []() {}});
+    appOptions.push_back({"Cancel", []() {}});
 
     if (appOptions.size() <= 1) {
         displayRedStripe("No apps found");

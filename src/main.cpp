@@ -5,9 +5,9 @@
 #else
 #include <tft.h>
 #endif
-#include "idf/launcher_platform.h"
-#include "idf/idf_wifi.h"
 #include "esp_ota_ops.h"
+#include "idf/idf_wifi.h"
+#include "idf/launcher_platform.h"
 #include "nvs_flash.h"
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "nvs.h"
@@ -124,11 +124,11 @@ std::vector<Option> options;
 const int bufSize = 1024;
 uint8_t buff[1024] = {0};
 
+#include "app_registry.h"
 #include "display.h"
 #include "massStorage.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
-#include "app_registry.h"
 #include "partitioner.h"
 #include "sd_functions.h"
 #include "settings.h"
@@ -176,54 +176,6 @@ void get_partition_sizes() {
     ESP_LOGI("Partition Sizes", "MAX_SPIFFS: %d", MAX_SPIFFS);
     ESP_LOGI("Partition Sizes", "MAX_FAT_sys: %d", MAX_FAT_sys);
     ESP_LOGI("Partition Sizes", "MAX_FAT_vfs: %d", MAX_FAT_vfs);
-
-    // #if defined(HEADLESS)
-    //     // This piece of the code is supposed to handle the absence of APP partition tables
-    //     // if it doent's find App partition, means that the ESP32 can be 4, 8 or 16Mb, that must be set in
-    //     platformio.ini
-    //     // and the partition size will be discovered using esp_flash_get_physical_size function
-    //     uint32_t __size;  // Variable to store the flash size from flash ID
-    //     //esp_err_t result = esp_flash_get_physical_size(NULL,&__size); // This guy reads the FlashID size,
-    //     won't work for now, that is the true size of the chip
-    //                                                                     // if flashing with a 4Mb
-    //                                                                     bootloader and installing 8Mb
-    //                                                                     partition scheme, it breakes
-    //                                                                     (bootloop) probably in this
-    //                                                                     function:
-    //                                                                     //
-    //                                                                     https://github.com/bmorcelli/esp-idf/blob/621a7fa1208ce44dbf1e0038c43587a1dc362319/components/spi_flash/esp_flash_spi_init.c#L282
-    //                                                                     // If i set a chip size greater
-    //                                                                     than the one I have, I fall in this
-    //                                                                     error:
-    //                                                                     //
-    //                                                                     https://github.com/bmorcelli/esp-idf/blob/621a7fa1208ce44dbf1e0038c43587a1dc362319/components/spi_flash/esp_flash_spi_init.c#L317
-    //                                                                     // maybe commenting it in a custom
-    //                                                                     fw can solve it, but will add lots
-    //                                                                     of issues due to size changings and
-    //                                                                     sets in this same function
-
-    //     esp_err_t result = esp_flash_get_size(NULL,&__size);
-    //     if (result == ESP_OK) {
-    //         Serial.print("Flash size: ");
-    //         Serial.println(__size, HEX);  // Prints value in hex
-    //     } else {
-    //         Serial.print("Error: ");
-    //         Serial.println(result);  // Prints the errors, if any
-    //     }
-    //     if(MAX_APP==0) {
-    //       // Makes the arrangements
-
-    //       //partitionSetter(def_part, sizeof(def_part));
-    //       if(__size==0x400000) { partitionSetter(def_part, sizeof(def_part)); }
-    //       if(__size==0x800000) { partitionSetter(def_part8, sizeof(def_part8));}
-    //       if(__size==0x1000000) { partitionSetter(def_part16, sizeof(def_part16)); }
-    //       while(1) {
-    //         Serial.println("Turn Off and On again to apply partition changes.");
-    //         wait 2500 ms
-    //       }
-    //     }
-
-    //   #endif
 }
 /*********************************************************************
 **  Function: _setup_gpio()
@@ -274,7 +226,7 @@ void setup() {
 // Setup GPIOs and stuff
 #if defined(HEADLESS)
 #if LED > 0
-    launcherGpioOutput(LED); // Set pin to recognize if launcher is starting or connecting
+    launcherGpioOutput(LED);        // Set pin to recognize if launcher is starting or connecting
     launcherGpioWrite(LED, LED_ON); // keeps on until exit
 #endif
 #endif
@@ -363,7 +315,7 @@ void setup() {
     int j = 0;
     LongPress = true;
     while (launcherMillis() < i + (5000 - bootToApp * 3000)) { // increased from 2500 to 5000
-        initDisplay();                                 // Inicia o display
+        initDisplay();                                         // Inicia o display
 
         if (launcherMillis() > (i + j * 500)) { // Serial message each ~500ms
             launcherConsolePrintln("Press the button to enter the Launcher!");
@@ -500,7 +452,7 @@ void loop() {
     for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
         String appLabel = app.label;
         String appName = app.name.isEmpty() ? app.label : app.name;
-        menuItems.push_back({"APP", appName, [appLabel]() { launcherBootAppByLabel(appLabel.c_str()); }});
+        menuItems.push_back({"APP", appName, [appLabel]() { launcherShowAppActions(appLabel.c_str()); }});
     }
 
 #if !defined(CARDPUTER)

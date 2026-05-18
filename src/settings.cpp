@@ -261,20 +261,11 @@ void settings_menu() {
                            saveConfigs();
                        }});
 #endif
-    options.push_back({"List of Partitions", [=]() { partList(); }});
-    options.push_back({"Erase App partition", [=]() { eraseAppPartition(); }});
-    options.push_back({"Clear FAT", [=]() { eraseFAT(); }});
+    options.push_back({"Partition Manager", [=]() { partList(); }});
 
     if (MAX_SPIFFS > 0)
         options.push_back({"Backup SPIFFS", [=]() { dumpPartition("spiffs", "/bkp/spiffs"); }});
-    if (MAX_FAT_sys > 0 && dev_mode)
-        options.push_back({"Backup FAT sys", [=]() { dumpPartition("sys", "/bkp/FAT_sys"); }}); // Test only
-    if (MAX_FAT_vfs > 0)
-        options.push_back({"Backup FAT vfs", [=]() { dumpPartition("vfs", "/bkp/FAT_vfs"); }});
     if (MAX_SPIFFS > 0) options.push_back({"Restore SPIFFS", [=]() { restorePartition("spiffs"); }});
-    if (MAX_FAT_sys > 0 && dev_mode)
-        options.push_back({"Restore FAT Sys", [=]() { restorePartition("sys"); }}); // Test only
-    if (MAX_FAT_vfs > 0) options.push_back({"Restore FAT Vfs", [=]() { restorePartition("vfs"); }});
     if (dev_mode) options.push_back({"Boot Animation", [=]() { initDisplayLoop(); }});
     if (dev_mode) options.push_back({"Deactivate Dev", [=]() { dev_mode = false; }});
 #if defined(HAS_RESISTIVE_TOUCH)

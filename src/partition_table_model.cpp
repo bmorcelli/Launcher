@@ -1,5 +1,7 @@
 #include "partition_table_model.h"
 
+#include "pre_compiler.h"
+
 #include <algorithm>
 #include <bootloader_common.h>
 #include <cstring>
@@ -45,9 +47,7 @@ void writeU32(uint8_t *p, uint32_t value) {
     p[3] = (value >> 24) & 0xFF;
 }
 
-bool aligned(uint32_t value, uint32_t alignment) {
-    return alignment > 0 && (value % alignment) == 0;
-}
+bool aligned(uint32_t value, uint32_t alignment) { return alignment > 0 && (value % alignment) == 0; }
 
 uint32_t alignUp(uint32_t value, uint32_t alignment) {
     if (alignment == 0) return value;
@@ -78,15 +78,11 @@ bool md5Matches(const uint8_t *data, size_t len, const uint8_t *expected) {
     uint8_t digest[16] = {0};
     return mbedtls_md5(data, len, digest) == 0 && memcmp(digest, expected, sizeof(digest)) == 0;
 }
-}
+} // namespace
 
-bool LauncherPartitionEntry::isApp() const {
-    return type == kTypeApp;
-}
+bool LauncherPartitionEntry::isApp() const { return type == kTypeApp; }
 
-bool LauncherPartitionEntry::isData() const {
-    return type == kTypeData;
-}
+bool LauncherPartitionEntry::isData() const { return type == kTypeData; }
 
 bool LauncherPartitionEntry::isOtaApp() const {
     return isApp() && subtype >= kSubtypeOtaFlag && subtype <= (kSubtypeOtaFlag | kSubtypeOtaMask);
@@ -107,9 +103,7 @@ bool launcherPartitionReadCurrent(LauncherPartitionTable &table, String *error) 
     return launcherPartitionParse(gPartitionTableRaw, sizeof(gPartitionTableRaw), table, error);
 }
 
-bool launcherPartitionParse(
-    const uint8_t *data, size_t size, LauncherPartitionTable &table, String *error
-) {
+bool launcherPartitionParse(const uint8_t *data, size_t size, LauncherPartitionTable &table, String *error) {
     table = LauncherPartitionTable();
     if (!data || size < LAUNCHER_PARTITION_ENTRY_SIZE) {
         setError(error, "Partition table buffer is too small");
@@ -135,9 +129,7 @@ bool launcherPartitionParse(
             return launcherPartitionValidate(table, error);
         }
 
-        if (magic == 0xFFFF || magic == 0x0000) {
-            return launcherPartitionValidate(table, error);
-        }
+        if (magic == 0xFFFF || magic == 0x0000) { return launcherPartitionValidate(table, error); }
 
         if (magic != kPartitionMagic) {
             setError(error, "Invalid partition entry magic");
@@ -223,7 +215,8 @@ bool launcherPartitionValidate(const LauncherPartitionTable &table, String *erro
             setError(error, "Partition has zero size");
             return false;
         }
-        if (!aligned(entry.offset, LAUNCHER_FLASH_SECTOR_SIZE) || !aligned(entry.size, LAUNCHER_FLASH_SECTOR_SIZE)) {
+        if (!aligned(entry.offset, LAUNCHER_FLASH_SECTOR_SIZE) ||
+            !aligned(entry.size, LAUNCHER_FLASH_SECTOR_SIZE)) {
             setError(error, "Partition offset or size is not sector aligned");
             return false;
         }
@@ -260,7 +253,8 @@ bool launcherPartitionValidate(const LauncherPartitionTable &table, String *erro
             setError(error, "App partition offset is not 64 KB aligned");
             return false;
         }
-        if (entry.isData() && isProtectedDataSubtype(entry.subtype) && entry.size < LAUNCHER_FLASH_SECTOR_SIZE) {
+        if (entry.isData() && isProtectedDataSubtype(entry.subtype) &&
+            entry.size < LAUNCHER_FLASH_SECTOR_SIZE) {
             setError(error, "Protected data partition is too small");
             return false;
         }
@@ -288,9 +282,8 @@ bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, S
 
     constexpr size_t kWriteChunk = 256;
     for (uint8_t attempt = 0; attempt < 3; ++attempt) {
-        esp_err_t err = esp_flash_erase_region(
-            nullptr, LAUNCHER_PARTITION_TABLE_OFFSET, LAUNCHER_PARTITION_TABLE_SIZE
-        );
+        esp_err_t err =
+            esp_flash_erase_region(nullptr, LAUNCHER_PARTITION_TABLE_OFFSET, LAUNCHER_PARTITION_TABLE_SIZE);
         if (err != ESP_OK) {
             setError(error, "Could not erase partition table sector");
             continue;
@@ -333,9 +326,8 @@ LauncherPartitionEntry *launcherPartitionFindByLabel(LauncherPartitionTable &tab
     return nullptr;
 }
 
-const LauncherPartitionEntry *launcherPartitionFindByLabel(
-    const LauncherPartitionTable &table, const char *label
-) {
+const LauncherPartitionEntry *
+launcherPartitionFindByLabel(const LauncherPartitionTable &table, const char *label) {
     if (!label) return nullptr;
     for (const LauncherPartitionEntry &entry : table.entries) {
         if (strncmp(entry.label, label, 16) == 0) return &entry;
@@ -350,9 +342,8 @@ LauncherPartitionEntry *launcherPartitionFindAppBySubtype(LauncherPartitionTable
     return nullptr;
 }
 
-const LauncherPartitionEntry *launcherPartitionFindAppBySubtype(
-    const LauncherPartitionTable &table, uint8_t subtype
-) {
+const LauncherPartitionEntry *
+launcherPartitionFindAppBySubtype(const LauncherPartitionTable &table, uint8_t subtype) {
     for (const LauncherPartitionEntry &entry : table.entries) {
         if (entry.isApp() && entry.subtype == subtype) return &entry;
     }
@@ -390,9 +381,11 @@ uint8_t launcherPartitionCountOtaApps(const LauncherPartitionTable &table) {
 
 std::vector<LauncherPartitionRange> launcherPartitionFreeRanges(const LauncherPartitionTable &table) {
     std::vector<LauncherPartitionEntry> entries = table.entries;
-    std::sort(entries.begin(), entries.end(), [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) {
-        return a.offset < b.offset;
-    });
+    std::sort(
+        entries.begin(), entries.end(), [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) {
+            return a.offset < b.offset;
+        }
+    );
 
     std::vector<LauncherPartitionRange> ranges;
     uint32_t cursor = LAUNCHER_PARTITION_TABLE_OFFSET + LAUNCHER_PARTITION_TABLE_SIZE;
@@ -409,11 +402,8 @@ std::vector<LauncherPartitionRange> launcherPartitionFreeRanges(const LauncherPa
 }
 
 bool launcherPartitionFindFreeRange(
-    const LauncherPartitionTable &table,
-    uint32_t requiredSize,
-    uint32_t alignment,
-    LauncherPartitionRange &range,
-    String *error
+    const LauncherPartitionTable &table, uint32_t requiredSize, uint32_t alignment,
+    LauncherPartitionRange &range, String *error
 ) {
     if (requiredSize == 0) {
         setError(error, "Required partition size is zero");
@@ -441,17 +431,16 @@ bool launcherPartitionAdd(LauncherPartitionTable &table, const LauncherPartition
         table.entries.pop_back();
         return false;
     }
-    std::sort(table.entries.begin(), table.entries.end(), [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) {
-        return a.offset < b.offset;
-    });
+    std::sort(
+        table.entries.begin(),
+        table.entries.end(),
+        [](const LauncherPartitionEntry &a, const LauncherPartitionEntry &b) { return a.offset < b.offset; }
+    );
     return true;
 }
 
 bool launcherPartitionCreateOtaApp(
-    LauncherPartitionTable &table,
-    uint32_t imageSize,
-    const char *label,
-    LauncherPartitionEntry *created,
+    LauncherPartitionTable &table, uint32_t imageSize, const char *label, LauncherPartitionEntry *created,
     String *error
 ) {
     int subtype = launcherPartitionNextOtaSubtype(table);
@@ -460,9 +449,10 @@ bool launcherPartitionCreateOtaApp(
         return false;
     }
 
-    uint32_t partitionSize = alignUp(imageSize, LAUNCHER_FLASH_SECTOR_SIZE);
+    uint32_t partitionSize = alignUp(imageSize, LAUNCHER_APP_PARTITION_ALIGNMENT);
     LauncherPartitionRange range;
-    if (!launcherPartitionFindFreeRange(table, partitionSize, 0x10000, range, error)) return false;
+    if (!launcherPartitionFindFreeRange(table, partitionSize, LAUNCHER_APP_PARTITION_ALIGNMENT, range, error))
+        return false;
 
     LauncherPartitionEntry entry;
     entry.type = kTypeApp;
@@ -483,12 +473,8 @@ bool launcherPartitionCreateOtaApp(
 }
 
 bool launcherPartitionCreateData(
-    LauncherPartitionTable &table,
-    uint8_t subtype,
-    const char *label,
-    uint32_t size,
-    LauncherPartitionEntry *created,
-    String *error
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t size,
+    LauncherPartitionEntry *created, String *error
 ) {
     if (!label || !label[0]) {
         setError(error, "Data partition label is required");
@@ -518,12 +504,30 @@ bool launcherPartitionCreateData(
 uint32_t launcherPartitionDefaultFatSize(const char *label) {
     if (label && strcmp(label, "sys") == 0) return 0x100000;
     if (label && strcmp(label, "ffat") == 0) return 0x100000;
-    return 0x70000;
+    return LAUNCHER_DEFAULT_FAT_SIZE;
 }
 
-bool launcherPartitionSetOtaBoot(
-    const LauncherPartitionTable &table, uint8_t appSubtype, String *error
+uint32_t launcherPartitionBoundedPayloadSize(
+    uint32_t declaredSize, uint32_t requestedCopySize, uint32_t maxSize, uint32_t availableSize
 ) {
+    uint32_t copySize = requestedCopySize > 0 ? requestedCopySize : declaredSize;
+    if (maxSize > 0 && copySize > maxSize) copySize = maxSize;
+    if (availableSize != UINT32_MAX && copySize > availableSize) copySize = availableSize;
+    return copySize;
+}
+
+LauncherPartitionPayloadPlan launcherPartitionFatPayloadPlan(
+    const char *label, uint32_t declaredSize, uint32_t requestedCopySize, uint32_t availableSize
+) {
+    LauncherPartitionPayloadPlan plan;
+    plan.partitionSize = launcherPartitionDefaultFatSize(label);
+    plan.copySize = launcherPartitionBoundedPayloadSize(
+        declaredSize, requestedCopySize, plan.partitionSize, availableSize
+    );
+    return plan;
+}
+
+bool launcherPartitionSetOtaBoot(const LauncherPartitionTable &table, uint8_t appSubtype, String *error) {
     const int otaIndex = launcherPartitionOtaIndex(appSubtype);
     if (otaIndex < 0) {
         setError(error, "Target app subtype is not an OTA subtype");

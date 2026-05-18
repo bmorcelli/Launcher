@@ -2,38 +2,52 @@
 
 #include "ca_certs.h"
 #include "esp_http_client.h"
+#include "launcher_platform.h"
 #include <cstring>
 #include <strings.h>
 
 namespace {
 constexpr int kTimeoutMs = 15000;
-constexpr int kHttpRxBufferSize = 8192;
+constexpr int kHttpRxBufferSize = 2048;
 constexpr int kHttpTxBufferSize = 1024;
-constexpr int kStreamBufferSize = 1024;
 constexpr int kMaxRedirects = 5;
 
-esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
-    if (!evt || evt->event_id != HTTP_EVENT_ON_HEADER || !evt->user_data) return ESP_OK;
+struct HttpRequestContext {
+    LauncherHttpResponse *response;
+    LauncherHttpChunkCb cb;
+    void *ctx;
+    bool callbackOk;
+};
 
-    LauncherHttpResponse *response = static_cast<LauncherHttpResponse *>(evt->user_data);
-    if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Range") == 0) {
-        strncpy(response->content_range, evt->header_value, sizeof(response->content_range) - 1);
-        response->content_range[sizeof(response->content_range) - 1] = '\0';
+esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
+    if (!evt || !evt->user_data) return ESP_OK;
+
+    HttpRequestContext *request = static_cast<HttpRequestContext *>(evt->user_data);
+    LauncherHttpResponse *response = request->response;
+    if (evt->event_id == HTTP_EVENT_ON_HEADER && response) {
+        if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Range") == 0) {
+            strncpy(response->content_range, evt->header_value, sizeof(response->content_range) - 1);
+            response->content_range[sizeof(response->content_range) - 1] = '\0';
+        }
+    } else if (evt->event_id == HTTP_EVENT_REDIRECT) {
+        launcherConsolePrintln("HTTP redirect received");
+    } else if (evt->event_id == HTTP_EVENT_ON_DATA && evt->data && evt->data_len > 0) {
+        int status = evt->client ? esp_http_client_get_status_code(evt->client) : 0;
+        if (status >= 300 && status < 400) {
+            launcherConsolePrintf("Skipping redirect body len=%d status=%d\n", evt->data_len, status);
+            return ESP_OK;
+        }
+        if (status > 0 && (status < 200 || status >= 300)) {
+            launcherConsolePrintf("HTTP data with bad status len=%d status=%d\n", evt->data_len, status);
+            request->callbackOk = false;
+            return ESP_FAIL;
+        }
+        if (request->cb && !request->cb(static_cast<const uint8_t *>(evt->data), evt->data_len, request->ctx)) {
+            request->callbackOk = false;
+            return ESP_FAIL;
+        }
     }
     return ESP_OK;
-}
-
-bool readResponse(esp_http_client_handle_t client, LauncherHttpChunkCb cb, void *ctx) {
-    uint8_t buffer[kStreamBufferSize];
-
-    while (true) {
-        int read = esp_http_client_read(client, reinterpret_cast<char *>(buffer), sizeof(buffer));
-        if (read < 0) return false;
-        if (read == 0) break;
-        if (cb && !cb(buffer, read, ctx)) return false;
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-    return true;
 }
 
 bool executeGet(
@@ -43,6 +57,7 @@ bool executeGet(
     LauncherHttpResponse localResponse;
     LauncherHttpResponse *resp = response ? response : &localResponse;
     *resp = LauncherHttpResponse();
+    HttpRequestContext request = {resp, cb, ctx, true};
 
     esp_http_client_config_t config = {};
     config.url = url;
@@ -52,7 +67,7 @@ bool executeGet(
     config.buffer_size_tx = kHttpTxBufferSize;
     config.max_redirection_count = kMaxRedirects;
     config.event_handler = httpEventHandler;
-    config.user_data = resp;
+    config.user_data = &request;
     config.cert_pem = kRootCAs;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -65,30 +80,12 @@ bool executeGet(
     };
     applyHeaders();
 
-    // esp_http_client_open/fetch_headers does NOT auto-follow redirects unlike
-    // esp_http_client_perform. Handle 3xx manually.
-    bool ok = false;
-    for (int redirects = 0; redirects <= kMaxRedirects; ++redirects) {
-        esp_err_t err = esp_http_client_open(client, 0);
-        if (err != ESP_OK) break;
-
-        resp->content_length = esp_http_client_fetch_headers(client);
-        resp->status = esp_http_client_get_status_code(client);
-
-        if (resp->status >= 300 && resp->status < 400) {
-            esp_http_client_close(client);
-            if (esp_http_client_set_redirection(client) != ESP_OK) break;
-            // Re-apply headers after redirect (may be cleared by URL change)
-            applyHeaders();
-            continue;
-        }
-
-        ok = resp->status >= 200 && resp->status < 300 && readResponse(client, cb, ctx);
-        esp_http_client_close(client);
-        break;
-    }
+    esp_err_t err = esp_http_client_perform(client);
+    resp->content_length = esp_http_client_get_content_length(client);
+    resp->status = esp_http_client_get_status_code(client);
 
     esp_http_client_cleanup(client);
+    bool ok = err == ESP_OK && request.callbackOk && resp->status >= 200 && resp->status < 300;
     return ok;
 }
 

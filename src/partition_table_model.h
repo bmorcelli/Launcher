@@ -9,6 +9,7 @@
 constexpr uint32_t LAUNCHER_PARTITION_TABLE_OFFSET = 0x8000;
 constexpr uint32_t LAUNCHER_PARTITION_TABLE_SIZE = 0x1000;
 constexpr uint32_t LAUNCHER_FLASH_SECTOR_SIZE = 0x1000;
+constexpr uint32_t LAUNCHER_APP_PARTITION_ALIGNMENT = 0x10000;
 constexpr size_t LAUNCHER_PARTITION_ENTRY_SIZE = 0x20;
 
 struct LauncherPartitionEntry {
@@ -34,6 +35,11 @@ struct LauncherPartitionTable {
 struct LauncherPartitionRange {
     uint32_t offset = 0;
     uint32_t size = 0;
+};
+
+struct LauncherPartitionPayloadPlan {
+    uint32_t partitionSize = 0;
+    uint32_t copySize = 0;
 };
 
 bool launcherPartitionReadCurrent(LauncherPartitionTable &table, String *error = nullptr);
@@ -83,6 +89,18 @@ bool launcherPartitionCreateData(
     String *error = nullptr
 );
 uint32_t launcherPartitionDefaultFatSize(const char *label);
+uint32_t launcherPartitionBoundedPayloadSize(
+    uint32_t declaredSize,
+    uint32_t requestedCopySize,
+    uint32_t maxSize,
+    uint32_t availableSize = UINT32_MAX
+);
+LauncherPartitionPayloadPlan launcherPartitionFatPayloadPlan(
+    const char *label,
+    uint32_t declaredSize,
+    uint32_t requestedCopySize = 0,
+    uint32_t availableSize = UINT32_MAX
+);
 bool launcherPartitionSetOtaBoot(
     const LauncherPartitionTable &table, uint8_t appSubtype, String *error = nullptr
 );
