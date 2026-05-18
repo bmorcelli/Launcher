@@ -58,13 +58,13 @@ void _setup_gpio() {
 
     pinMode(TOUCH_RST, OUTPUT);
     digitalWrite(TOUCH_RST, LOW);
-    launcherDelayMs(1);
+    launcherDelayMs(10);
     digitalWrite(TOUCH_RST, HIGH);
 
     launcherConsoleBegin(115200);
 
     // IO
-    launcherGpioInput(0);
+    pinMode(0, INPUT_PULLUP);
     launcherGpioOutput(BOARD_KEYBOARD_LED);
     launcherGpioOutput(BOARD_MOTOR_PIN);
     launcherGpioOutput(BOARD_6609_EN); // enable 7682 module
@@ -332,7 +332,7 @@ void InputHandler(void) {
     LTouchPointPro t;
     uint8_t touched = 0;
     touched = touch.getPoint(&t.x, &t.y, 1);
-    if ((launcherMillis() - _tmptmp) > 150 || LongPress) { // one reading each 500ms
+    if ((launcherMillis() - _tmptmp) > 250 || LongPress) { // one reading each 500ms
         if (launcherGpioRead(0) == LOW) NextPress = true;
 
         // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);

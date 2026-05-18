@@ -452,26 +452,52 @@ bool performUpdate(Stream &updateSource, size_t updateSize, int command) {
 
 static String installedAppNameFromPath(const String &path) { return launcherAppNameFromFile(path); }
 
-static String nextSdAppLabel(const LauncherPartitionTable &table) {
-    int highest = 0;
-    for (const LauncherPartitionEntry &entry : table.entries) {
-        if (strncmp(entry.label, "app", 3) != 0) continue;
-        const char *cursor = entry.label + 3;
-        if (*cursor == '\0') continue;
-
-        bool numeric = true;
-        int value = 0;
-        while (*cursor) {
-            if (*cursor < '0' || *cursor > '9') {
-                numeric = false;
-                break;
-            }
-            value = value * 10 + (*cursor - '0');
-            cursor++;
-        }
-        if (numeric && value > highest) highest = value;
+static String sanitizedSdAppLabelBase(const String &name) {
+    String base;
+    for (size_t i = 0; i < name.length() && base.length() < 6; ++i) {
+        char c = name[i];
+        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) base += c;
     }
-    return "app" + String(highest + 1);
+    if (base.isEmpty()) base = "app";
+    while (base.length() < 6) base += "0";
+    return base;
+}
+
+static bool sdPartitionLabelExists(const LauncherPartitionTable &table, const String &label) {
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (label == entry.label) return true;
+    }
+    return false;
+}
+
+static String nextSdAppLabel(const LauncherPartitionTable &table, const String &installedName) {
+    String base = sanitizedSdAppLabelBase(installedName);
+    if (!sdPartitionLabelExists(table, base)) return base;
+
+    String prefix = base.substring(0, 5);
+    for (int i = 1; i <= 9; ++i) {
+        String candidate = prefix + String(i);
+        if (!sdPartitionLabelExists(table, candidate)) return candidate;
+    }
+    String candidate = prefix + "0";
+    if (!sdPartitionLabelExists(table, candidate)) return candidate;
+
+    for (int i = 1; i < 100; ++i) {
+        candidate = "app" + String(i);
+        if (!sdPartitionLabelExists(table, candidate)) return candidate;
+    }
+    return "app";
+}
+
+static bool renameSdEntryByOffset(LauncherPartitionTable &table, uint32_t offset, const String &label) {
+    for (LauncherPartitionEntry &entry : table.entries) {
+        if (entry.offset != offset) continue;
+        memset(entry.label, 0, sizeof(entry.label));
+        strncpy(entry.label, label.c_str(), sizeof(entry.label) - 1);
+        return true;
+    }
+    return false;
 }
 
 static bool findOrCreateSdDataPartition(
@@ -818,6 +844,10 @@ static bool selectSdInstallLayout(
     for (const LauncherPartitionEntry &entry : original.entries) {
         if (!isReplaceableSdApp(entry) || entry.size < requiredAppPartitionSize) continue;
         LauncherPartitionTable candidate = original;
+        if (!renameSdEntryByOffset(candidate, entry.offset, defaultLabel)) continue;
+        LauncherPartitionEntry candidateApp = entry;
+        memset(candidateApp.label, 0, sizeof(candidateApp.label));
+        strncpy(candidateApp.label, defaultLabel.c_str(), sizeof(candidateApp.label) - 1);
         LauncherPartitionEntry candidateSpiffs;
         LauncherPartitionEntry candidateFatSys;
         LauncherPartitionEntry candidateFatVfs;
@@ -845,7 +875,7 @@ static bool selectSdInstallLayout(
             addChoice(
                 String("Use ") + entry.label + " partition",
                 candidate,
-                entry,
+                candidateApp,
                 candidateSpiffs,
                 candidateHasSpiffs,
                 candidateFatSys,
@@ -873,7 +903,7 @@ static bool selectSdInstallLayout(
         if (!addManualSdAppEntry(
                 candidate,
                 apps[start].subtype,
-                apps[start].label,
+                defaultLabel.c_str(),
                 apps[start].offset,
                 appSize,
                 candidateApp,
@@ -1013,7 +1043,7 @@ static bool selectSdInstallLayout(
             if (!addManualSdAppEntry(
                     candidate,
                     apps[start].subtype,
-                    apps[start].label,
+                    defaultLabel.c_str(),
                     usableStart,
                     appSize,
                     candidateApp,
@@ -1087,7 +1117,7 @@ static bool selectSdInstallLayout(
                     if (!addManualSdAppEntry(
                             candidate,
                             apps[start].subtype,
-                            apps[start].label,
+                            defaultLabel.c_str(),
                             usableStart,
                             appSize,
                             candidateApp,
@@ -1143,9 +1173,10 @@ static bool selectSdInstallLayout(
     }
 
     choices.push_back({"Cancel", []() {}});
-    const int selected = loopOptions(choices);
-    if (selected <= 0 || selected == static_cast<int>(choices.size()) - 1) {
-        error = "No install target selected";
+    int selected = 0;
+    while (selected == 0) selected = loopOptions(choices);
+    if (selected == static_cast<int>(choices.size()) - 1 || selected < 0) {
+        error = "Canceled";
         return false;
     }
 
@@ -1269,7 +1300,7 @@ static bool installFromSdDynamic(
         return false;
     }
 
-    String appLabel = nextSdAppLabel(table);
+    String appLabel = nextSdAppLabel(table, installedAppNameFromPath(path));
     LauncherPartitionEntry appEntry;
     LauncherPartitionEntry spiffsEntry;
     bool hasSpiffsEntry = false;
@@ -1493,8 +1524,7 @@ void updateFromSD(String path) {
                 if (file.size() < spiffs_offset) {
                     spiffs_copy_size = 0;
                     launcherConsolePrintf(
-                        "Found SPIFFS table entry without payload: create 0x%06X, copy 0\n",
-                        spiffs_size
+                        "Found SPIFFS table entry without payload: create 0x%06X, copy 0\n", spiffs_size
                     );
                 }
             }

@@ -1,14 +1,15 @@
 #include "app_registry.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
+#include "mykeyboard.h"
 #include "settings.h"
-#include <globals.h>
-#include <memory>
 #include <esp_flash.h>
 #include <esp_partition.h>
+#include <globals.h>
+#include <memory>
 #include <nvs.h>
-#include <nvs_handle.hpp>
 #include <nvs_flash.h>
+#include <nvs_handle.hpp>
 
 namespace {
 constexpr const char *kNamespace = "l_apps";
@@ -36,6 +37,15 @@ String loadAppNameForLabel(const char *label) {
         return "";
     }
     return String(buffer);
+}
+
+String shortAppActionName(const String &name, const String &fallback) {
+    String value = name.isEmpty() ? fallback : name;
+    value.trim();
+    int firstSpace = value.indexOf(' ');
+    if (firstSpace > 0) value = value.substring(0, firstSpace);
+    if (value.isEmpty()) value = fallback;
+    return value;
 }
 
 String fatKeyForLabel(const char *label) {
@@ -100,9 +110,7 @@ bool saveAppNameForLabel(const char *label, const String &name) {
 
     err = handle->set_string(label, storedName.c_str());
     if (err == ESP_OK) err = handle->commit();
-    if (err != ESP_OK) {
-        launcherConsolePrintf("App registry: save failed label=%s err=%d\n", label, err);
-    }
+    if (err != ESP_OK) { launcherConsolePrintf("App registry: save failed label=%s err=%d\n", label, err); }
     return err == ESP_OK;
 }
 
@@ -130,7 +138,7 @@ bool saveFatLabelsForLabel(const char *label, const std::vector<String> &fatLabe
 bool confirmAppDelete(const String &title) {
     bool confirmed = false;
     std::vector<Option> confirmOptions = {
-        {"Delete", [&]() { confirmed = true; }},
+        {"Delete", [&]() { confirmed = true; } },
         {"Cancel", [&]() { confirmed = false; }},
     };
     displayRedStripe(title);
@@ -145,7 +153,7 @@ void normalizeOtaSubtypes(LauncherPartitionTable &table) {
         entry.subtype = nextSubtype++;
     }
 }
-}
+} // namespace
 
 std::vector<LauncherAppMetadata> launcherLoadAppRegistry() {
     std::vector<LauncherAppMetadata> apps;
@@ -192,9 +200,7 @@ bool launcherRemoveAppMetadata(const char *label) {
         if (fatErr != ESP_OK && fatErr != ESP_ERR_NVS_NOT_FOUND) err = fatErr;
     }
     if (err == ESP_OK) err = handle->commit();
-    if (err != ESP_OK) {
-        launcherConsolePrintf("App registry: remove failed label=%s err=%d\n", label, err);
-    }
+    if (err != ESP_OK) { launcherConsolePrintf("App registry: remove failed label=%s err=%d\n", label, err); }
     return err == ESP_OK;
 }
 
@@ -241,11 +247,7 @@ std::vector<LauncherAppMetadata> launcherListInstalledApps() {
         app.label = String(entry.label);
         app.name = loadAppNameForLabel(entry.label);
         if (app.name.isEmpty()) app.name = app.label;
-        launcherConsolePrintf(
-            "App menu item: label=%s name=%s\n",
-            app.label.c_str(),
-            app.name.c_str()
-        );
+        launcherConsolePrintf("App menu item: label=%s name=%s\n", app.label.c_str(), app.name.c_str());
         apps.push_back(app);
     }
     return apps;
@@ -329,8 +331,7 @@ bool launcherDeleteAppByLabel(const char *label) {
     for (const String &fatLabel : linkedFatLabels) {
         for (size_t i = 0; i < edited.entries.size(); ++i) {
             LauncherPartitionEntry &entry = edited.entries[i];
-            if (entry.type == ESP_PARTITION_TYPE_DATA &&
-                entry.subtype == ESP_PARTITION_SUBTYPE_DATA_FAT &&
+            if (entry.type == ESP_PARTITION_TYPE_DATA && entry.subtype == ESP_PARTITION_SUBTYPE_DATA_FAT &&
                 fatLabel == String(entry.label)) {
                 removedEntries.push_back(entry);
                 edited.entries.erase(edited.entries.begin() + i);
@@ -396,6 +397,32 @@ bool launcherDeleteAppByLabel(const char *label) {
     return true;
 }
 
+bool launcherRenameAppByLabel(const char *label) {
+    if (!label || !label[0]) {
+        displayRedStripe("App not found");
+        launcherDelayMs(2000);
+        return false;
+    }
+
+    String appLabel = String(label);
+    String currentName = loadAppNameForLabel(label);
+    if (currentName.isEmpty()) currentName = appLabel;
+
+    String newName = keyboard(currentName, 20, "App Name:");
+    newName.trim();
+    if (newName.isEmpty() || newName == String(KEY_ESCAPE) || newName == currentName) { return false; }
+
+    if (!saveAppNameForLabel(label, newName)) {
+        displayRedStripe("Rename failed");
+        launcherDelayMs(2000);
+        return false;
+    }
+
+    displayRedStripe("App renamed");
+    launcherDelayMs(1000);
+    return true;
+}
+
 void launcherShowAppActions(const char *label) {
     if (!label || !label[0]) {
         displayRedStripe("App not found");
@@ -404,10 +431,12 @@ void launcherShowAppActions(const char *label) {
     }
 
     String appLabel = String(label);
+    String appName = shortAppActionName(loadAppNameForLabel(label), appLabel);
     std::vector<Option> appOptions = {
-        {"Launch", [appLabel]() { launcherBootAppByLabel(appLabel.c_str()); }},
-        {"Delete", [appLabel]() { launcherDeleteAppByLabel(appLabel.c_str()); }},
-        {"Cancel", []() {}},
+        {String("Launch ") + appName, [appLabel]() { launcherBootAppByLabel(appLabel.c_str()); }  },
+        {"Rename App",                [appLabel]() { launcherRenameAppByLabel(appLabel.c_str()); } },
+        {String("Delete ") + appName, [appLabel]() { launcherDeleteAppByLabel(appLabel.c_str()); }},
+        {"Cancel",                    []() {}                                                     },
     };
     loopOptions(appOptions);
 }

@@ -21,6 +21,7 @@ void launcherShowAppActions(const char *label);
 String launcherAppDisplayNameForLabel(const char *label);
 bool launcherBootAppByLabel(const char *label);
 bool launcherDeleteAppByLabel(const char *label);
+bool launcherRenameAppByLabel(const char *label);
 String launcherAppNameFromFile(const String &source);
 
 #endif

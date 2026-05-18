@@ -22,6 +22,12 @@
 #define KEY_ESCAPE 0x1B
 #define NO_COLOR 1 // color is from 0x0000 (BLACK) to 0xffff (WHITE), 1 is for checking
 
+extern uint16_t FGCOLOR;
+extern uint16_t ALCOLOR;
+extern uint16_t BGCOLOR;
+extern uint16_t odd_color;
+extern uint16_t even_color;
+
 struct Option {
     String label;
     std::function<void()> operation;
@@ -43,15 +49,18 @@ struct MenuOptions {
     uint16_t y;
     uint16_t w;
     uint16_t h;
+    uint16_t color;
 
     MenuOptions(
         String name, String text, std::function<void()> action, bool active = true, bool selected = false,
-        uint16_t x = 0, uint16_t y = 0, uint16_t w = 0, uint16_t h = 0
+        uint16_t x = 0, uint16_t y = 0, uint16_t w = 0, uint16_t h = 0, uint16_t color = FGCOLOR
     )
-        : name(name), text(text), action(action), active(active), selected(selected), x(x), y(y), w(w), h(h) {
+        : name(name), text(text), action(action), active(active), selected(selected), x(x), y(y), w(w), h(h),
+          color(color) {
     }
     MenuOptions()
-        : name(""), text(""), action(nullptr), active(true), selected(false), x(0), y(0), w(0), h(0) {}
+        : name(""), text(""), action(nullptr), active(true), selected(false), x(0), y(0), w(0), h(0),
+          color(FGCOLOR) {}
 
     bool contain(int x, int y) {
         return this->x <= x && x < (this->x + this->w) && this->y <= y && y < (this->y + this->h);
@@ -158,12 +167,6 @@ extern inline bool check(volatile bool &btn) {
 
 #define U_FAT_vfs 300
 #define U_FAT_sys 400
-
-extern uint16_t FGCOLOR;
-extern uint16_t ALCOLOR;
-extern uint16_t BGCOLOR;
-extern uint16_t odd_color;
-extern uint16_t even_color;
 
 extern uint32_t MAX_APP;
 extern uint32_t MAX_SPIFFS;

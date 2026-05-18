@@ -440,6 +440,15 @@ void loop() {
 #endif
         {
 #if TFT_HEIGHT < 135
+         "PM"
+#else
+            "PMan"
+#endif
+            ,
+         "Partition Manager.", [=]() { partList(); }
+        },
+        {
+#if TFT_HEIGHT < 135
          "CFG", "Change Settings.",
 #else
             "CFG",
@@ -452,7 +461,20 @@ void loop() {
     for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
         String appLabel = app.label;
         String appName = app.name.isEmpty() ? app.label : app.name;
-        menuItems.push_back({"APP", appName, [appLabel]() { launcherShowAppActions(appLabel.c_str()); }});
+        String appIcon = app.name.substring(0, 5);
+        appIcon.toUpperCase();
+        menuItems.push_back(
+            {appIcon,
+             appName,
+             [appLabel]() { launcherShowAppActions(appLabel.c_str()); },
+             true,
+             false,
+             0,
+             0,
+             0,
+             0,
+             ALCOLOR}
+        );
     }
 
 #if !defined(CARDPUTER)
@@ -512,7 +534,7 @@ void loop() {
 #endif
                     returnToMenu = false;
                     redraw = true;
-                    break;
+                    goto END;
                 }
                 i++;
             }
@@ -542,7 +564,7 @@ void loop() {
             pass_by = 0;
             returnToMenu = false;
             redraw = true;
-            break;
+            goto END;
         }
         checkReboot();
 #if defined(HAS_RESISTIVE_TOUCH)
@@ -557,6 +579,9 @@ void loop() {
         }
 #endif
     }
+
+END:
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
 
 #else

@@ -317,9 +317,7 @@ bool launcherUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
     const size_t writeLen = len > remaining ? remaining : len;
     if (writeLen == 0) return true;
     size_t wrote = launcherUpdateWrite(data, writeLen);
-    if (wrote != writeLen) {
-        return false;
-    }
+    if (wrote != writeLen) { return false; }
     updateCtx->written += wrote;
     progressHandler(updateCtx->written, updateCtx->expected);
     return true;
@@ -342,33 +340,58 @@ bool launcherRawUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
     const size_t writeLen = len > remaining ? remaining : len;
     if (writeLen == 0) return true;
     size_t wrote = launcherRawUpdateWrite(data, writeLen);
-    if (wrote != writeLen) {
-        return false;
-    }
+    if (wrote != writeLen) { return false; }
     updateCtx->written += wrote;
     progressHandler(updateCtx->written, updateCtx->expected);
     return true;
 }
 
-String nextOnlineAppLabel(const LauncherPartitionTable &table) {
-    int highest = 0;
-    for (const LauncherPartitionEntry &entry : table.entries) {
-        if (strncmp(entry.label, "app", 3) != 0) continue;
-        const char *cursor = entry.label + 3;
-        if (*cursor == '\0') continue;
-        bool numeric = true;
-        int value = 0;
-        while (*cursor) {
-            if (*cursor < '0' || *cursor > '9') {
-                numeric = false;
-                break;
-            }
-            value = value * 10 + (*cursor - '0');
-            cursor++;
-        }
-        if (numeric && value > highest) highest = value;
+String sanitizedOnlineAppLabelBase(const String &name) {
+    String base;
+    for (size_t i = 0; i < name.length() && base.length() < 6; ++i) {
+        char c = name[i];
+        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) base += c;
     }
-    return "app" + String(highest + 1);
+    if (base.isEmpty()) base = "app";
+    while (base.length() < 6) base += "0";
+    return base;
+}
+
+bool onlinePartitionLabelExists(const LauncherPartitionTable &table, const String &label) {
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (label == entry.label) return true;
+    }
+    return false;
+}
+
+String nextOnlineAppLabel(const LauncherPartitionTable &table, const String &installedName) {
+    String base = sanitizedOnlineAppLabelBase(installedName);
+    if (!onlinePartitionLabelExists(table, base)) return base;
+
+    String prefix = base.substring(0, 5);
+    for (int i = 1; i <= 9; ++i) {
+        String candidate = prefix + String(i);
+        if (!onlinePartitionLabelExists(table, candidate)) return candidate;
+    }
+    String candidate = prefix + "0";
+    if (!onlinePartitionLabelExists(table, candidate)) return candidate;
+
+    for (int i = 1; i < 100; ++i) {
+        candidate = "app" + String(i);
+        if (!onlinePartitionLabelExists(table, candidate)) return candidate;
+    }
+    return "app";
+}
+
+bool renameEntryByOffset(LauncherPartitionTable &table, uint32_t offset, const String &label) {
+    for (LauncherPartitionEntry &entry : table.entries) {
+        if (entry.offset != offset) continue;
+        memset(entry.label, 0, sizeof(entry.label));
+        strncpy(entry.label, label.c_str(), 15);
+        return true;
+    }
+    return false;
 }
 
 bool findOrCreateDataPartition(
@@ -775,7 +798,10 @@ bool selectInstallLayout(
     for (const LauncherPartitionEntry &entry : original.entries) {
         if (!isReplaceableOnlineApp(entry) || entry.size < requiredAppPartitionSize) continue;
         LauncherPartitionTable candidate = original;
+        if (!renameEntryByOffset(candidate, entry.offset, defaultLabel)) continue;
         LauncherPartitionEntry candidateApp = entry;
+        memset(candidateApp.label, 0, sizeof(candidateApp.label));
+        strncpy(candidateApp.label, defaultLabel.c_str(), 15);
         LauncherPartitionEntry candidateSpiffs;
         LauncherPartitionEntry candidateFat[2];
         bool candidateHasSpiffs = false;
@@ -820,7 +846,7 @@ bool selectInstallLayout(
         if (!addManualAppEntry(
                 candidate,
                 apps[start].subtype,
-                apps[start].label,
+                defaultLabel.c_str(),
                 apps[start].offset,
                 updateSize,
                 candidateApp,
@@ -944,7 +970,7 @@ bool selectInstallLayout(
             if (!addManualAppEntry(
                     candidate,
                     apps[start].subtype,
-                    apps[start].label,
+                    defaultLabel.c_str(),
                     usableStart,
                     updateSize,
                     candidateApp,
@@ -1010,7 +1036,7 @@ bool selectInstallLayout(
                     if (!addManualAppEntry(
                             candidate,
                             apps[start].subtype,
-                            apps[start].label,
+                            defaultLabel.c_str(),
                             usableStart,
                             updateSize,
                             candidateApp,
@@ -1058,9 +1084,10 @@ bool selectInstallLayout(
     }
 
     choices.push_back({"Cancel", []() {}});
-    const int selected = loopOptions(choices);
-    if (selected <= 0 || selected == static_cast<int>(choices.size()) - 1) {
-        error = "No install target selected";
+    int selected = 0;
+    while (selected == 0) selected = loopOptions(choices);
+    if (selected == static_cast<int>(choices.size()) - 1 || selected < 0) {
+        error = "Canceled";
         return false;
     }
 
@@ -1136,7 +1163,9 @@ bool installFirmwareDynamic(
     }
     if (appPartitionSize == 0 || appPartitionSize < updateSize) appPartitionSize = updateSize;
 
-    String appLabel = nextOnlineAppLabel(table);
+    String labelSource = installedName;
+    if (labelSource.isEmpty()) labelSource = launcherAppNameFromFile(file);
+    String appLabel = nextOnlineAppLabel(table, labelSource);
     LauncherPartitionEntry appEntry;
     LauncherPartitionEntry spiffsEntry;
     bool hasSpiffsEntry = false;

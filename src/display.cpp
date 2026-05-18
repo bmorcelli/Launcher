@@ -622,16 +622,12 @@ Opt_Coord drawOptions(
         int prefixWidth = 0;
         int cursorX = rowLeft;
 #ifdef HAS_TOUCH
-        bool showEscLabel = (!border && start == 0 && optionIndex == 0);
+        int escWidth = 0;
+        bool showEscLabel = (!border && i == 0);
+#endif
+#ifdef HAS_TOUCH
         if (RES && !border) {
             if (i < (RES / (LH * FM) + 1)) cursorX += RES - i * LW * FM;
-        }
-        if (showEscLabel) {
-            tft->setCursor(cursorX, rowTop);
-            tft->setTextColor(alcolor, bgcolor);
-            tft->print("[ESC]");
-            prefixWidth += (5 * charWidth + RES);
-            cursorX += (5 * charWidth);
         }
 #endif
 
@@ -650,6 +646,25 @@ Opt_Coord drawOptions(
 
         int labelX = cursorX;
         int labelWidth = lineWidth - prefixWidth;
+#ifdef HAS_TOUCH
+        if (showEscLabel) {
+            const char *escText = "[ESC]";
+            escWidth = strlen(escText) * charWidth;
+            int escX = boxX + paddingSide + lineWidth - escWidth;
+            if (escX < labelX) escX = labelX;
+            tft->setCursor(escX, rowTop);
+            tft->setTextColor(alcolor, bgcolor);
+            tft->print(escText);
+
+            MenuOptions escItem("", "ESC", nullptr, true, false);
+            escItem.setCoords(
+                escX > 4 ? escX - 4 : 0, rowTop > 2 ? rowTop - 2 : 0, escWidth + 8, lineHeight + rowSpacing
+            );
+            t_menu.push_back(escItem);
+
+            labelWidth -= escWidth + charWidth;
+        }
+#endif
         if (RES && !border) {
             if (i < (RES / (LH * FM) + 1)) { labelWidth -= RES / (i + 1); }
             if (i >= (optionCount - (RES / (LH * FM) + 1))) { labelWidth -= RES / (optionCount - i); }
@@ -713,9 +728,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     int w = (tftWidth - 16) / cols;                                     // Width of each icon
     int h = (tftHeight - ((6 + 6 + FP * LH + 6) + LH * FP + 6)) / rows; // Height of each icon
 
-    int f_size = FG;
-    if (tftHeight <= 135) f_size = FM;
-    tft->setTextSize(f_size);
+    int maxIconTextSize = tftHeight <= 135 ? FM : FG;
 
     for (int i = 0; i < size; ++i) {
         int col = i % cols;
@@ -739,11 +752,25 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
         // Serial.printf("Menu Name: %s, x=%d, y=%d, w=%d, h=%d\n", opt[i].name, opt[i].x, opt[i].y, opt[i].w,
         // opt[i].h); // Debug purpose
 
+        uint16_t itemColor = opt[i].active ? opt[i].color : DARKGREY;
+        uint16_t selectedColor = opt[i].active ? opt[i].color : LIGHTGREY;
+        int f_size = maxIconTextSize;
+        const int textLimit = w - 10;
+        tft->setTextSize(f_size);
+        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > FM) {
+            f_size = FM;
+            tft->setTextSize(f_size);
+        }
+        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > FP) {
+            f_size = FP;
+            tft->setTextSize(f_size);
+        }
+
         if (i == index) {
             // Selected item
             tft->fillRoundRect(x + 6, y + 6, w - 6, h - 6, 5, DARKGREY);
-            tft->fillRoundRect(x, y, w - 6, h - 6, 5, opt[i].active ? FGCOLOR : LIGHTGREY);
-            tft->setTextColor(BGCOLOR, opt[i].active ? FGCOLOR : LIGHTGREY);
+            tft->fillRoundRect(x, y, w - 6, h - 6, 5, selectedColor);
+            tft->setTextColor(BGCOLOR, selectedColor);
             // Draw text in the center of the icon
             tft->drawCentreString(opt[i].name, x + (w - 6) / 2, y + (h - 6) / 2 - LH * f_size / 2, 1);
         } else {
@@ -752,8 +779,8 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
             tft->drawRoundRect(x + 1, y + 1, w - 2, h - 2, 5, BGCOLOR);
             tft->drawRoundRect(x + 2, y + 2, w - 4, h - 4, 5, BGCOLOR);
             tft->fillRoundRect(x + 3, y + 3, w - 6, h - 6, 5, BGCOLOR);
-            tft->drawRoundRect(x + 3, y + 3, w - 6, h - 6, 5, opt[i].active ? FGCOLOR : DARKGREY);
-            tft->setTextColor(opt[i].active ? FGCOLOR : DARKGREY, BGCOLOR);
+            tft->drawRoundRect(x + 3, y + 3, w - 6, h - 6, 5, itemColor);
+            tft->setTextColor(itemColor, BGCOLOR);
             // Draw text in the center of the icon
             tft->drawCentreString(opt[i].name, x + w / 2, y + h / 2 - LH * f_size / 2, 1);
         }
@@ -771,7 +798,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
 #else
     tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
 #endif
-    tft->setTextSize(f_size);
+    tft->setTextSize(maxIconTextSize);
     drawDeviceBorder();
     int bat = getBattery();
     if (bat > 0) drawBatteryStatus(bat);
@@ -840,16 +867,21 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
 
 #if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
 #if defined(HAS_TOUCH)
+        if (border == false) EscPress = false;
         if (touchPoint.pressed) {
             for (auto item : list) {
                 if (item.contain(touchPoint.x, touchPoint.y)) {
                     resetGlobals();
                     if (item.name == "") {
-                        if (item.text == "+") index = max_idx + 1;
-                        if (item.text == "-") index = min_idx - 1;
-                        if (index < 0) index = 0;
-                        // Serial.printf("\nPressed [%s], next index: %d\n",item.text,index);
-                        redraw = true;
+                        if (item.text == "ESC") {
+                            EscPress = true;
+                        } else {
+                            if (item.text == "+") index = max_idx + 1;
+                            if (item.text == "-") index = min_idx - 1;
+                            if (index < 0) index = 0;
+                            // Serial.printf("\nPressed [%s], next index: %d\n",item.text,index);
+                            redraw = true;
+                        }
                         break;
                     } else {
                         if (index == item.name.toInt()) SelPress = true;
