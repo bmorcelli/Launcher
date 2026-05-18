@@ -85,10 +85,10 @@ Things that needs to be done in next updates
 
 
 ## Latest Changelog
-* 2.7.x:
-     * [ ] Custom partition builder (no more hardcoded partition lists)
+* 2.7.0:
+     * [x] Custom partition builder (no more hardcoded partition lists)
      * [ ] Optimize Storage functions to save Flash
-     * [ ] Optimize WiFi/WebUI functions to save Flash
+     * [x] Optimize WiFi/WebUI functions to save Flash
      * [ ] Optimize Settings functions to save flash
 
 * 2.6.10:

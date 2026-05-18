@@ -318,15 +318,6 @@ bool launcherUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
     if (writeLen == 0) return true;
     size_t wrote = launcherUpdateWrite(data, writeLen);
     if (wrote != writeLen) {
-        launcherConsolePrintf(
-            "HTTP update write failed target=%d chunk=%u write=%u wrote=%u remaining=%u err=%s\n",
-            updateCtx->target,
-            static_cast<unsigned>(len),
-            static_cast<unsigned>(writeLen),
-            static_cast<unsigned>(wrote),
-            static_cast<unsigned>(remaining),
-            launcherUpdateLastErrorName()
-        );
         return false;
     }
     updateCtx->written += wrote;
@@ -352,18 +343,6 @@ bool launcherRawUpdateHttpCb(const uint8_t *data, size_t len, void *ctx) {
     if (writeLen == 0) return true;
     size_t wrote = launcherRawUpdateWrite(data, writeLen);
     if (wrote != writeLen) {
-        launcherConsolePrintf(
-            "HTTP raw write failed app=%d chunk=%u write=%u wrote=%u written=%u expected=%u remaining=%u "
-            "err=%s\n",
-            updateCtx->appImage,
-            static_cast<unsigned>(len),
-            static_cast<unsigned>(writeLen),
-            static_cast<unsigned>(wrote),
-            static_cast<unsigned>(updateCtx->written),
-            static_cast<unsigned>(updateCtx->expected),
-            static_cast<unsigned>(remaining),
-            launcherUpdateLastErrorName()
-        );
         return false;
     }
     updateCtx->written += wrote;
@@ -709,17 +688,9 @@ bool selectInstallLayout(
                     fatEntry[i] = directFat[i];
                     hasFatEntry[i] = directHasFat[i];
                 }
-                launcherConsolePrintf(
-                    "OTA recreated %s data partition(s) for initial install\n", removeSpiffs ? "all" : "FAT"
-                );
                 return true;
             }
         }
-    }
-
-    launcherConsolePrintf("OTA direct layout failed: %s\n", error.c_str());
-    for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
-        launcherConsolePrintf("OTA free range: offset=0x%06X size=0x%06X\n", range.offset, range.size);
     }
 
     LauncherPartitionTable original = table;
@@ -1105,15 +1076,6 @@ bool flashRawRangeFromHttp(
     bool appImage, const char *hwid = nullptr
 ) {
     pauseInputHandlerTask();
-    launcherConsolePrintf(
-        "HTTP raw flash begin label=%s target=0x%08X partition=0x%08X source=0x%08X image=0x%08X app=%d\n",
-        target.label,
-        static_cast<unsigned>(target.offset),
-        static_cast<unsigned>(target.size),
-        static_cast<unsigned>(sourceOffset),
-        static_cast<unsigned>(imageSize),
-        appImage
-    );
     RawHttpUpdateContext update = {target.offset, target.size, imageSize, 0, appImage, false};
     bool httpOk = false;
     LauncherHttpResponse response;
@@ -1127,35 +1089,12 @@ bool flashRawRangeFromHttp(
             url.c_str(), requestOffset, remaining, launcherRawUpdateHttpCb, &update, &response, hwid
         );
         if (httpOk && update.written == imageSize) break;
-        launcherConsolePrintf(
-            "HTTP range retry %u: status=%d len=%lld written=%u/%u advanced=%u\n",
-            static_cast<unsigned>(attempt + 1),
-            response.status,
-            static_cast<long long>(response.content_length),
-            static_cast<unsigned>(update.written),
-            static_cast<unsigned>(imageSize),
-            static_cast<unsigned>(update.written - before)
-        );
         if (update.written == before) break;
         launcherDelayMs(500);
     }
     bool complete = update.written == imageSize;
     bool endOk = complete && launcherRawUpdateEnd();
     bool ok = complete && endOk;
-    if (!ok) {
-        launcherConsolePrintf(
-            "HTTP raw flash failed: http_ok=%d complete=%d end_ok=%d status=%d len=%lld written=%u "
-            "expected=%u err=%s\n",
-            httpOk,
-            complete,
-            endOk,
-            response.status,
-            static_cast<long long>(response.content_length),
-            static_cast<unsigned>(update.written),
-            static_cast<unsigned>(imageSize),
-            launcherUpdateLastErrorName()
-        );
-    }
     resumeInputHandlerTask();
     return ok;
 }
@@ -1220,7 +1159,6 @@ bool installFirmwareDynamic(
             hasFatEntry,
             error
         )) {
-        launcherConsolePrintf("Dynamic install layout failed: %s\n", error.c_str());
         displayRedStripe(error.length() ? error : "No install space");
         return false;
     }
@@ -1327,19 +1265,16 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
                 _doc.clear();
                 DeserializationError error = deserializeJson(_doc, payload);
                 if (error) {
-                    launcherConsolePrintf("[GetInfo] Failed to parse JSON: %s\n", error.c_str());
                     displayRedStripe("JSON Parse Failed");
                     vTaskDelay(1500 / portTICK_PERIOD_MS);
                     _doc.clear();
                     resumeInputHandlerTask();
                     return false;
                 }
-                launcherConsolePrintf("[GetInfo] Downloaded and parsed json with size: %d\n", _doc.size());
                 resumeInputHandlerTask();
                 return true;
             }
 
-            launcherConsolePrintf("[GetInfo] HTTP fetch failed: %s\n", serverUrl.c_str());
             tftprint(".", 10);
             vTaskDelay(pdTICKS_TO_MS(500));
         }
@@ -1366,7 +1301,6 @@ bool GetJsonFromLauncherHub(uint8_t page, String order, bool star, String query)
         total_firmware = doc["total"].as<int>();
         num_pages = doc["total"].as<int>() / doc["page_size"].as<int>();
         current_page = page;
-        launcherConsolePrintf("GetJsonFromLauncherHub> Loaded %d firmwares\n", total_firmware);
         return true;
     }
     displayRedStripe("Firmware list fetch Failed");
@@ -1568,14 +1502,6 @@ retry:
         SDM.remove(filePath);
         goto retry;
     }
-    launcherConsolePrintf(
-        "HTTP status          = %d\nFile size in get() = %d\nFile size in SD    = %d\nDownloaded bytes   = "
-        "%d\n",
-        response.status,
-        (int)response.content_length,
-        sdSize,
-        (int)download.downloaded
-    );
     if (!ok || (response.content_length > 0 && sdSize != (size_t)response.content_length)) {
         SDM.remove(filePath);
         displayRedStripe("Download FAILED");
@@ -1596,7 +1522,7 @@ bool installExtFirmware(String url) {
     bool spiffs = 0;
     uint32_t spiffs_offset = 0;
     uint32_t spiffs_size = 0;
-    bool nb = 1; // File without bootloader an partitions
+    bool nb = 1;
     bool fat = 0;
     uint32_t fat_offset[2] = {0};
     uint32_t fat_size[2] = {0};
@@ -1615,103 +1541,49 @@ bool installExtFirmware(String url) {
     }
     if (!parseContentRangeTotal(response.content_range, file_size)) return false;
 
-    // Check if it is a valid partition table
     size_t PartitionSize = 0;
     size_t PartitionOffset = 0x10000;
     if (buff[0] == 0xAA) {
-        nb = 0;                                    // File with bootloader an partitions
-        for (int i = 0x0; i <= 0x1A0; i += 0x20) { // Partition
+        nb = 0;
+        for (int i = 0x0; i <= 0x1A0; i += 0x20) {
             memcpy(bytes, &buff[i], 16);
 
-            // https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/partition-tables.html
-            // -> spiffs (0x82) is for SPIFFS Filesystem.
-
-            // if (bytes[3] == 0xFF) Serial.println(": ------- END of Table ------- |");
             if (bytes[3] == 0x00 || (bytes[3] >= 0x10 && bytes[3] <= 0x1F)) {
-                launcherConsolePrintln(": Ota or Factory partition |");
                 if (bytes[0x0A] > 0 && PartitionSize == 0) {
-                    PartitionSize = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) |
-                                    bytes[0x0C]; // Write the size of app0 partition
-                    PartitionOffset = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
-                                      bytes[0x08]; // Write the offset of app0 partition
+                    PartitionSize = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) | bytes[0x0C];
+                    PartitionOffset = (bytes[0x06] << 16) | (bytes[0x07] << 8) | bytes[0x08];
                 }
             }
-            // if (bytes[3] == 0x01) Serial.println(": PHY inicialization partition |");
-            //  if (bytes[3] == 0x02) Serial.println(": NVS partition                |");
-            //  if (bytes[3] == 0x03) Serial.println(": Coredump partition           |");
-            //  if (bytes[3] == 0x04) Serial.println(": NVSkeys partition            |");
-            //  if (bytes[3] == 0x05) Serial.println(": Efuse partition              |");
-            //  if (bytes[3] == 0x06) Serial.println(": Undefined partition          |");
-            // if (bytes[3] >= 0x10 && bytes[3] <= 0x1F)
-            //     Serial.println(": OTA partition                |");
-            // if (bytes[3] == 0x20) Serial.println(": TEST partition               |");
             if (bytes[3] == 0x81) {
-                launcherConsolePrintln(": FAT partition                |");
                 fat = true;
                 int a = 0;
                 if (fat_offset[0] != 0) a = 1;
-                fat_offset[a] = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
-                                bytes[0x08]; // Write the offset of FAT partition
+                fat_offset[a] = (bytes[0x06] << 16) | (bytes[0x07] << 8) | bytes[0x08];
                 bytes[0x0C] = 0;
-                fat_size[a] =
-                    (bytes[0x0A] << 16) | (bytes[0x0B] << 8) | bytes[0x0C]; // Write the size of FAT partition
+                fat_size[a] = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) | bytes[0x0C];
             }
             if (bytes[3] == 0x82 || bytes[3] == 0x83) {
-                launcherConsolePrintln(": Spiffs/LittleFs partition    |");
                 spiffs = true;
-                spiffs_offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) |
-                                bytes[0x08]; // Write the offset of spiffs partition
+                spiffs_offset = (bytes[0x06] << 16) | (bytes[0x07] << 8) | bytes[0x08];
                 bytes[0x0C] = 0;
-                spiffs_size = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) |
-                              bytes[0x0C]; // Write the size of spiffs partition
+                spiffs_size = (bytes[0x0A] << 16) | (bytes[0x0B] << 8) | bytes[0x0C];
             }
         }
         size_t temp_size = 0;
         if (file_size < MAX_APP || PartitionSize <= MAX_APP) {
             temp_size = PartitionSize;
             temp_size += PartitionOffset;
-            if (file_size <= temp_size) {         // Check if the file is smaller than the app0 partition
-                PartitionSize = file_size;        // gets file size
-                PartitionSize -= PartitionOffset; // subtracts bootloader, partitions and other junks
-            } else {
-                PartitionSize = PartitionSize; // if file is greater then app0 partition+junk, it will
-                                               // limit to app0 partition size
+            if (file_size <= temp_size) {
+                PartitionSize = file_size;
+                PartitionSize -= PartitionOffset;
             }
         }
-        // Check if there is room for spiffs in the file
-        if (file_size < spiffs_offset) {
-            launcherConsolePrintf(
-                "\nError: file doesn't reach spiffs offset %d, to read spiffs.", spiffs_offset, HEX
-            );
-        } else {
-            launcherConsolePrintln("Preparing to copy spiffs...");
-            // check size of the Spiffs Partition, if it fits in the launcher
-            // If it is larger the the Launcher Spiffs Partition, cut it to the limit
-            if (spiffs_size > MAX_SPIFFS) {
-                spiffs_size = MAX_SPIFFS;
-                temp_size = spiffs_offset + spiffs_size;
-                if (file_size <= temp_size) { spiffs_size = file_size - spiffs_offset; }
-                launcherConsolePrintf("\nTotal spiffs size after crop: %X\n", spiffs_size);
-            }
+        if (file_size >= spiffs_offset && spiffs_size > MAX_SPIFFS) {
+            spiffs_size = MAX_SPIFFS;
+            temp_size = spiffs_offset + spiffs_size;
+            if (file_size <= temp_size) { spiffs_size = file_size - spiffs_offset; }
         }
     }
-    launcherConsolePrintf(
-        "url: %s"
-        "\nPartitionSize: 0x%x, PartitionOffset: 0x%x,"
-        "\nspiffs: %d, spiffs_offset: 0x%x, spiffs_size: 0x%x, "
-        "\nnb: %d,"
-        "\nfat: %d, fat_offset: 0x%x, fat_size: 0x%x",
-        url.c_str(),
-        PartitionSize,
-        PartitionOffset,
-        spiffs,
-        spiffs_offset,
-        spiffs_size,
-        nb,
-        fat,
-        fat_offset,
-        fat_size
-    );
     installFirmware(
         "",
         url,
@@ -1886,7 +1758,6 @@ void installFirmware( // adicionar "fid"
 
 #if !defined(PART_04MB)
     if (fat) {
-        // eraseFAT();
         int FAT = U_FAT_vfs;
         if (fat_size[1] > 0) FAT = U_FAT_sys;
         for (int i = 0; i < 2; i++) {

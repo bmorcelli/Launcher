@@ -7,7 +7,7 @@
 #include "mykeyboard.h"
 #include "partition_table_model.h"
 #include "settings.h"
-#include <algorithm> // for std::sort
+#include <algorithm>
 #include <esp_app_format.h>
 #include <esp_flash.h>
 #include <esp_image_format.h>
@@ -18,66 +18,6 @@ SPIClass sdcardSPI;
 String fileToCopy;
 String fileToUse;
 
-/***************************************************************************************
-** Function name: eraseAppPartition
-** Description:   erase OTA_0 app partition
-***************************************************************************************/
-bool eraseAppPartition() {
-    const esp_partition_t *partition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    if (!partition) {
-        displayRedStripe("OTA partition not found");
-        launcherDelayMs(2000);
-        return false;
-    }
-    displayRedStripe("Erasing, please wait...");
-    esp_flash_erase_region(NULL, partition->address, partition->size);
-
-    lastInstalledApp = "";
-    saveIntoNVS();
-    return true;
-}
-
-/***************************************************************************************
-** Function name: eraseFAT
-** Description:   erase FAT partition to micropython compatibilities
-***************************************************************************************/
-bool eraseFAT() {
-    esp_err_t err;
-
-    // Find FAT partition with its name
-    const esp_partition_t *partition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "vfs");
-    if (!partition) {
-        // log_e("Failed to find partition");
-        return false;
-    }
-
-    // erase all FAT partition
-    err = esp_flash_erase_region(NULL, partition->address, partition->size);
-    if (err != ESP_OK) {
-        // log_e("Failed to erase partition: %s", esp_err_to_name(err));
-        return false;
-    }
-
-    // Find FAT partition with its name
-    partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "sys");
-    if (!partition) {
-        // log_e("Failed to find partition");
-        goto Exit;
-    }
-
-    // erase all FAT partition
-    err = esp_flash_erase_region(NULL, partition->address, partition->size);
-    if (err != ESP_OK) { return false; }
-Exit:
-    return true;
-}
-
-/***************************************************************************************
-** Function name: setupSdCard
-** Description:   Start SD Card
-***************************************************************************************/
 bool setupSdCard() {
 #if !defined(SDM_SD) // fot Lilygo T-Display S3 with lilygo shield
 #if defined(USE_SD_MMC) && defined(PIN_SD_CLK) && defined(PIN_SD_CMD) && defined(PIN_SD_D0)

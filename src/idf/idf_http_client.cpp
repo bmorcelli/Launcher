@@ -29,16 +29,12 @@ esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
             strncpy(response->content_range, evt->header_value, sizeof(response->content_range) - 1);
             response->content_range[sizeof(response->content_range) - 1] = '\0';
         }
-    } else if (evt->event_id == HTTP_EVENT_REDIRECT) {
-        launcherConsolePrintln("HTTP redirect received");
     } else if (evt->event_id == HTTP_EVENT_ON_DATA && evt->data && evt->data_len > 0) {
         int status = evt->client ? esp_http_client_get_status_code(evt->client) : 0;
         if (status >= 300 && status < 400) {
-            launcherConsolePrintf("Skipping redirect body len=%d status=%d\n", evt->data_len, status);
             return ESP_OK;
         }
         if (status > 0 && (status < 200 || status >= 300)) {
-            launcherConsolePrintf("HTTP data with bad status len=%d status=%d\n", evt->data_len, status);
             request->callbackOk = false;
             return ESP_FAIL;
         }

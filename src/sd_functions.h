@@ -12,9 +12,6 @@
 #include <SD_MMC.h>
 #endif
 extern SPIClass sdcardSPI;
-bool eraseAppPartition();
-
-bool eraseFAT();
 
 bool setupSdCard();
 
