@@ -19,6 +19,8 @@ std::vector<String> launcherAppFatLabelsForLabel(const char *label);
 void launcherShowAppLauncher();
 void launcherShowAppActions(const char *label);
 String launcherAppDisplayNameForLabel(const char *label);
+String launcherSelectedBootAppName();
+bool launcherBootInstalledAppOrShowMenu();
 bool launcherBootAppByLabel(const char *label);
 bool launcherDeleteAppByLabel(const char *label);
 bool launcherRenameAppByLabel(const char *label);

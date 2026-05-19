@@ -1,4 +1,5 @@
 #include "display.h"
+#include "app_registry.h"
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
@@ -248,6 +249,14 @@ void initDisplay(bool doAll) {
 #endif
     tft->setTextSize(FG);
     tft->setTextColor(FGCOLOR);
+
+    String selectedAppName = launcherSelectedBootAppName();
+    if (!selectedAppName.isEmpty()) {
+        tft->setTextSize(FM);
+        tft->setTextColor(ALCOLOR, BGCOLOR);
+        int appTextY = tftHeight - (FM * LH);
+        tft->drawCentreString(" " + selectedAppName + " ", tftWidth / 2, appTextY, 1);
+    }
 
 #ifdef E_PAPER_DISPLAY // epaper display draws only once
     TouchFooter2();

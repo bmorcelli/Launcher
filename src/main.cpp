@@ -273,18 +273,6 @@ void setup() {
     partitionCrawler();
     // Checks the size of partitions and take actions to find the best options (in HEADLESS environment)
     get_partition_sizes();
-    // Checks if the fw in the OTA partition is valid. reading the firstByte looking for 0xE9
-    const esp_partition_t *ota_partition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    uint8_t firstByte = 0x00;
-    bool otaAppAvailable = false;
-    if (ota_partition) {
-        esp_err_t readErr = esp_partition_read(ota_partition, 0, &firstByte, 1);
-        otaAppAvailable = (readErr == ESP_OK && firstByte == 0xE9);
-    } else {
-        launcherConsolePrintln("No OTA_0 partition found; staying in Launcher.");
-    }
-
     // Init post setup GPIO before SD Card initializes
     _post_setup_gpio();
 
@@ -353,21 +341,13 @@ void setup() {
         if (check(AnyKeyPress))
 #endif
         {
-            if (!bootToApp) goto Launcher;
-            tft->fillScreen(BLACK);
-            FREE_TFT
-            reboot();
+            launcherBootInstalledAppOrShowMenu();
+            goto Launcher;
         }
     }
 
-    // If nothing is done, check if there are any app installed in the ota partition, if it does, restart
-    // device to start installed App.
-    if (otaAppAvailable) {
-        if (!bootToApp) goto Launcher;
-        tft->fillScreen(BLACK);
-        FREE_TFT
-        reboot();
-    } else goto Launcher;
+    launcherBootInstalledAppOrShowMenu();
+    goto Launcher;
 
 // If M5 or Enter button is pressed, continue from here
 Launcher:

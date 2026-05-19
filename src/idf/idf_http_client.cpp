@@ -3,6 +3,7 @@
 #include "ca_certs.h"
 #include "esp_http_client.h"
 #include "launcher_platform.h"
+#include <cstdlib>
 #include <cstring>
 #include <strings.h>
 
@@ -25,7 +26,11 @@ esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
     HttpRequestContext *request = static_cast<HttpRequestContext *>(evt->user_data);
     LauncherHttpResponse *response = request->response;
     if (evt->event_id == HTTP_EVENT_ON_HEADER && response) {
-        if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Range") == 0) {
+        int status = evt->client ? esp_http_client_get_status_code(evt->client) : 0;
+        if (status >= 300 && status < 400) return ESP_OK;
+        if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Length") == 0) {
+            response->content_length = atoll(evt->header_value);
+        } else if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Range") == 0) {
             strncpy(response->content_range, evt->header_value, sizeof(response->content_range) - 1);
             response->content_range[sizeof(response->content_range) - 1] = '\0';
         }
@@ -77,7 +82,8 @@ bool executeGet(
     applyHeaders();
 
     esp_err_t err = esp_http_client_perform(client);
-    resp->content_length = esp_http_client_get_content_length(client);
+    int64_t contentLength = esp_http_client_get_content_length(client);
+    if (contentLength >= 0) resp->content_length = contentLength;
     resp->status = esp_http_client_get_status_code(client);
 
     esp_http_client_cleanup(client);

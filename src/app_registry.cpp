@@ -4,6 +4,8 @@
 #include "mykeyboard.h"
 #include "settings.h"
 #include <esp_flash.h>
+#include <esp_image_format.h>
+#include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
 #include <memory>
@@ -146,6 +148,13 @@ bool confirmAppDelete(const String &title) {
     return confirmed;
 }
 
+bool isBootableOtaEntry(const LauncherPartitionEntry &entry) {
+    if (!entry.isOtaApp()) return false;
+    uint8_t firstByte = 0;
+    return esp_flash_read(nullptr, &firstByte, entry.offset, 1) == ESP_OK &&
+           firstByte == ESP_IMAGE_HEADER_MAGIC;
+}
+
 void normalizeOtaSubtypes(LauncherPartitionTable &table) {
     uint8_t nextSubtype = ESP_PARTITION_SUBTYPE_APP_OTA_0;
     for (LauncherPartitionEntry &entry : table.entries) {
@@ -162,7 +171,7 @@ std::vector<LauncherAppMetadata> launcherLoadAppRegistry() {
     if (!launcherPartitionReadCurrent(table, &error)) return apps;
 
     for (const LauncherPartitionEntry &entry : table.entries) {
-        if (!entry.isOtaApp()) continue;
+        if (!isBootableOtaEntry(entry)) continue;
         LauncherAppMetadata app;
         app.label = String(entry.label);
         app.name = loadAppNameForLabel(entry.label);
@@ -213,6 +222,44 @@ String launcherAppDisplayNameForLabel(const char *label) {
     return String(label);
 }
 
+String launcherSelectedBootAppName() {
+    const esp_partition_t *bootPartition = esp_ota_get_boot_partition();
+    if (bootPartition && bootPartition->type == ESP_PARTITION_TYPE_APP &&
+        bootPartition->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_0) {
+        String name = launcherAppDisplayNameForLabel(bootPartition->label);
+        if (!name.isEmpty() && name != String(bootPartition->label)) return name;
+    }
+
+    if (!lastInstalledApp.isEmpty()) return lastInstalledApp;
+
+    std::vector<LauncherAppMetadata> apps = launcherLoadAppRegistry();
+    if (apps.size() == 1) return apps[0].name;
+    return "";
+}
+
+bool launcherBootInstalledAppOrShowMenu() {
+    if (!bootToApp) return false;
+
+    std::vector<LauncherAppMetadata> apps = launcherListInstalledApps();
+    if (apps.empty()) return false;
+
+    if (apps.size() == 1) return launcherBootAppByLabel(apps[0].label.c_str());
+
+    std::vector<Option> bootOptions;
+    bool started = false;
+    for (const LauncherAppMetadata &app : apps) {
+        String label = app.label;
+        String title = app.name.isEmpty() ? app.label : app.name;
+        bootOptions.push_back({title, [label, &started]() {
+                                   started = launcherBootAppByLabel(label.c_str());
+                               }});
+    }
+    bootOptions.push_back({"Launcher", [&started]() { started = false; }});
+
+    loopOptions(bootOptions);
+    return started;
+}
+
 String launcherAppNameFromFile(const String &source) {
     String fileName = source;
 
@@ -241,7 +288,7 @@ std::vector<LauncherAppMetadata> launcherListInstalledApps() {
     if (!launcherPartitionReadCurrent(table, &error)) return apps;
 
     for (const LauncherPartitionEntry &entry : table.entries) {
-        if (!entry.isOtaApp()) continue;
+        if (!isBootableOtaEntry(entry)) continue;
 
         LauncherAppMetadata app;
         app.label = String(entry.label);
@@ -280,6 +327,9 @@ bool launcherBootAppByLabel(const char *label) {
         launcherDelayMs(2500);
         return false;
     }
+
+    lastInstalledApp = launcherAppDisplayNameForLabel(label);
+    saveIntoNVS();
 
     FREE_TFT
     reboot();
