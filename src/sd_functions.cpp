@@ -140,6 +140,7 @@ bool copyFile(String path) {
         return true;
     } else {
         displayRedStripe("Cannot copy Folder");
+        launcherDelayMs(2000);
         file.close();
         return false;
     }
@@ -209,6 +210,7 @@ bool createFolder(String path) {
     if (path != "/") path += "/";
     if (!SDM.mkdir(path + foldername)) {
         displayRedStripe("Couldn't create folder");
+        launcherDelayMs(2000);
         return false;
     }
     return true;
@@ -1292,11 +1294,13 @@ static bool installFromSdDynamic(
     LauncherPartitionTable table;
     if (!launcherPartitionReadCurrent(table, &error)) {
         displayRedStripe(error.length() ? error : "Partition read failed");
+        launcherDelayMs(2000);
         return false;
     }
 
     if (appSize == 0 || appOffset + appSize > file.size()) {
         displayRedStripe("Invalid app image");
+        launcherDelayMs(2000);
         return false;
     }
 
@@ -1331,11 +1335,13 @@ static bool installFromSdDynamic(
         )) {
         launcherConsolePrintf("SD install layout failed: %s\n", error.c_str());
         displayRedStripe(error.length() ? error : "No install space");
+        launcherDelayMs(2000);
         return false;
     }
 
     if (!launcherPartitionValidate(table, &error)) {
         displayRedStripe(error.length() ? error : "Invalid table");
+        launcherDelayMs(2000);
         return false;
     }
 
@@ -1345,6 +1351,7 @@ static bool installFromSdDynamic(
     prog_handler = 0;
     if (!flashRawFromSd(file, appOffset, appSize, appEntry, true)) {
         displayRedStripe(String("APP: ") + launcherUpdateLastErrorName());
+        launcherDelayMs(2000);
         goto DONE;
     }
 
@@ -1354,6 +1361,7 @@ static bool installFromSdDynamic(
         prog_handler = 1;
         if (!flashRawFromSd(file, spiffsOffset, copySize, spiffsEntry, false)) {
             displayRedStripe(String("SPIFFS: ") + launcherUpdateLastErrorName());
+            launcherDelayMs(2000);
             goto DONE;
         }
     }
@@ -1363,6 +1371,7 @@ static bool installFromSdDynamic(
         prog_handler = 1;
         if (!flashRawFromSd(file, fatOffsetSys, fatCopySizeSys, fatSysEntry, false)) {
             displayRedStripe(String("FAT: ") + launcherUpdateLastErrorName());
+            launcherDelayMs(2000);
             goto DONE;
         }
     }
@@ -1371,6 +1380,7 @@ static bool installFromSdDynamic(
         prog_handler = 1;
         if (!flashRawFromSd(file, fatOffsetVfs, fatCopySizeVfs, fatVfsEntry, false)) {
             displayRedStripe(String("FAT: ") + launcherUpdateLastErrorName());
+            launcherDelayMs(2000);
             goto DONE;
         }
     }
@@ -1378,12 +1388,14 @@ static bool installFromSdDynamic(
     displayRedStripe("Writing table");
     if (!launcherPartitionWriteGeneratedTable(table, &error)) {
         displayRedStripe(error.length() ? error : "Table failed");
+        launcherDelayMs(2000);
         goto DONE;
     }
 
     displayRedStripe("Setting boot");
     if (!launcherPartitionSetOtaBoot(table, appEntry.subtype, &error)) {
         displayRedStripe(error.length() ? error : "Boot failed");
+        launcherDelayMs(2000);
         goto DONE;
     }
 

@@ -66,9 +66,8 @@ bool samePartitionIdentity(const LauncherPartitionEntry &a, const LauncherPartit
     return a.type == b.type && strncmp(a.label, b.label, 16) == 0;
 }
 
-const LauncherPartitionEntry *findSourcePartition(
-    const LauncherPartitionTable &table, const LauncherPartitionEntry &target
-) {
+const LauncherPartitionEntry *
+findSourcePartition(const LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
     const LauncherPartitionEntry *fallback = nullptr;
     for (const LauncherPartitionEntry &entry : table.entries) {
         if (!samePartitionIdentity(entry, target)) continue;
@@ -319,9 +318,7 @@ bool launcherPartitionCompact(LauncherPartitionTable &table, String *error) {
             setError(error, "Compacted partition table exceeds flash size");
             return false;
         }
-        if (entry.offset != cursor) {
-            entry.offset = cursor;
-        }
+        if (entry.offset != cursor) { entry.offset = cursor; }
         cursor += entry.size;
     }
 
@@ -369,9 +366,7 @@ bool launcherPartitionMigrateMovedData(
                     setError(error, "Could not read partition while moving");
                     return false;
                 }
-                err = esp_flash_erase_region(
-                    nullptr, target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
-                );
+                err = esp_flash_erase_region(nullptr, target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE);
                 if (err != ESP_OK) {
                     setError(error, "Could not erase destination while moving");
                     return false;
@@ -395,9 +390,7 @@ bool launcherPartitionMigrateMovedData(
                     setError(error, "Could not read partition while moving");
                     return false;
                 }
-                err = esp_flash_erase_region(
-                    nullptr, target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
-                );
+                err = esp_flash_erase_region(nullptr, target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE);
                 if (err != ESP_OK) {
                     setError(error, "Could not erase destination while moving");
                     return false;

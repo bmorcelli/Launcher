@@ -1136,6 +1136,7 @@ bool installFirmwareDynamic(
     LauncherPartitionTable table;
     if (!launcherPartitionReadCurrent(table, &error)) {
         displayRedStripe(error.length() ? error : "Partition read failed");
+        launcherDelayMs(2000);
         return false;
     }
 
@@ -1145,6 +1146,7 @@ bool installFirmwareDynamic(
         size_t remoteSize = 0;
         if (!getRemoteFileSize(fileAddr, remoteSize, hwid.c_str())) {
             displayRedStripe("Size failed");
+            launcherDelayMs(2000);
             return false;
         }
         if (nb) {
@@ -1152,6 +1154,7 @@ bool installFirmwareDynamic(
         } else {
             if (appOffset >= remoteSize) {
                 displayRedStripe("Bad app offset");
+                launcherDelayMs(2000);
                 return false;
             }
             updateSize = remoteSize - appOffset;
@@ -1159,6 +1162,7 @@ bool installFirmwareDynamic(
     }
     if (updateSize == 0) {
         displayRedStripe("Invalid app size");
+        launcherDelayMs(2000);
         return false;
     }
     if (appPartitionSize == 0 || appPartitionSize < updateSize) appPartitionSize = updateSize;
@@ -1189,6 +1193,7 @@ bool installFirmwareDynamic(
             error
         )) {
         displayRedStripe(error.length() ? error : "No install space");
+        launcherDelayMs(2000);
         return false;
     }
 
@@ -1199,6 +1204,7 @@ bool installFirmwareDynamic(
     progressHandler(0, updateSize);
     if (!flashRawRangeFromHttp(fileAddr, nb ? 0 : appOffset, updateSize, appEntry, true, hwid.c_str())) {
         displayRedStripe(String("APP: ") + launcherUpdateLastErrorName());
+        launcherDelayMs(2000);
         goto DONE;
     }
 
@@ -1213,6 +1219,7 @@ bool installFirmwareDynamic(
                         fileAddr, spiffsOffset, copySize, spiffsEntry, false, hwid.c_str()
                     )) {
                     displayRedStripe(String("SPIFFS: ") + launcherUpdateLastErrorName());
+                    launcherDelayMs(2000);
                     goto DONE;
                 }
             }
@@ -1229,6 +1236,7 @@ bool installFirmwareDynamic(
                 fileAddr, fatOffset[i], fatCopySize[i], fatEntry[i], false, hwid.c_str()
             )) {
             displayRedStripe(String("FAT: ") + launcherUpdateLastErrorName());
+            launcherDelayMs(2000);
             goto DONE;
         }
     }
@@ -1236,12 +1244,14 @@ bool installFirmwareDynamic(
     displayRedStripe("Writing table");
     if (!launcherPartitionWriteGeneratedTable(table, &error)) {
         displayRedStripe(error.length() ? error : "Table failed");
+        launcherDelayMs(2000);
         goto DONE;
     }
 
     displayRedStripe("Setting boot");
     if (!launcherPartitionSetOtaBoot(table, appEntry.subtype, &error)) {
         displayRedStripe(error.length() ? error : "Boot failed");
+        launcherDelayMs(2000);
         goto DONE;
     }
 
@@ -1558,6 +1568,7 @@ bool installExtFirmware(String url) {
     uint8_t bytes[16];
     if (!url.startsWith("https://")) {
         displayRedStripe("Invalid link");
+        launcherDelayMs(2000);
         return false;
     }
     displayRedStripe("Getting file info");
@@ -1566,6 +1577,7 @@ bool installExtFirmware(String url) {
     if (!launcherHttpGetRange(url.c_str(), 32768, 416, rangeBufferCb, &range, &response) ||
         response.status != 206) {
         displayRedStripe("File not found");
+        launcherDelayMs(2000);
         return false;
     }
     if (!parseContentRangeTotal(response.content_range, file_size)) return false;
@@ -1748,6 +1760,7 @@ void installFirmware( // adicionar "fid"
     if (success) success = launcherUpdateEnd();
     if (!success) {
         displayRedStripe(String("OTA: ") + launcherUpdateLastErrorName());
+        launcherDelayMs(2000);
         goto SAIR;
     }
     displayRedStripe("Removing Coredump");

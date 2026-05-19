@@ -54,58 +54,42 @@ bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, S
 uint32_t launcherPartitionAlignment(uint8_t type, uint8_t subtype);
 bool launcherPartitionCompact(LauncherPartitionTable &table, String *error = nullptr);
 bool launcherPartitionMigrateMovedData(
-    const LauncherPartitionTable &currentTable,
-    const LauncherPartitionTable &targetTable,
+    const LauncherPartitionTable &currentTable, const LauncherPartitionTable &targetTable,
     String *error = nullptr
 );
 
 LauncherPartitionEntry *launcherPartitionFindByLabel(LauncherPartitionTable &table, const char *label);
-const LauncherPartitionEntry *launcherPartitionFindByLabel(
-    const LauncherPartitionTable &table, const char *label
-);
+const LauncherPartitionEntry *
+launcherPartitionFindByLabel(const LauncherPartitionTable &table, const char *label);
 LauncherPartitionEntry *launcherPartitionFindAppBySubtype(LauncherPartitionTable &table, uint8_t subtype);
-const LauncherPartitionEntry *launcherPartitionFindAppBySubtype(
-    const LauncherPartitionTable &table, uint8_t subtype
-);
+const LauncherPartitionEntry *
+launcherPartitionFindAppBySubtype(const LauncherPartitionTable &table, uint8_t subtype);
 const LauncherPartitionEntry *launcherPartitionFindOtaData(const LauncherPartitionTable &table);
 uint8_t launcherPartitionCountOtaApps(const LauncherPartitionTable &table);
 int launcherPartitionOtaIndex(uint8_t subtype);
 int launcherPartitionNextOtaSubtype(const LauncherPartitionTable &table);
 std::vector<LauncherPartitionRange> launcherPartitionFreeRanges(const LauncherPartitionTable &table);
 bool launcherPartitionFindFreeRange(
-    const LauncherPartitionTable &table,
-    uint32_t requiredSize,
-    uint32_t alignment,
-    LauncherPartitionRange &range,
-    String *error = nullptr
+    const LauncherPartitionTable &table, uint32_t requiredSize, uint32_t alignment,
+    LauncherPartitionRange &range, String *error = nullptr
 );
-bool launcherPartitionAdd(LauncherPartitionTable &table, const LauncherPartitionEntry &entry, String *error = nullptr);
+bool launcherPartitionAdd(
+    LauncherPartitionTable &table, const LauncherPartitionEntry &entry, String *error = nullptr
+);
 bool launcherPartitionCreateOtaApp(
-    LauncherPartitionTable &table,
-    uint32_t imageSize,
-    const char *label,
-    LauncherPartitionEntry *created = nullptr,
-    String *error = nullptr
+    LauncherPartitionTable &table, uint32_t imageSize, const char *label,
+    LauncherPartitionEntry *created = nullptr, String *error = nullptr
 );
 bool launcherPartitionCreateData(
-    LauncherPartitionTable &table,
-    uint8_t subtype,
-    const char *label,
-    uint32_t size,
-    LauncherPartitionEntry *created = nullptr,
-    String *error = nullptr
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t size,
+    LauncherPartitionEntry *created = nullptr, String *error = nullptr
 );
 uint32_t launcherPartitionDefaultFatSize(const char *label);
 uint32_t launcherPartitionBoundedPayloadSize(
-    uint32_t declaredSize,
-    uint32_t requestedCopySize,
-    uint32_t maxSize,
-    uint32_t availableSize = UINT32_MAX
+    uint32_t declaredSize, uint32_t requestedCopySize, uint32_t maxSize, uint32_t availableSize = UINT32_MAX
 );
 LauncherPartitionPayloadPlan launcherPartitionFatPayloadPlan(
-    const char *label,
-    uint32_t declaredSize,
-    uint32_t requestedCopySize = 0,
+    const char *label, uint32_t declaredSize, uint32_t requestedCopySize = 0,
     uint32_t availableSize = UINT32_MAX
 );
 bool launcherPartitionSetOtaBoot(

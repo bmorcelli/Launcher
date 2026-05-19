@@ -201,9 +201,6 @@ void setup() {
     ensureM5StackUiFlowNVSDefaults();
 
 #if CONFIG_IDF_TARGET_ESP32P4
-    const esp_partition_t *partition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    if (partition) esp_ota_set_boot_partition(partition);
     esp_err_t nve;
     std::unique_ptr<nvs::NVSHandle> nvsHandle = nvs::open_nvs_handle("launcher", NVS_READWRITE, &nve);
     bool init = false;

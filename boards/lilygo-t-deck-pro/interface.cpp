@@ -26,6 +26,7 @@ Adafruit_TCA8418 *keyboard;
 #define BOARD_SCL 14
 #define TOUCH_INT 12
 #define TOUCH_RST 45
+#define TOUCH_RST2 38
 #define BOARD_I2C_ADDR_TOUCH 0x1A
 
 #define BOARD_EPD_CS 34
@@ -38,6 +39,13 @@ Adafruit_TCA8418 *keyboard;
 #define BOARD_MOTOR_PIN 2
 #define BOARD_KEYBOARD_LED 42
 #define BOARD_A7682E_PWRKEY 40
+
+int variant = 0;
+/*
+variant = 0 -> 1.0
+variant = 1 -> 1.1
+variant = 2 -> max
+*/
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -56,11 +64,6 @@ void _setup_gpio() {
     // Assuming that the previous touch was in sleep state, wake it up
     pinMode(TOUCH_INT, INPUT);
 
-    pinMode(TOUCH_RST, OUTPUT);
-    digitalWrite(TOUCH_RST, LOW);
-    launcherDelayMs(10);
-    digitalWrite(TOUCH_RST, HIGH);
-
     launcherConsoleBegin(115200);
 
     // IO
@@ -70,41 +73,49 @@ void _setup_gpio() {
     launcherGpioOutput(BOARD_6609_EN); // enable 7682 module
     launcherGpioOutput(BOARD_LORA_EN); // enable LORA module
     launcherGpioOutput(BOARD_GPS_EN);  // enable GPS module
-    launcherGpioOutput(BOARD_1V8_EN);  // enable gyroscope module
     launcherGpioOutput(BOARD_A7682E_PWRKEY);
     launcherGpioWrite(BOARD_KEYBOARD_LED, LOW);
     launcherGpioWrite(BOARD_MOTOR_PIN, LOW);
     launcherGpioWrite(BOARD_6609_EN, HIGH);
     launcherGpioWrite(BOARD_LORA_EN, HIGH);
     launcherGpioWrite(BOARD_GPS_EN, HIGH);
-    launcherGpioWrite(BOARD_1V8_EN, HIGH);
     launcherGpioWrite(BOARD_A7682E_PWRKEY, HIGH);
 
     SPI.begin(BOARD_SPI_SCK, SDCARD_MISO, BOARD_SPI_MOSI, BOARD_SPI_CS);
 
     Wire.begin(BOARD_SDA, BOARD_SCL);
-    launcherDelayMs(500);
+    launcherDelayMs(100);
+
+    Wire.beginTransmission(0x20); // test for XL9555, MAX exclusive IC
+    if (Wire.endTransmission() == 0) {
+        // do
+        variant = 2;
+    }
+    Wire.beginTransmission(0x20);
+    if (variant == 0 && Wire.endTransmission() == 0) {
+        variant = 1;
+        // do
+    }
+    if (variant == 0 && Wire.endTransmission() == 0) {
+        pinMode(TOUCH_RST, OUTPUT);
+        digitalWrite(TOUCH_RST, LOW);
+        launcherDelayMs(10);
+        digitalWrite(TOUCH_RST, HIGH);
+        launcherGpioOutput(BOARD_1V8_EN); // enable gyroscope module
+        launcherGpioWrite(BOARD_1V8_EN, HIGH);
+    }
 
     // BQ25896 --- 0x6B
     Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
     if (Wire.endTransmission() == 0) {
-        // battery_25896.begin();
         PPM.init(Wire, BOARD_SDA, BOARD_SCL, BQ25896_SLAVE_ADDRESS);
-        // Set the minimum operating voltage. Below this voltage, the PPM will protect
         PPM.setSysPowerDownVoltage(3300);
-        // Set input current limit, default is 500mA
         PPM.setInputCurrentLimit(3250);
         launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        // Disable current limit pin
         PPM.disableCurrentLimitPin();
-        // Set the charging target voltage, Range:3840 ~ 4608mV ,step:16 mV
         PPM.setChargeTargetVoltage(4208);
-        // Set the precharge current , Range: 64mA ~ 1024mA ,step:64mA
         PPM.setPrechargeCurr(64);
-        // The premise is that Limit Pin is disabled, or it will only follow the maximum charging current set
-        // by Limi tPin. Set the charging current , Range:0~5056mA ,step:64mA
         PPM.setChargerConstantCurr(832);
-        // Get the set charging current
         PPM.getChargerConstantCurr();
         launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
         PPM.enableMeasure();
@@ -153,7 +164,9 @@ void _post_setup_gpio() {
     if (Wire.endTransmission() == 0) { address = CST328_SLAVE_ADDRESS; }
 
     uint8_t touchAddress = 0;
-    touch.setPins(TOUCH_RST, TOUCH_INT);
+    if (variant == 0) touch.setPins(TOUCH_RST, TOUCH_INT);
+    else if (variant == 1) touch.setPins(TOUCH_RST2, TOUCH_INT);
+    else touch.setPins(-1, TOUCH_INT);
     bool hasTouch = true;
     hasTouch = touch.begin(Wire, address, BOARD_SDA, BOARD_SCL);
     if (!hasTouch) {

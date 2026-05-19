@@ -180,7 +180,8 @@ bool receiveBody(httpd_req_t *req, String &body, size_t maxSize = 8192) {
     body.reserve(req->content_len + 1);
     size_t remaining = req->content_len;
     while (remaining > 0) {
-        int readLen = httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
+        int readLen =
+            httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
         if (readLen <= 0) return false;
         body.concat(reinterpret_cast<const char *>(buff), readLen);
         remaining -= readLen;
@@ -195,7 +196,8 @@ String multipartBoundary(const String &contentType) {
     int semi = boundary.indexOf(';');
     if (semi >= 0) boundary = boundary.substring(0, semi);
     boundary.trim();
-    if (boundary.startsWith("\"") && boundary.endsWith("\"")) boundary = boundary.substring(1, boundary.length() - 1);
+    if (boundary.startsWith("\"") && boundary.endsWith("\""))
+        boundary = boundary.substring(1, boundary.length() - 1);
     return "--" + boundary;
 }
 
@@ -243,7 +245,14 @@ WebParamMap readParams(httpd_req_t *req) {
 }
 
 void sendText(httpd_req_t *req, int status, const char *type, const String &body) {
-    httpd_resp_set_status(req, status == 200 ? "200 OK" : status == 400 ? "400 Bad Request" : status == 401 ? "401 Unauthorized" : status == 404 ? "404 Not Found" : "500 Internal Server Error");
+    httpd_resp_set_status(
+        req,
+        status == 200   ? "200 OK"
+        : status == 400 ? "400 Bad Request"
+        : status == 401 ? "401 Unauthorized"
+        : status == 404 ? "404 Not Found"
+                        : "500 Internal Server Error"
+    );
     httpd_resp_set_type(req, type);
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_send(req, body.c_str(), body.length());
@@ -259,7 +268,8 @@ void redirectTo(httpd_req_t *req, const String &location) {
 }
 
 void serveWebUIFile(
-    httpd_req_t *req, const char *contentType, bool gzip, const uint8_t *originalFile, uint32_t originalFileSize
+    httpd_req_t *req, const char *contentType, bool gzip, const uint8_t *originalFile,
+    uint32_t originalFileSize
 ) {
     httpd_resp_set_status(req, "200 OK");
     httpd_resp_set_type(req, contentType);
@@ -327,7 +337,8 @@ int findBytes(const std::vector<uint8_t> &data, const String &needle) {
 bool writeUploadData(File &file, const uint8_t *data, size_t len, size_t written) {
     if (!update) return file.write(data, len) == len;
     if (launcherUpdateWrite(data, len) != len) {
-        displayRedStripe("FAIL 170");
+        displayRedStripe("FAIL 330");
+        launcherDelayMs(2000);
         return false;
     }
     progressHandler(written + len, file_size);
@@ -351,7 +362,7 @@ bool beginUploadTarget(File &file, const String &filename) {
         progressHandler(0, file_size);
         return true;
     }
-    displayRedStripe("FAIL 160: " + String(launcherUpdateLastError()));
+    displayRedStripe("FAIL 365: " + String(launcherUpdateLastError()));
     launcherDelayMs(3000);
     return false;
 }
@@ -362,7 +373,7 @@ bool finishUploadTarget(File &file) {
         return true;
     }
     if (!launcherUpdateEnd()) {
-        displayRedStripe("Fail 181: " + String(launcherUpdateLastError()));
+        displayRedStripe("Fail 376: " + String(launcherUpdateLastError()));
         launcherDelayMs(3000);
         return false;
     }
@@ -392,7 +403,8 @@ bool streamMultipartUpload(httpd_req_t *req) {
     size_t remaining = req->content_len;
 
     while (remaining > 0) {
-        int readLen = httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
+        int readLen =
+            httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
         if (readLen <= 0) return false;
         pending.insert(pending.end(), buff, buff + readLen);
         remaining -= readLen;
@@ -413,7 +425,8 @@ bool streamMultipartUpload(httpd_req_t *req) {
 
             int boundaryAt = findBytes(pending, delimiter);
             if (boundaryAt >= 0) {
-                if (boundaryAt > 0 && !writeUploadData(file, pending.data(), boundaryAt, written)) return false;
+                if (boundaryAt > 0 && !writeUploadData(file, pending.data(), boundaryAt, written))
+                    return false;
                 written += boundaryAt;
                 pending.erase(pending.begin(), pending.begin() + boundaryAt + delimiter.length());
                 finishedFile = finishUploadTarget(file);
@@ -521,7 +534,8 @@ esp_err_t renameHandler(httpd_req_t *req) {
     String filePath = params.get("filePath");
     String filePath2 = filePath.substring(0, filePath.lastIndexOf('/') + 1) + fileName;
     if (!setupSdCard()) sendText(req, "text/plain", "Fail starting SD Card.");
-    else if (SDM.rename(filePath, filePath2)) sendText(req, "text/plain", filePath + " renamed to " + filePath2);
+    else if (SDM.rename(filePath, filePath2))
+        sendText(req, "text/plain", filePath + " renamed to " + filePath2);
     else sendText(req, "text/plain", "Fail renaming file.");
     return ESP_OK;
 }
