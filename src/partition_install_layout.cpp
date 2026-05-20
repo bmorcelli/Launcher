@@ -244,6 +244,31 @@ bool launcherSelectInstallLayout(
         return a.offset < b.offset;
     });
 
+    auto isSelectedApp = [&](const LauncherPartitionEntry &entry, size_t start, size_t end) {
+        for (size_t i = start; i <= end; ++i) {
+            if (apps[i].offset == entry.offset) return true;
+        }
+        return false;
+    };
+
+    auto isRemovableDataForPass = [](const LauncherPartitionEntry &entry, bool removeSpiffs) {
+        if (!launcherPartitionIsRemovableInstallData(entry)) return false;
+        return removeSpiffs || strcmp(entry.label, "spiffs") != 0;
+    };
+
+    auto rangeCanBeCleared = [&](size_t start, size_t end, bool removeSpiffs) {
+        const uint32_t rangeStart = apps[start].offset;
+        const uint32_t rangeEnd = apps[end].offset + apps[end].size;
+        for (const LauncherPartitionEntry &entry : original.entries) {
+            const uint32_t entryEnd = entry.offset + entry.size;
+            if (entryEnd <= rangeStart || entry.offset >= rangeEnd) continue;
+            if (isSelectedApp(entry, start, end)) continue;
+            if (isRemovableDataForPass(entry, removeSpiffs)) continue;
+            return false;
+        }
+        return true;
+    };
+
     for (size_t start = 0; start < apps.size(); ++start) {
         if (apps[start].size >= requiredAppPartitionSize) continue;
         LauncherPartitionTable candidate = original;
@@ -320,13 +345,10 @@ bool launcherSelectInstallLayout(
             original.entries.begin(), original.entries.end(), launcherPartitionIsRemovableInstallData
         )) {
         for (size_t start = 0; start < apps.size(); ++start) {
-            uint32_t rangeEnd = apps[start].offset + apps[start].size;
             for (size_t end = start; end < apps.size(); ++end) {
-                if (end > start && apps[end].offset != rangeEnd) break;
-                rangeEnd = apps[end].offset + apps[end].size;
-
                 for (int removalPass = 0; removalPass < 2; ++removalPass) {
                     const bool removeSpiffs = removalPass == 1;
+                    if (!rangeCanBeCleared(start, end, removeSpiffs)) continue;
                     LauncherPartitionTable candidate = original;
                     for (size_t i = start; i <= end; ++i)
                         launcherPartitionRemoveEntryByOffset(candidate, apps[i].offset);
@@ -392,10 +414,9 @@ bool launcherSelectInstallLayout(
             const bool removeSpiffs = removalPass == 1;
             for (size_t start = 0; start < apps.size(); ++start) {
                 uint32_t rangeStart = apps[start].offset;
-                uint32_t rangeEnd = apps[start].offset + apps[start].size;
                 for (size_t end = start; end < apps.size(); ++end) {
-                    if (end > start && apps[end].offset != rangeEnd) break;
-                    rangeEnd = apps[end].offset + apps[end].size;
+                    if (!rangeCanBeCleared(start, end, removeSpiffs)) continue;
+                    uint32_t rangeEnd = apps[end].offset + apps[end].size;
 
                     LauncherPartitionTable candidate = original;
                     for (size_t i = start; i <= end; ++i)

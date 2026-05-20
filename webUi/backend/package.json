@@ -1,0 +1,12 @@
+{
+  "name": "launcher-webui-dev-server",
+  "version": "1.0.0",
+  "description": "Dev backend that mimics the ESP32 webInterface for testing the Launcher WebUI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

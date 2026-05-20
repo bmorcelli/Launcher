@@ -223,16 +223,18 @@ String launcherAppDisplayNameForLabel(const char *label) {
 }
 
 String launcherSelectedBootAppName() {
+    std::vector<LauncherAppMetadata> apps = launcherLoadAppRegistry();
+
     const esp_partition_t *bootPartition = esp_ota_get_boot_partition();
     if (bootPartition && bootPartition->type == ESP_PARTITION_TYPE_APP &&
         bootPartition->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_0) {
-        String name = launcherAppDisplayNameForLabel(bootPartition->label);
-        if (!name.isEmpty() && name != String(bootPartition->label)) return name;
+        for (const LauncherAppMetadata &app : apps) {
+            if (app.label == String(bootPartition->label)) {
+                return app.name.isEmpty() ? app.label : app.name;
+            }
+        }
     }
 
-    if (!lastInstalledApp.isEmpty()) return lastInstalledApp;
-
-    std::vector<LauncherAppMetadata> apps = launcherLoadAppRegistry();
     if (apps.size() == 1) return apps[0].name;
     return "";
 }

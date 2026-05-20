@@ -72,7 +72,7 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 * Having an SD card is good for better experience, but not really needed. [SDCard Hat for M5StickCs](https://www.thingiverse.com/thing:6459069)
 * You can learn more about how it works o [Launcher Wiki](https://github.com/bmorcelli/Launcher/wiki/Explaining-the-project).
 * Where/How do I find Binaries to launch -> [Obtaining binaries to launch](https://github.com/bmorcelli/Launcher/wiki/Obtaining-binaries-to-launch)
-* Now you can download binaries from [HERE!](https://bmorcelli.github.io/Launcher/m5lurner.html)
+* Now you can download binaries from [HERE!](https://bmorcelli.github.io/Launcher/catalog.html)
 </details>
 
 ## Known Issues
@@ -86,10 +86,15 @@ Things that needs to be done in next updates
 
 ## Latest Changelog
 * 2.7.0:
-     * [x] Custom partition builder (no more hardcoded partition lists)
-     * [ ] Optimize Storage functions to save Flash
+     * [x] Custom partition builder (no more hardcoded partitions)
+     * [x] Auto partition maker, firmware chacker and flash optimizer.
+     * [x] Possibility to install more than one firmware at a time
+     * [x] Encrypted Wifi passwords within config.conf and NVS
+     * [x] Remoddeled WebUI, adding possibility to edit text files and NVS fields saved in memory
+     * [x] Changed items on CFG for better understanding
+     * [-] Optimize Settings functions to save flash
      * [x] Optimize WiFi/WebUI functions to save Flash
-     * [ ] Optimize Settings functions to save flash
+     * [ ] Optimize Storage functions to save Flash
 
 * 2.6.10:
      * [x] Fixed Navigation on 3 Buttons-devices that were triggering EscPress when pressin Next or Prev buttons.

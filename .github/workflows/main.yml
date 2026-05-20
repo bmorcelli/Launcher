@@ -158,6 +158,7 @@
               fi
 
               sed -i "s/-DLAUNCHER=/-DLAUNCHER='\"$version\"' ; /g" ./platformio.ini
+              sed -i "s/-DWIFI_ENC_KEY=/-DWIFI_ENC_KEY='\"${{ secrets.WIFI_ENC_KEY }}\"' ; /g" ./platformio.ini
 
           - name: Run Compile
             run: |

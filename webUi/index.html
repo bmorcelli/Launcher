@@ -1,60 +1,73 @@
 <!DOCTYPE HTML>
 <html lang="en">
-
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta charset="UTF-8">
-    <link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <div class="container">
-        <div class="float-element"><a onclick="logoutButton()" href='javascript:void(0);'>[X]</a></div>
-        <h1 align="center">-= Launcher =-</h1>
-        <p>Firmware version: <span id="firmwareVersion">...</span></p>
-        <p>SD Free Storage: <span id="freeSD">...</span> | Used: <span id="usedSD">...</span> | Total: <span
-                id="totalSD">...</span></p>
-        <p><a href="https://bmorcelli.github.io/Launcher/m5lurner.html" target="_blank" rel="noopener noreferrer">Online
-                Firmware list from M5Burner (Need Internet)</a></p>
-        <div>
-            <form id="save" enctype="multipart/form-data" method="post"><input type="hidden" id="actualFolder"
-                    name="actualFolder" value="/"></form>
-            <button onclick="rebootButton()">Reboot</button>
-            <button onclick="SDConfig()">SD pins</button>
-            <button onclick="WifiConfig('ssid')">WiFi</button>
-            <button onclick="WifiConfig('usr')">Usr/Pass</button>
-            <button onclick="callOTA()">OTA Update</button>
-            <button onclick="listFilesButton('/')">SD Files</button>
-
-        </div>
-        <p id="detailsheader"></p>
-        <p id="status"></p>
-        <div id="drop-area" class="drop-area">
-            <p id="details"></p>
-        </div>
-        <div id="OTAdetails" style="display:none;">
-            <input type="file" id="fileInput" onchange="analyzeFile()" style="display:none;" accept=".bin">
-            <div id="analysisOutput"></div>
-            <button id="uploadApp" style="display:none;">Start Update</button>
-            <button id="uploadSpiffs" style="display:none;">SPIFFS Update</button>
-            <div id="spiffsInfo" style="display:none;">
-                <br>
-                <p>
-                    <b>SPIFFS</b>: The SPIFFS (Serial Peripheral Interface Flash File System) is a file system designed
-                    to be
-                    used with NOR flash memory devices and microcontrollers that support the Serial Peripheral Interface
-                    (SPI) protocol such as the ESP32
-                    <br>
-                    <br>
-                    Most of the apps over the internet don't need SPIFFS to work, but there are some exceptions like
-                    <b>OrcaOne</b>.
-                </p>
-            </div>
-        </div>
-        <p id="updetailsheader"></p>
-        <p id="updetails"></p>
+<div class="w">
+  <div class="card">
+    <h1>&#11835; LAUNCHER &#11835;</h1>
+    <div class="row" style="margin-bottom:6px">
+      <div class="tag">v <b id="firmwareVersion">&#8230;</b></div>
+      <div class="tag">Free <b id="freeSD">&#8230;</b></div>
+      <div class="tag">Used <b id="usedSD">&#8230;</b></div>
+      <div class="tag">Total <b id="totalSD">&#8230;</b></div>
     </div>
-    <script src="scripts.js"></script>
+  </div>
+  <div class="card">
+    <form id="save" enctype="multipart/form-data" method="post">
+      <input type="hidden" id="actualFolder" name="actualFolder" value="/">
+    </form>
+    <button class="hbg" onclick="toggleMenu()">&#9776; Menu</button>
+    <div class="row" id="menu">
+      <button onclick="rebootButton()">&#8635; Reboot</button>
+      <button onclick="SDConfig()">SD Pins</button>
+      <button onclick="WifiConfig('ssid')">WiFi</button>
+      <button onclick="WifiConfig('usr')">User/Pass</button>
+      <button onclick="callOTA()">&#8593; OTA</button>
+      <button onclick="listFilesButton('/')">&#128193; Files</button>
+      <button onclick="loadNvs()">&#9881; NVS</button>
+      <button onclick="window.open('https://bmorcelli.github.io/Launcher/catalog.html','_blank','noopener,noreferrer')">Firmware list &#8599;</button>
+      <button onclick="logoutButton()">&#10006; Logout</button>
+    </div>
+  </div>
+  <div id="status"></div>
+  <div id="detailsheader"></div>
+  <div id="drop-area" class="drop-area"><div id="details"></div></div>
+  <div id="OTAdetails" style="display:none">
+    <input type="file" id="fileInput" onchange="analyzeFile()" style="display:none" accept=".bin">
+    <div id="analysisOutput"></div>
+    <button id="uploadApp" style="display:none">Start Update</button>
+    <button id="uploadSpiffs" style="display:none">SPIFFS Update</button>
+    <div id="spiffsInfo" style="display:none">
+      <p><b>SPIFFS</b>: Flash file system for ESP32. Some apps like <b>OrcaOne</b> require it.</p>
+    </div>
+  </div>
+  <div id="updetailsheader"></div>
+  <div id="updetails"></div>
+</div>
+<div id="nvs" class="modal">
+  <div class="mhdr">
+    <span class="mtitle">NVS Config</span>
+    <span><button onclick="saveNvs()">&#128190; Save</button> <button onclick="_('nvs').style.display='none'">&#10006;</button></span>
+  </div>
+  <div id="nvs-body"></div>
+</div>
+<div id="editor" class="modal">
+  <div class="mhdr">
+    <span id="editor-title" class="mtitle"></span>
+    <span><button onclick="saveFile()">&#128190; Save</button> <button onclick="_('editor').style.display='none'">&#10006;</button></span>
+  </div>
+  <textarea id="editor-content"></textarea>
+</div>
+<div id="upmodal">
+  <div id="upbox">
+    <h3>Uploading</h3>
+    <div id="uplist"></div>
+  </div>
+</div>
+<script src="scripts.js"></script>
 </body>
-
 </html>

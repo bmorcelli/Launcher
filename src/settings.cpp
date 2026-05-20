@@ -1,5 +1,6 @@
 
 #include "settings.h"
+#include "wifi_crypto.h"
 #include "display.h"
 #include "esp_mac.h"
 #include "idf/launcher_platform.h"
@@ -567,16 +568,18 @@ bool saveWifiIntoNVS() {
     for (JsonObject wifiObj : wifiList) {
         String ssid = wifiObj["ssid"].as<String>();
         if (ssid.isEmpty()) continue;
-        String pwd = wifiObj["pwd"].as<String>();
+        String encPwd = wifiPwdEncrypt(wifiObj["pwd"].as<String>());
         uint32_t crc = crc32(reinterpret_cast<const uint8_t *>(ssid.c_str()), ssid.length());
         String ssidKey = makeWifiKey('s', crc);
         String pwdKey = makeWifiKey('p', crc);
+        String secKey = makeWifiKey('b', crc);
 
         esp_err_t ssidErr = nvsHandle->set_string(ssidKey.c_str(), ssid.c_str());
-        esp_err_t pwdErr = nvsHandle->set_string(pwdKey.c_str(), pwd.c_str());
-        if (ssidErr != ESP_OK || pwdErr != ESP_OK) {
+        esp_err_t pwdErr = nvsHandle->set_string(pwdKey.c_str(), encPwd.c_str());
+        esp_err_t secErr = nvsHandle->set_item(secKey.c_str(), (uint8_t)1);
+        if (ssidErr != ESP_OK || pwdErr != ESP_OK || secErr != ESP_OK) {
             log_i(
-                "saveWifiIntoNVS: failed storing %s (ssid err=%d pwd err=%d)", ssid.c_str(), ssidErr, pwdErr
+                "saveWifiIntoNVS: failed storing %s (ssid=%d pwd=%d sec=%d)", ssid.c_str(), ssidErr, pwdErr, secErr
             );
         }
     }
@@ -754,8 +757,13 @@ bool getWifiFromNVS() {
                     launcherConsolePrintf("Password key %s not found\n", pwdKey.c_str());
                 }
 
+                String secKey2 = "b_" + suffix;
+                uint8_t isSecure = 0;
+                nvs_get_u8(rawHandle, secKey2.c_str(), &isSecure);
+                if (isSecure) pwdValue = wifiPwdDecrypt(pwdValue);
+
                 setWifiCredential(String(ssidBuff), pwdValue, false);
-                launcherConsolePrintf("SSID: %s, PWD: %s\n", ssidBuff, pwdValue.c_str());
+                launcherConsolePrintf("SSID: %s\n", ssidBuff);
             } else {
                 launcherConsolePrintf("Error %d retrieving %s\n", err, info.key);
             }
@@ -888,7 +896,16 @@ void getConfigs() {
                 count++;
                 log_i("Fail");
             }
-            if (!setting["wifi"].is<JsonArray>()) {
+            if (setting["wifi"].is<JsonArray>()) {
+                for (JsonObject wifiEntry : setting["wifi"].as<JsonArray>()) {
+                    if (wifiEntry["secure"].as<bool>()) {
+                        wifiEntry["pwd"] = wifiPwdDecrypt(wifiEntry["pwd"].as<String>());
+                        wifiEntry.remove("secure");
+                    } else if (!wifiEntry["ssid"].as<String>().isEmpty()) {
+                        ++count; // plain-text entry — trigger re-save with encryption
+                    }
+                }
+            } else {
                 ++count;
                 log_i("Fail");
             }
@@ -999,9 +1016,36 @@ void saveConfigs() {
         setting["wui_pwd"] = wui_pwd;
         setting["dwn_path"] = dwn_path;
 
+        // Encrypt wifi passwords before writing to SD
+        {
+            JsonArray wl = setting["wifi"].as<JsonArray>();
+            if (!wl.isNull()) {
+                for (JsonObject e : wl) {
+                    String ssid = e["ssid"].as<String>();
+                    if (!ssid.isEmpty()) {
+                        e["pwd"] = wifiPwdEncrypt(e["pwd"].as<String>());
+                        e["secure"] = true;
+                    }
+                }
+            }
+        }
+
         size_t written = serializeJsonPretty(settings, file);
         file.flush();
         file.close();
+
+        // Restore plaintext passwords in memory immediately after write
+        {
+            JsonArray wl = setting["wifi"].as<JsonArray>();
+            if (!wl.isNull()) {
+                for (JsonObject e : wl) {
+                    if (e["secure"].as<bool>()) {
+                        e["pwd"] = wifiPwdDecrypt(e["pwd"].as<String>());
+                        e.remove("secure");
+                    }
+                }
+            }
+        }
 
         if (written < 5) {
             if (retry) {

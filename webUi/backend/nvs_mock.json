@@ -1,0 +1,24 @@
+{
+  "launcher": [
+    {
+      "k": "brightness",
+      "t": "u8",
+      "v": 128
+    },
+    {
+      "k": "rotation",
+      "t": "u8",
+      "v": 1
+    },
+    {
+      "k": "wifi_ssid",
+      "t": "str",
+      "v": "MyNetwork"
+    },
+    {
+      "k": "wifi_pwd",
+      "t": "str",
+      "v": "secret"
+    }
+  ]
+}

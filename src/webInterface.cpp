@@ -7,6 +7,7 @@
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
+#include "nvs.h"
 #include "onlineLauncher.h"
 #include "sd_functions.h"
 #include "settings.h"
@@ -575,11 +576,7 @@ esp_err_t scriptsHandler(httpd_req_t *req) {
 }
 
 esp_err_t styleHandler(httpd_req_t *req) {
-#ifdef PART_04MB
-    serveWebUIFile(req, "text/css", true, style_4mb_css, style_4mb_css_size);
-#else
     serveWebUIFile(req, "text/css", true, style_css, style_css_size);
-#endif
     return ESP_OK;
 }
 
@@ -679,6 +676,205 @@ esp_err_t fileHandler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+esp_err_t editfileHandler(httpd_req_t *req) {
+    if (!checkUserWebAuth(req)) return ESP_OK;
+    String fileName = queryValue(req, "name");
+    if (fileName.isEmpty()) {
+        sendText(req, 400, "text/plain", "Missing name");
+        return ESP_OK;
+    }
+
+    if (req->method == HTTP_GET) {
+        File file = SDM.open(fileName);
+        if (!file) {
+            sendText(req, 404, "text/plain", "Not found");
+            return ESP_OK;
+        }
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        while (file.available()) {
+            size_t len = file.read(buff, bufSize);
+            httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buff), len);
+        }
+        httpd_resp_send_chunk(req, nullptr, 0);
+        file.close();
+    } else {
+        String body;
+        if (!receiveBody(req, body, 32768)) {
+            sendText(req, 400, "text/plain", "Too large");
+            return ESP_OK;
+        }
+        File file = SDM.open(fileName, "w");
+        if (!file) {
+            sendText(req, "text/plain", "FAIL");
+            return ESP_OK;
+        }
+        file.print(body);
+        file.close();
+        sendText(req, "text/plain", "OK");
+    }
+    return ESP_OK;
+}
+
+esp_err_t nvsHandler(httpd_req_t *req) {
+    if (!checkUserWebAuth(req)) return ESP_OK;
+
+    if (req->method == HTTP_GET) {
+        JsonDocument doc;
+
+        nvs_iterator_t it = nullptr;
+        esp_err_t res = nvs_entry_find("nvs", nullptr, NVS_TYPE_ANY, &it);
+
+        nvs_handle_t h = 0;
+        char curNs[16] = "";
+
+        while (res == ESP_OK && it != nullptr) {
+            nvs_entry_info_t info;
+            nvs_entry_info(it, &info);
+
+            bool skip = (info.type == NVS_TYPE_BLOB) ||
+                        (strcmp(info.namespace_name, "launcher") == 0 && strcmp(info.key, "token") == 0);
+
+            if (!skip) {
+                if (strcmp(curNs, info.namespace_name) != 0) {
+                    if (h) {
+                        nvs_close(h);
+                        h = 0;
+                    }
+                    nvs_open(info.namespace_name, NVS_READONLY, &h);
+                    strncpy(curNs, info.namespace_name, sizeof(curNs) - 1);
+                }
+                if (h) {
+                    if (!doc[info.namespace_name].is<JsonArray>()) doc[info.namespace_name].to<JsonArray>();
+                    JsonObject field = doc[info.namespace_name].as<JsonArray>().add<JsonObject>();
+                    field["k"] = info.key;
+                    switch (info.type) {
+                        case NVS_TYPE_U8: {
+                            uint8_t v = 0;
+                            nvs_get_u8(h, info.key, &v);
+                            field["t"] = "u8";
+                            field["v"] = v;
+                            break;
+                        }
+                        case NVS_TYPE_I8: {
+                            int8_t v = 0;
+                            nvs_get_i8(h, info.key, &v);
+                            field["t"] = "i8";
+                            field["v"] = v;
+                            break;
+                        }
+                        case NVS_TYPE_U16: {
+                            uint16_t v = 0;
+                            nvs_get_u16(h, info.key, &v);
+                            field["t"] = "u16";
+                            field["v"] = v;
+                            break;
+                        }
+                        case NVS_TYPE_I16: {
+                            int16_t v = 0;
+                            nvs_get_i16(h, info.key, &v);
+                            field["t"] = "i16";
+                            field["v"] = v;
+                            break;
+                        }
+                        case NVS_TYPE_U32: {
+                            uint32_t v = 0;
+                            nvs_get_u32(h, info.key, &v);
+                            field["t"] = "u32";
+                            field["v"] = v;
+                            break;
+                        }
+                        case NVS_TYPE_I32: {
+                            int32_t v = 0;
+                            nvs_get_i32(h, info.key, &v);
+                            field["t"] = "i32";
+                            field["v"] = v;
+                            break;
+                        }
+                        case NVS_TYPE_U64: {
+                            uint64_t v = 0;
+                            nvs_get_u64(h, info.key, &v);
+                            field["t"] = "u64";
+                            field["v"] = (uint32_t)v;
+                            break;
+                        }
+                        case NVS_TYPE_I64: {
+                            int64_t v = 0;
+                            nvs_get_i64(h, info.key, &v);
+                            field["t"] = "i64";
+                            field["v"] = (int32_t)v;
+                            break;
+                        }
+                        case NVS_TYPE_STR: {
+                            size_t len = 0;
+                            if (nvs_get_str(h, info.key, nullptr, &len) == ESP_OK && len > 0) {
+                                char *tmp = static_cast<char *>(malloc(len));
+                                if (tmp) {
+                                    if (nvs_get_str(h, info.key, tmp, &len) == ESP_OK) {
+                                        field["t"] = "str";
+                                        field["v"] = tmp;
+                                    }
+                                    free(tmp);
+                                }
+                            }
+                            break;
+                        }
+                        default: break;
+                    }
+                }
+            }
+            res = nvs_entry_next(&it);
+        }
+        if (h) nvs_close(h);
+        if (it) nvs_release_iterator(it);
+
+        String json;
+        serializeJson(doc, json);
+        sendText(req, "application/json", json);
+    } else {
+        String body;
+        if (!receiveBody(req, body)) {
+            sendText(req, 400, "text/plain", "Too large");
+            return ESP_OK;
+        }
+        JsonDocument doc;
+        if (deserializeJson(doc, body)) {
+            sendText(req, 400, "text/plain", "Bad JSON");
+            return ESP_OK;
+        }
+
+        for (JsonPair ns : doc.as<JsonObject>()) {
+            const char *nsName = ns.key().c_str();
+            nvs_handle_t h;
+            if (nvs_open(nsName, NVS_READWRITE, &h) != ESP_OK) continue;
+            for (JsonObject field : ns.value().as<JsonArray>()) {
+                const char *key = field["k"];
+                const char *t = field["t"];
+                if (!key || !t) continue;
+                if (strcmp(nsName, "launcher") == 0 && strcmp(key, "token") == 0) continue;
+                if (strcmp(t, "u8") == 0) nvs_set_u8(h, key, (uint8_t)field["v"].as<unsigned>());
+                else if (strcmp(t, "i8") == 0) nvs_set_i8(h, key, (int8_t)field["v"].as<int>());
+                else if (strcmp(t, "u16") == 0) nvs_set_u16(h, key, (uint16_t)field["v"].as<unsigned>());
+                else if (strcmp(t, "i16") == 0) nvs_set_i16(h, key, (int16_t)field["v"].as<int>());
+                else if (strcmp(t, "u32") == 0) nvs_set_u32(h, key, (uint32_t)field["v"].as<unsigned>());
+                else if (strcmp(t, "i32") == 0) nvs_set_i32(h, key, (int32_t)field["v"].as<int>());
+                else if (strcmp(t, "u64") == 0) nvs_set_u64(h, key, (uint64_t)field["v"].as<unsigned>());
+                else if (strcmp(t, "i64") == 0) nvs_set_i64(h, key, (int64_t)field["v"].as<int>());
+                else if (strcmp(t, "str") == 0) {
+                    const char *s = field["v"].as<const char *>();
+                    if (s) nvs_set_str(h, key, s);
+                }
+            }
+            nvs_commit(h);
+            nvs_close(h);
+        }
+        getFromNVS();
+        getWifiFromNVS();
+        sendText(req, "text/plain", "OK");
+    }
+    return ESP_OK;
+}
+
 esp_err_t sdPinsHandler(httpd_req_t *req) {
     if (!checkUserWebAuth(req)) return ESP_OK;
     String misoStr = queryValue(req, "miso");
@@ -727,7 +923,6 @@ esp_err_t wifiHandler(httpd_req_t *req) {
         pwd = pwdd;
         ssid = ssidd;
         if (setWifiCredential(ssid, pwd)) {
-            launcherConsolePrintf("WebUI: ssid->%s, pwd->%s\n", ssid.c_str(), pwd.c_str());
             saveConfigs();
         } else {
             launcherConsolePrintln("WebUI: failed to store new WiFi entry");
@@ -772,6 +967,10 @@ void configureWebServer() {
     registerHandler("/reboot", HTTP_GET, rebootHandler);
     registerHandler("/listfiles", HTTP_GET, listFilesHandler);
     registerHandler("/file", HTTP_GET, fileHandler);
+    registerHandler("/editfile", HTTP_GET, editfileHandler);
+    registerHandler("/editfile", HTTP_POST, editfileHandler);
+    registerHandler("/nvs", HTTP_GET, nvsHandler);
+    registerHandler("/nvs", HTTP_POST, nvsHandler);
     registerHandler("/sdpins", HTTP_GET, sdPinsHandler);
     registerHandler("/wifi", HTTP_GET, wifiHandler);
     registerHandler("/*", HTTP_GET, fallbackHandler);

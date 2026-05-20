@@ -84,15 +84,14 @@ bool deleteFromSd(String path) {
     bool success = true;
 
     bool isDir;
-    String fileName = dir.getNextFileName(&isDir);
-    while (fileName != "") {
-        String fullPath = path + "/" + fileName;
+    String fullPath = dir.getNextFileName(&isDir);
+    while (fullPath != "") {
         if (isDir) {
             success &= deleteFromSd(fullPath);
         } else {
             success &= SDM.remove(fullPath.c_str());
         }
-        fileName = dir.getNextFileName(&isDir);
+        fullPath = dir.getNextFileName(&isDir);
     }
 
     dir.close();

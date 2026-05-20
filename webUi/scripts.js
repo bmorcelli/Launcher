@@ -1,4 +1,76 @@
 function _(e) { return document.getElementById(e); }
+function toggleMenu(){_('menu').classList.toggle('open')}
+function toggleRow(b){const r=b.closest('tr').nextElementSibling;r.style.display=r.style.display==='none'?'table-row':'none'}
+const editableExts = new Set(['txt','ini','conf','c','cpp','h','hpp','js','css','htm','html','ts']);
+function isEditable(name) { return editableExts.has(name.split('.').pop().toLowerCase()); }
+let editingFile = '';
+function editFile(path) {
+    editingFile = path;
+    _('editor-title').textContent = path;
+    _('editor-content').value = 'Loading...';
+    _('editor').style.display = 'block';
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', '/editfile?name=' + encodeURIComponent(path));
+    xhr.onload = () => { _('editor-content').value = xhr.responseText; };
+    xhr.onerror = () => { _('editor-content').value = 'Error loading file'; };
+    xhr.send();
+}
+function saveFile() {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/editfile?name=' + encodeURIComponent(editingFile));
+    xhr.setRequestHeader('Content-Type', 'text/plain');
+    xhr.onload = () => { _('status').innerHTML = xhr.responseText === 'OK' ? 'File saved!' : xhr.responseText; };
+    xhr.send(_('editor-content').value);
+}
+
+let _nvsData = null;
+const _nvsInts = new Set(['u8','i8','u16','i16','u32','i32','u64','i64']);
+function _nvsIsCheckbox(f) { return f.t === 'u8' && (f.v === 0 || f.v === 1); }
+function _nvsId(ns, k) { return 'nvs__' + ns + '__' + k; }
+function loadNvs() {
+    _('nvs').style.display = 'block';
+    _('nvs-body').innerHTML = 'Loading...';
+    const x = new XMLHttpRequest();
+    x.open('GET', '/nvs');
+    x.onload = () => {
+        _nvsData = JSON.parse(x.responseText);
+        const inp = 'style="width:100px;background:#303134;color:#0d0;border:1px solid #0d0;padding:2px"';
+        const inps = 'style="width:220px;background:#303134;color:#0d0;border:1px solid #0d0;padding:2px"';
+        let h = '';
+        for (const ns in _nvsData) {
+            h += '<h3 style="margin:8px 0 4px;color:#0d0">' + ns + '</h3>';
+            _nvsData[ns].forEach(f => {
+                const id = _nvsId(ns, f.k);
+                h += '<div style="margin:4px 0"><label style="display:inline-block;width:150px;font-size:0.9em">' + f.k + ':</label>';
+                if (_nvsIsCheckbox(f))
+                    h += '<input type="checkbox" id="' + id + '"' + (f.v ? ' checked' : '') + '>';
+                else if (_nvsInts.has(f.t))
+                    h += '<input type="number" id="' + id + '" value="' + f.v + '" ' + inp + '>';
+                else
+                    h += '<input type="text" id="' + id + '" value="' + f.v + '" ' + inps + '>';
+                h += ' <small style="color:#888">' + f.t + '</small></div>';
+            });
+        }
+        _('nvs-body').innerHTML = h;
+    };
+    x.send();
+}
+function saveNvs() {
+    const out = {};
+    for (const ns in _nvsData) {
+        out[ns] = _nvsData[ns].map(f => {
+            const el = document.getElementById(_nvsId(ns, f.k));
+            if (!el) return f;
+            let v = _nvsIsCheckbox(f) ? (el.checked ? 1 : 0) : _nvsInts.has(f.t) ? parseInt(el.value) : el.value;
+            return {k: f.k, t: f.t, v};
+        });
+    }
+    const x = new XMLHttpRequest();
+    x.open('POST', '/nvs');
+    x.setRequestHeader('Content-Type', 'application/json');
+    x.onload = () => { _('status').innerHTML = x.responseText === 'OK' ? 'NVS saved!' : x.responseText; _('nvs').style.display = 'none'; };
+    x.send(JSON.stringify(out));
+}
 
 function httpRequest(method, url, { async = true, body, headers = {}, onload, onerror } = {}) {
     const xhr = new XMLHttpRequest();
@@ -223,8 +295,8 @@ function listFilesButton(folders) {
             if (xhr.status === 200) {
                 const responseText = xhr.responseText;
                 const lines = responseText.split('\n');
-                let tableContent = "<table><tr><th align='left'>Name</th><th style=\"text-align=center;\">Size</th><th></th></tr>\n";
-                tableContent += "<tr><th align='left'><a onclick=\"listFilesButton('" + previousFolder + "')\" href='javascript:void(0);'>... </a></th><th align='left'></th><th></th></tr>\n";
+                let tableContent = "<table><tr><th>Name</th><th class='sz'>Size</th><th class='ac'></th><th class='mb'></th></tr>\n";
+                tableContent += "<tr><td colspan='4'><a onclick=\"listFilesButton('" + previousFolder + "')\" href='javascript:void(0);'>&#8592; ..</a></td></tr>\n";
                 let folder = "";
                 const foldersArray = [];
                 const filesArray = [];
@@ -246,22 +318,25 @@ function listFilesButton(folders) {
                 foldersArray.sort((a, b) => a.name.localeCompare(b.name));
                 filesArray.sort((a, b) => a.name.localeCompare(b.name));
                 foldersArray.forEach((item) => {
-                    tableContent += "<tr align='left'><td><a onclick=\"listFilesButton('" + item.path + "')\" href='javascript:void(0);'>" + item.name + "</a></td>";
-                    tableContent += "<td></td>\n";
-                    tableContent += "<td><i style=\"color: #e0d204;\" class=\"gg-folder\" onclick=\"listFilesButton('" + item.path + "')\"></i>&nbsp&nbsp";
-                    tableContent += "<i style=\"color: #e0d204;\" class=\"gg-rename\" onclick=\"renameFile('" + item.path + "', '" + item.name + "')\"></i>&nbsp&nbsp";
-                    tableContent += "<i style=\"color: #e0d204;\" class=\"gg-trash\" onclick=\"downloadDeleteButton('" + item.path + "', 'delete')\"></i></td></tr>\n\n";
+                    const ac = "<span style='cursor:pointer;color:#e0d204' onclick=\"listFilesButton('" + item.path + "')\">&#128193;</span>&nbsp" +
+                               "<span style='cursor:pointer' onclick=\"renameFile('" + item.path + "', '" + item.name + "')\">&#9999;</span>&nbsp" +
+                               "<span style='cursor:pointer' onclick=\"downloadDeleteButton('" + item.path + "', 'delete')\">&#128465;</span>";
+                    tableContent += "<tr><td><a onclick=\"listFilesButton('" + item.path + "')\" href='javascript:void(0);'>" + item.name + "</a></td>" +
+                                    "<td class='sz'></td><td class='ac'>" + ac + "</td>" +
+                                    "<td class='mb'><button onclick='toggleRow(this)'>&#8942;</button></td></tr>\n" +
+                                    "<tr class='mrow' style='display:none'><td colspan='4'>" + ac + "</td></tr>\n";
                 });
                 filesArray.forEach((item) => {
-                    tableContent += "<tr align='left'><td>" + item.name;
-                    if (item.name.substring(item.name.lastIndexOf('.') + 1).toLowerCase() === "bin") {
-                        tableContent += "&nbsp<i class=\"gg-arrow-top-right-r\" onclick=\"startUpdate('" + item.path + "')\"></i>";
-                    }
-                    tableContent += "</td>\n";
-                    tableContent += "<td style=\"font-size: 10px; text-align=center;\">" + item.size + "</td>\n";
-                    tableContent += "<td><i class=\"gg-arrow-down-r\" onclick=\"downloadDeleteButton('" + item.path + "', 'download')\"></i>&nbsp&nbsp\n";
-                    tableContent += "<i class=\"gg-rename\" onclick=\"renameFile('" + item.path + "', '" + item.name + "')\"></i>&nbsp&nbsp\n";
-                    tableContent += "<i class=\"gg-trash\" onclick=\"downloadDeleteButton('" + item.path + "', 'delete')\"></i></td></tr>\n\n";
+                    const isBin = item.name.split('.').pop().toLowerCase() === "bin";
+                    const fname = item.name + (isBin ? "&nbsp<span style='cursor:pointer' onclick=\"startUpdate('" + item.path + "')\">&#128640;</span>" : "");
+                    const ac = (isEditable(item.name) ? "<span style='cursor:pointer' onclick=\"editFile('" + item.path + "')\">&#9998;</span>&nbsp" : "") +
+                               "<span style='cursor:pointer' onclick=\"downloadDeleteButton('" + item.path + "', 'download')\">&#11015;</span>&nbsp" +
+                               "<span style='cursor:pointer' onclick=\"renameFile('" + item.path + "', '" + item.name + "')\">&#9999;</span>&nbsp" +
+                               "<span style='cursor:pointer' onclick=\"downloadDeleteButton('" + item.path + "', 'delete')\">&#128465;</span>";
+                    tableContent += "<tr><td>" + fname + "</td>" +
+                                    "<td class='sz'>" + item.size + "</td><td class='ac'>" + ac + "</td>" +
+                                    "<td class='mb'><button onclick='toggleRow(this)'>&#8942;</button></td></tr>\n" +
+                                    "<tr class='mrow' style='display:none'><td colspan='4'><span style='color:var(--dim);font-size:.75rem'>" + item.size + "</span>&nbsp;&nbsp;" + ac + "</td></tr>\n";
                 });
                 tableContent += "</table>";
                 _("details").innerHTML = tableContent;
@@ -274,12 +349,12 @@ function listFilesButton(folders) {
         }
     });
     _("detailsheader").innerHTML = "<h3>Files</h3>";
-    _("updetailsheader").innerHTML = "<h3>Folder Actions: " +
+    _("updetailsheader").innerHTML =
         "<input type='file' id='fa' multiple style='display:none'>" +
         "<input type='file' id='fol' webkitdirectory directory multiple style='display:none'>" +
-        "<button onclick=\"_('fa').click()\">Send Files</button>" +
-        "<button onclick=\"_('fol').click()\">Send Folders</button>" +
-        "<button onclick=\"CreateFolder('" + folders + "')\">Create Folder</button></h3>";
+        "<div class='row' style='margin:6px 0'><button onclick=\"_('fa').click()\">&#8679; Files</button>" +
+        "<button onclick=\"_('fol').click()\">&#128193; Folder</button>" +
+        "<button onclick=\"CreateFolder('" + folders + "')\">+ New Folder</button></div>";
     _("fa").onchange = e => handleFileForm(e.target.files, folders);
     _("fol").onchange = e => handleFileForm(e.target.files, folders);
     _("updetails").innerHTML = "";
@@ -345,11 +420,10 @@ window.addEventListener("load", () => {
 });
 let totalFiles = 0;
 let completedFiles = 0;
+let uploadIdx = 0;
 function writeSendForm() {
-    const uploadform =
-        "<p>Send files</p>" +
-        "<div id=\"file-progress-container\"></div>";
-    _("updetails").innerHTML = uploadform;
+    _('uplist').innerHTML = '';
+    _('upmodal').classList.add('open');
 }
 async function drop(event) {
     event.preventDefault();
@@ -395,6 +469,7 @@ let fileQueue = [];
 let activeUploads = 0;
 const maxConcurrentUploads = 3;
 function handleFileForm(files, folder) {
+    uploadIdx = 0;
     writeSendForm();
     fileQueue = Array.from(files);
     totalFiles = fileQueue.length;
@@ -407,6 +482,7 @@ function handleFileForm(files, folder) {
 function processNextUpload(folder) {
     if (fileQueue.length === 0) {
         if (activeUploads === 0) {
+            _('upmodal').classList.remove('open');
             _("status").innerHTML = "Upload Complete";
             const actualFolder = _("actualFolder").value;
             listFilesButton(actualFolder);
@@ -431,21 +507,18 @@ function processNextUpload(folder) {
 }
 function uploadFile(folder, file) {
     return new Promise((resolve, reject) => {
-        const progressBarId = `${file.name}-progressBar`;
-        if (!_(progressBarId)) {
-            const fileProgressDiv = document.createElement("div");
-            fileProgressDiv.innerHTML = `<p>${file.name}: <progress id="${progressBarId}" value="0" max="100" style="width:100%;"></progress></p>`;
-            _("file-progress-container").appendChild(fileProgressDiv);
-        }
+        const id = 'upfill' + (uploadIdx++);
+        const row = document.createElement('div');
+        row.className = 'upl';
+        row.innerHTML = `<div class="upl-fill" id="${id}"></div><div class="upl-lbl">${file.webkitRelativePath || file.name}</div>`;
+        _('uplist').appendChild(row);
         const formdata = new FormData();
         formdata.append("file", file, file.webkitRelativePath || file.name);
         formdata.append("folder", folder);
         const ajax = new XMLHttpRequest();
         ajax.upload.addEventListener("progress", (event) => {
-            if (event.lengthComputable) {
-                const percent = (event.loaded / event.total) * 100;
-                _(progressBarId).value = Math.round(percent);
-            }
+            if (event.lengthComputable)
+                _(id).style.width = Math.round(event.loaded / event.total * 100) + '%';
         }, false);
         ajax.addEventListener("load", () => resolve(), false);
         ajax.addEventListener("error", () => reject(), false);
