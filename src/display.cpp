@@ -178,11 +178,10 @@ void initDisplay(bool doAll) {
 #ifdef E_PAPER_DISPLAY // epaper display draws only once
     static bool runOnce = false;
     static long lastMillis = 0;
-    if (runOnce && launcherMillis() - lastMillis < 5000) goto {
-            vTaskDelay(50 / portTICK_PERIOD_MS);
-            return;
-        }
-    else {
+    if (runOnce && launcherMillis() - lastMillis < 5000) {
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        return;
+    } else {
         runOnce = true;
         lastMillis = launcherMillis();
     }
