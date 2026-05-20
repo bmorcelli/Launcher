@@ -191,93 +191,78 @@ bool setWifiCredential(const String &ssidValue, const String &passwordValue, boo
 }
 
 void settings_menu() {
-    options = {
+    int idx = 0;
+    returnToMenu = false;
+    while (idx >= 0 && !returnToMenu) {
+        options = {
 #ifndef E_PAPER_DISPLAY
-        {"Charge Mode", [=]() { chargeMode(); }},
+            {"Charge Mode",
+                                   [=]() {
+                 chargeMode();
+                 returnToMenu = true;
+             }                                                 },
 #endif
-        {"Brightness",
-                               [=]() {
-             setBrightnessMenu();
-             saveConfigs();
-         }                                                           },
-        {"Dim time",
-                               [=]() {
-             setdimmerSet();
-             saveConfigs();
-         }                                                           },
+            {"Brightness",
+                                   [=]() {
+                 setBrightnessMenu();
+                 saveConfigs();
+             }                                                 },
+            {"Dim time",
+                                   [=]() {
+                 setdimmerSet();
+                 saveConfigs();
+             }                                                 },
 #if !defined(E_PAPER_DISPLAY)
-        {"UI Color",    [=]() {
-             setUiColor();
-             saveConfigs();
-         }                 },
+            {"UI Color",
+                                   [=]() {
+                 setUiColor();
+                 saveConfigs();
+             }                                                 },
 #endif
-    };
-    if (sdcardMounted) {
-        if (onlyBins)
-            options.push_back({"All Files", [=]() {
-                                   onlyBins = false;
-                                   saveConfigs();
-                               }});
-        else
-            options.push_back({"Only Bins", [=]() {
-                                   onlyBins = true;
-                                   saveConfigs();
-                               }});
-        if (noDotFiles)
-            options.push_back({"Show Dotfiles", [=]() {
-                                   noDotFiles = false;
-                                   saveConfigs();
-                               }});
-        else
-            options.push_back({"Hide Dotfiles", [=]() {
-                                   noDotFiles = true;
-                                   saveConfigs();
-                               }});
-    }
-
-    if (bootToApp)
-        options.push_back({"Boot to Launcher", [=]() {
-                               bootToApp = false;
-                               saveConfigs();
-                           }});
-    else
-        options.push_back({"Boot to App", [=]() {
-                               bootToApp = true;
-                               saveConfigs();
-                           }});
-    if (askSpiffs)
-        options.push_back({"Avoid Spiffs", [=]() {
-                               askSpiffs = false;
-                               saveConfigs();
-                           }});
-    else
-        options.push_back({"Ask Spiffs", [=]() {
-                               askSpiffs = true;
-                               saveConfigs();
-                           }});
 #if !defined(LYLYGO_TDECK_PRO)
-    options.push_back({"Orientation", [=]() {
-                           gsetRotation(true);
-                           saveConfigs();
-                       }});
+            {"Orientation", [=]() {
+                 gsetRotation(true);
+                 saveConfigs();
+             }}
 #endif
-    options.push_back({"Partition Manager", [=]() { partList(); }});
+        };
+        if (sdcardMounted) {
+            options.push_back({onlyBins ? "[ ] See All Files" : "[x] See All Files", [=]() {
+                                   onlyBins = !onlyBins;
+                                   saveConfigs();
+                               }});
+            options.push_back({noDotFiles ? "[ ] Show Dotfiles" : "[x] Show Dotfiles", [=]() {
+                                   noDotFiles = !noDotFiles;
+                                   saveConfigs();
+                               }});
+        }
 
-    if (MAX_SPIFFS > 0)
-        options.push_back({"Backup SPIFFS", [=]() { dumpPartition("spiffs", "/bkp/spiffs"); }});
-    if (MAX_SPIFFS > 0) options.push_back({"Restore SPIFFS", [=]() { restorePartition("spiffs"); }});
-    if (dev_mode) options.push_back({"Boot Animation", [=]() { initDisplayLoop(); }});
-    if (dev_mode) options.push_back({"Deactivate Dev", [=]() { dev_mode = false; }});
+        options.push_back({bootToApp ? "[ ] Boot to Launcher" : "[x] Boot to Launcher", [=]() {
+                               bootToApp = !bootToApp;
+                               saveConfigs();
+                           }});
+        options.push_back({askSpiffs ? "[x] Ask to copy SPIFFS" : "[ ] Ask to copy SPIFFS", [=]() {
+                               askSpiffs = !askSpiffs;
+                               saveConfigs();
+                           }});
+        options.push_back({"Partition Manager", [=]() { partList(); }});
+
+        if (MAX_SPIFFS > 0)
+            options.push_back({"Backup SPIFFS", [=]() { dumpPartition("spiffs", "/bkp/spiffs"); }});
+        if (MAX_SPIFFS > 0) options.push_back({"Restore SPIFFS", [=]() { restorePartition("spiffs"); }});
+        if (dev_mode) options.push_back({"Boot Animation", [=]() { initDisplayLoop(); }});
+        if (dev_mode) options.push_back({"Deactivate Dev", [=]() { dev_mode = false; }});
 #if defined(HAS_RESISTIVE_TOUCH)
-    options.push_back({"Calibrate Touch", calibrateTouch});
+        options.push_back({"Calibrate Touch", calibrateTouch});
 #endif
-    options.push_back({"Restart", [=]() { FREE_TFT reboot(); }});
+        options.push_back({"Restart", [=]() { FREE_TFT reboot(); }});
 #if !defined(CARDPUTER)
-    options.push_back({"Turn-off", [=]() { powerOff(); }});
+        options.push_back({"Turn-off", [=]() { FREE_TFT powerOff(); }});
 #endif
 
-    options.push_back({"Main Menu", [=]() { returnToMenu = true; }});
-    loopOptions(options);
+        options.push_back({"Main Menu", [=]() { returnToMenu = true; }});
+        idx = loopOptions(options);
+    }
     tft->drawPixel(0, 0, 0);
     tft->fillScreen(BGCOLOR);
 }
@@ -291,13 +276,7 @@ void _setBrightness(uint8_t brightval) {}
 **********************************************************************/
 void setBrightness(int brightval, bool save) {
     if (brightval > 100) brightval = 100;
-
-#if defined(HEADLESS)
-// do Nothing
-#else
     _setBrightness(brightval);
-#endif
-
     if (save) { bright = brightval; }
 }
 
@@ -308,31 +287,17 @@ void setBrightness(int brightval, bool save) {
 void getBrightness() {
     if (bright > 100) {
         bright = 100;
-
-#if defined(HEADLESS)
-// do Nothing
-#else
         _setBrightness(bright);
-#endif
         setBrightness(100);
     }
-
-#if defined(HEADLESS)
-// do Nothing
-#else
     _setBrightness(bright);
-#endif
 }
 
 /*********************************************************************
 **  Function: gsetRotation
 **  get onlyBins from EEPROM
 **********************************************************************/
-#if ROTATION == 0
-#define DRV 0
-#else
 #define DRV 1
-#endif
 int gsetRotation(bool set) {
     int result = ROTATION;
 
@@ -359,7 +324,6 @@ int gsetRotation(bool set) {
         if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
             tftHeight = TFT_WIDTH - (FM * LH + 4);
-            ;
 #else
             tftHeight = TFT_WIDTH;
 #endif
