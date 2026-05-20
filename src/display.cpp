@@ -179,9 +179,9 @@ void initDisplay(bool doAll) {
     static bool runOnce = false;
     static long lastMillis = 0;
     if (runOnce && launcherMillis() - lastMillis < 5000) goto {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        return;
-    }
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+            return;
+        }
     else {
         runOnce = true;
         lastMillis = launcherMillis();
@@ -256,8 +256,8 @@ void initDisplay(bool doAll) {
     String selectedAppName = launcherSelectedBootAppName();
     if (!selectedAppName.isEmpty()) {
         tft->setTextSize(FM);
-        tft->setTextColor(ALCOLOR, BGCOLOR);
-        int appTextY = tftHeight - (FM * LH);
+        tft->setTextColor(FGCOLOR, BGCOLOR);
+        int appTextY = tftHeight - (1.5 * (FM * LH) + 10);
         tft->drawCentreString(" " + selectedAppName + " ", tftWidth / 2, appTextY, 1);
     }
 

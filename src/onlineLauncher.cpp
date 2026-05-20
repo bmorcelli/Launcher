@@ -720,6 +720,7 @@ void installFirmwareFromManifest(String fid, String version, String installedNam
 ** Description:   Downloads the firmware and save into the SDCard
 ***************************************************************************************/
 void downloadFirmware(String fid, String file_url, String fileName, String folder) { // Adicionar "fid"
+    displayRedStripe("Preparing..");
     if (!file_url.startsWith("https://")) file_url = M5_SERVER_PATH + file_url;
     String fileAddr = "https://api.launcherhub.net/download?fid=" + fid + "&file=" + file_url;
     if (fid == "") fileAddr = file_url;
@@ -747,9 +748,6 @@ void downloadFirmware(String fid, String file_url, String fileName, String folde
         }
     }
     String filePath = folder + fileName + ".bin";
-
-    tft->fillRect(7, 40, tftWidth - 14, 88, BGCOLOR); // Erase the information below the firmware name
-    displayRedStripe("Connecting FW");
     File file;
 retry:
     file = SDM.open(filePath, FILE_WRITE);
@@ -760,7 +758,6 @@ retry:
         return;
     }
     LauncherHttpResponse response;
-    displayRedStripe("Downloading FW");
     prog_handler = 2;
     pauseInputHandlerTask();
     FileDownloadContext download = {&file, 0, 0, 0, &response};
