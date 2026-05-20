@@ -401,11 +401,15 @@ void progressHandler(size_t progress, size_t total) {
 #if defined(E_PAPER_DISPLAY)
     static unsigned long lastUpdate = 0;
 #endif
+    static unsigned long lastProgressDraw = 0;
+    static size_t lastProgressBarWidth = 0;
     double fraction = (double)progress / (double)total;
     double barWidthFloat = (tftWidth - 40) * fraction;
     size_t barWidth = static_cast<size_t>(barWidthFloat);
     // Serial.printf("Total: %d, Progress: %d, Progress bar width: %d \n", total, progress, barWidth);
     if (progress == 0) {
+        lastProgressDraw = launcherMillis();
+        lastProgressBarWidth = 0;
         tft->setTextSize(FM);
         tft->setTextColor(ALCOLOR);
         tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
@@ -427,6 +431,15 @@ void progressHandler(size_t progress, size_t total) {
             case 2: txt = "Downloading"; break;
         }
         displayRedStripe(txt);
+    }
+    if (progress > 0 && progress < total) {
+        unsigned long now = launcherMillis();
+        if (barWidth == lastProgressBarWidth || now - lastProgressDraw < 80) {
+            wakeUpScreen();
+            return;
+        }
+        lastProgressDraw = now;
+        lastProgressBarWidth = barWidth;
     }
 
     if (prog_handler == 1) tft->fillRect(20, tftHeight - 26, barWidth, 13, ALCOLOR);

@@ -14,6 +14,7 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
+#include <memory>
 SPIClass sdcardSPI;
 String fileToCopy;
 String fileToUse;
@@ -436,8 +437,8 @@ bool performUpdate(Stream &updateSource, size_t updateSize, int command) {
         if (launcherUpdateEnd()) {
             if (launcherUpdateIsFinished()) {
                 log_i("Update successfully completed. Rebooting.");
-                displayRedStripe("Removing coredump (if any)...");
-                clearCoredump();
+                displayRedStripe("Post Install Cleanup");
+                launcherClearCoredump();
                 success = true;
             } else log_i("Update not finished? Something went wrong!");
         } else {
@@ -1193,19 +1194,25 @@ static bool flashRawFromSd(
     File &file, uint32_t sourceOffset, size_t imageSize, const LauncherPartitionEntry &target, bool appImage
 ) {
     if (!file.seek(sourceOffset)) return false;
+    progressHandler(0, imageSize);
     if (!launcherRawUpdateBegin(target.offset, target.size, imageSize, appImage)) return false;
 
-    uint8_t buf[1024];
+    constexpr size_t bufferSize = 4096;
+    std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[bufferSize]);
+    if (!buf) {
+        launcherRawUpdateEnd();
+        return false;
+    }
+
     size_t written = 0;
-    progressHandler(0, imageSize);
     while (written < imageSize) {
-        size_t toRead = min(sizeof(buf), imageSize - written);
-        int bytesRead = file.readBytes(reinterpret_cast<char *>(buf), toRead);
+        size_t toRead = min(bufferSize, imageSize - written);
+        int bytesRead = file.readBytes(reinterpret_cast<char *>(buf.get()), toRead);
         if (bytesRead <= 0) {
             launcherRawUpdateEnd();
             return false;
         }
-        if (launcherRawUpdateWrite(buf, bytesRead) != static_cast<size_t>(bytesRead)) return false;
+        if (launcherRawUpdateWrite(buf.get(), bytesRead) != static_cast<size_t>(bytesRead)) return false;
         written += bytesRead;
         progressHandler(written, imageSize);
         launcherDelayMs(1);
@@ -1423,35 +1430,6 @@ static bool installFromSdDynamic(
 DONE:
     vTaskResume(xHandle);
     return success;
-}
-
-/***************************************************************************************
- ** Function name: clearCoredump
- ** Description:   As some programs may generate core dumps,
-                   and others try to report them thinking that they wrote it,
-                   this function will clear it to avoid confusion.
-****************************************************************************************/
-bool clearCoredump() {
-    const esp_partition_t *partition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
-    launcherConsolePrintf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
-    if (!partition) {
-        launcherConsolePrintln("Failed to find coredump partition");
-        log_e("Failed to find coredump partition");
-        return false;
-    }
-    log_i("Erasing coredump partition at address 0x%08X, size %d bytes", partition->address, partition->size);
-
-    // erase all coredump partition
-    esp_err_t err = esp_flash_erase_region(NULL, partition->address, partition->size);
-    if (err != ESP_OK) {
-        launcherConsolePrintln("Failed to erase coredump partition");
-        log_e("Failed to erase coredump partition: %s", esp_err_to_name(err));
-        return false;
-    }
-    launcherConsolePrintln("Coredump partition cleared successfully");
-    log_e("Coredump partition cleared successfully");
-    return true;
 }
 
 /***************************************************************************************

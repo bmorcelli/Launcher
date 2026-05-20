@@ -29,7 +29,7 @@ struct LauncherUpdateContext {
     uint8_t raw_tail[4] = {0};
     size_t raw_tail_len = 0;
     uint32_t raw_tail_address = 0;
-    size_t raw_erased_until = 0;
+    size_t erased_until = 0;
 };
 
 LauncherUpdateContext ctx;
@@ -96,8 +96,8 @@ bool writeRawFlashBytes(uint32_t address, const uint8_t *data, size_t len) {
 
     const size_t relStart = address - ctx.raw_address;
     const size_t relEnd = relStart + len;
-    if (relEnd > ctx.raw_erased_until) {
-        const size_t eraseStart = relStart < ctx.raw_erased_until ? ctx.raw_erased_until : roundDownToSector(relStart);
+    if (relEnd > ctx.erased_until) {
+        const size_t eraseStart = relStart < ctx.erased_until ? ctx.erased_until : roundDownToSector(relStart);
         const size_t eraseEnd = roundUpToSector(relEnd);
         if (eraseEnd > ctx.partition_size || eraseEnd < eraseStart) {
             setError(LAUNCHER_UPDATE_ERROR_BAD_ARGUMENT);
@@ -109,7 +109,7 @@ bool writeRawFlashBytes(uint32_t address, const uint8_t *data, size_t len) {
             setError(LAUNCHER_UPDATE_ERROR_ERASE);
             return false;
         }
-        ctx.raw_erased_until = eraseEnd;
+        ctx.erased_until = eraseEnd;
     }
 
     esp_err_t err = esp_flash_write(nullptr, data, address, len);
@@ -161,12 +161,28 @@ bool writeRawFlash(size_t offset, const uint8_t *data, size_t len) {
 }
 
 bool writeFlash(size_t offset, const uint8_t *data, size_t len) {
-    esp_err_t err = ESP_OK;
     if (ctx.raw) {
         return writeRawFlash(offset, data, len);
-    } else {
-        err = esp_partition_write(ctx.partition, offset, data, len);
     }
+
+    const size_t relEnd = offset + len;
+    if (relEnd > ctx.erased_until) {
+        const size_t eraseStart = offset < ctx.erased_until ? ctx.erased_until : roundDownToSector(offset);
+        const size_t eraseEnd = roundUpToSector(relEnd);
+        if (eraseEnd > ctx.partition_size || eraseEnd < eraseStart) {
+            setError(LAUNCHER_UPDATE_ERROR_BAD_ARGUMENT);
+            return false;
+        }
+
+        esp_err_t eraseErr = esp_partition_erase_range(ctx.partition, eraseStart, eraseEnd - eraseStart);
+        if (eraseErr != ESP_OK) {
+            setError(LAUNCHER_UPDATE_ERROR_ERASE);
+            return false;
+        }
+        ctx.erased_until = eraseEnd;
+    }
+
+    esp_err_t err = esp_partition_write(ctx.partition, offset, data, len);
     if (err != ESP_OK) {
         setError(LAUNCHER_UPDATE_ERROR_WRITE);
         return false;
@@ -229,12 +245,6 @@ bool launcherUpdateBegin(LauncherUpdateTarget target, size_t size) {
 
     if (size > ctx.partition_size) {
         setError(LAUNCHER_UPDATE_ERROR_SIZE);
-        return false;
-    }
-
-    esp_err_t err = esp_partition_erase_range(ctx.partition, 0, roundUpToSector(size));
-    if (err != ESP_OK) {
-        setError(LAUNCHER_UPDATE_ERROR_ERASE);
         return false;
     }
 
@@ -385,6 +395,7 @@ bool launcherRawUpdateBegin(uint32_t address, size_t partitionSize, size_t image
     ctx.running = true;
     ctx.error = LAUNCHER_UPDATE_ERROR_OK;
     ctx.app_header_pending = appImage;
+
     return true;
 }
 
@@ -413,6 +424,29 @@ bool launcherRawErase(uint32_t address, size_t size) {
 
 bool launcherRawPrepareDataPartition(uint32_t address, size_t size) {
     return launcherRawErase(address, size);
+}
+
+bool launcherClearCoredump() {
+    const esp_partition_t *partition =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
+    launcherConsolePrintf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
+    if (!partition) {
+        launcherConsolePrintln("Failed to find coredump partition");
+        log_e("Failed to find coredump partition");
+        return false;
+    }
+
+    log_i("Erasing coredump partition at address 0x%08X, size %d bytes", partition->address, partition->size);
+    esp_err_t err = esp_partition_erase_range(partition, 0, partition->size);
+    if (err != ESP_OK) {
+        launcherConsolePrintln("Failed to erase coredump partition");
+        log_e("Failed to erase coredump partition: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    launcherConsolePrintln("Coredump partition cleared successfully");
+    log_i("Coredump partition cleared successfully");
+    return true;
 }
 
 bool launcherRawUpdateStream(

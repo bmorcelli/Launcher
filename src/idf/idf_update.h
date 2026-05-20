@@ -47,6 +47,7 @@ size_t launcherRawUpdateWrite(const uint8_t *data, size_t len);
 bool launcherRawUpdateEnd();
 bool launcherRawErase(uint32_t address, size_t size);
 bool launcherRawPrepareDataPartition(uint32_t address, size_t size);
+bool launcherClearCoredump();
 bool launcherRawUpdateStream(
     Stream &source,
     uint32_t address,

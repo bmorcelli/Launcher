@@ -28,6 +28,4 @@ JsonDocument getVersionInfo(String fid);
 
 bool installFAT_OTA(String file, uint32_t offset, uint32_t size, const char *label);
 
-bool clearOnlineCoredump();
-
 #endif

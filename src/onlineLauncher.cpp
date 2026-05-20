@@ -1643,36 +1643,6 @@ bool installExtFirmware(String url) {
 }
 
 /***************************************************************************************
- ** Function name: clearCoredump
- ** Description:   As some programs may generate core dumps,
-                   and others try to report them thinking that they wrote it,
-                   this function will clear it to avoid confusion.
-****************************************************************************************/
-#include <esp_flash.h>
-bool clearOnlineCoredump() {
-    const esp_partition_t *partition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
-    launcherConsolePrintf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
-    if (!partition) {
-        launcherConsolePrintln("Failed to find coredump partition");
-        log_e("Failed to find coredump partition");
-        return false;
-    }
-    log_i("Erasing coredump partition at address 0x%08X, size %d bytes", partition->address, partition->size);
-
-    // erase all coredump partition
-    esp_err_t err = esp_flash_erase_region(NULL, partition->address, partition->size);
-    if (err != ESP_OK) {
-        launcherConsolePrintln("Failed to erase coredump partition");
-        log_e("Failed to erase coredump partition: %s", esp_err_to_name(err));
-        return false;
-    }
-    launcherConsolePrintln("Coredump partition cleared successfully");
-    log_e("Coredump partition cleared successfully");
-    return true;
-}
-
-/***************************************************************************************
 ** Function name: installFirmware
 ** Description:   installs Firmware using OTA
 ***************************************************************************************/
@@ -1763,8 +1733,8 @@ void installFirmware( // adicionar "fid"
         launcherDelayMs(2000);
         goto SAIR;
     }
-    displayRedStripe("Removing Coredump");
-    clearOnlineCoredump();
+    displayRedStripe("Post Install Cleanup");
+    launcherClearCoredump();
 
     // Do not request to api.launcherhub.net a second time, go straight to the file
     // Requests must be done to "file" link directly
