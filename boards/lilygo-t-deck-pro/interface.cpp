@@ -166,14 +166,14 @@ void _post_setup_gpio() {
         digitalWrite(TOUCH_RST2, LOW);
         launcherDelayMs(10);
         digitalWrite(TOUCH_RST2, HIGH);
+        delay(50);
     } else if (variant == 0) {
         launcherConsolePrintln("T-Deck Pro 1.0 detected");
         pinMode(TOUCH_RST, OUTPUT);
         digitalWrite(TOUCH_RST, LOW);
         launcherDelayMs(10);
         digitalWrite(TOUCH_RST, HIGH);
-        launcherGpioOutput(BOARD_1V8_EN); // enable gyroscope module
-        launcherGpioWrite(BOARD_1V8_EN, HIGH);
+        delay(50);
     } else {
         launcherConsolePrintln("No version of T-Deck Pro detected");
         variant = -1;
