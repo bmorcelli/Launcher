@@ -346,7 +346,6 @@ void setup() {
         }
     }
 
-    launcherBootInstalledAppOrShowMenu();
     goto Launcher;
 
 // If M5 or Enter button is pressed, continue from here

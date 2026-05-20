@@ -4,6 +4,7 @@
 #include <Stream.h>
 #include <cstddef>
 #include <cstdint>
+#include <esp_partition.h>
 
 #define LAUNCHER_UPDATE_ERROR_OK 0
 #define LAUNCHER_UPDATE_ERROR_WRITE 1
@@ -48,12 +49,12 @@ bool launcherRawUpdateEnd();
 bool launcherRawErase(uint32_t address, size_t size);
 bool launcherRawPrepareDataPartition(uint32_t address, size_t size);
 bool launcherClearCoredump();
+bool launcherUpdateErasePartition(const esp_partition_t *partition);
+bool launcherUpdateCopyPartition(
+    const esp_partition_t *source, const esp_partition_t *destination, LauncherUpdateProgress cb = nullptr
+);
 bool launcherRawUpdateStream(
-    Stream &source,
-    uint32_t address,
-    size_t partitionSize,
-    size_t imageSize,
-    bool appImage,
+    Stream &source, uint32_t address, size_t partitionSize, size_t imageSize, bool appImage,
     LauncherUpdateProgress cb = nullptr
 );
 

@@ -2,9 +2,9 @@
 #define LAUNCHER_CA_CERTS_H
 
 // Root CAs for HTTPS requests:
-//   ISRG Root X1            — Let's Encrypt (api.launcherhub.net, *.githubusercontent.com, flash.nmiot.net, flasher.meshcore.dev)
-//   DigiCert Global Root G2 — DigiCert (m5burner-cdn.m5stack.com)
-//   Sectigo Root E46        — Sectigo/USERTrust (github.com)
+//   ISRG Root X1            — Let's Encrypt (api.launcherhub.net, *.githubusercontent.com, flash.nmiot.net,
+//   flasher.meshcore.dev) DigiCert Global Root G2 — DigiCert (m5burner-cdn.m5stack.com) Sectigo Root E46 —
+//   Sectigo/USERTrust (github.com)
 static const char kRootCAs[] = R"(
 -----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw

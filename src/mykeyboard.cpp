@@ -1,8 +1,8 @@
 #include "mykeyboard.h"
 #include "display.h"
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include "settings.h"
-#include "idf/launcher_platform.h"
 #include <globals.h>
 
 #ifndef HAS_1_BUTTON // if not defined, use 0 for calculations

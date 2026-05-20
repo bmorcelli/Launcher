@@ -408,7 +408,7 @@ bool launcherDeleteAppByLabel(const char *label) {
         return false;
     }
 
-    displayRedStripe("Erasing removed");
+    displayRedStripe("Removing firmware");
     for (const LauncherPartitionEntry &removed : removedEntries) {
         esp_err_t err = esp_flash_erase_region(nullptr, removed.offset, removed.size);
         if (err != ESP_OK) {
@@ -425,7 +425,7 @@ bool launcherDeleteAppByLabel(const char *label) {
         }
     }
 
-    displayRedStripe("Moving data");
+    displayRedStripe("Optimizing flash");
     if (!launcherPartitionMigrateMovedData(table, edited, &error)) {
         displayRedStripe(error.length() ? error : "Move failed");
         launcherDelayMs(2500);
@@ -484,7 +484,7 @@ void launcherShowAppActions(const char *label) {
     String appName = shortAppActionName(loadAppNameForLabel(label), appLabel);
     std::vector<Option> appOptions = {
         {String("Launch ") + appName, [appLabel]() { launcherBootAppByLabel(appLabel.c_str()); }  },
-        {"Rename App",                [appLabel]() { launcherRenameAppByLabel(appLabel.c_str()); } },
+        {"Rename App",                [appLabel]() { launcherRenameAppByLabel(appLabel.c_str()); }},
         {String("Delete ") + appName, [appLabel]() { launcherDeleteAppByLabel(appLabel.c_str()); }},
         {"Cancel",                    []() {}                                                     },
     };

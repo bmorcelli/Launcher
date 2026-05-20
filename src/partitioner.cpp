@@ -603,7 +603,7 @@ bool applyPartitionChanges(const LauncherPartitionTable &table) {
         return false;
     }
 
-    displayRedStripe("Moving data");
+    displayRedStripe("Optimizing flash");
     if (!launcherPartitionMigrateMovedData(current, target, &error)) {
         launcherConsolePrintf("Partition data move failed: %s\n", error.c_str());
         displayRedStripe(error.length() ? error : "Move failed");
@@ -839,36 +839,32 @@ void restorePartition(const char *partitionLabel) {
     if (filepath == "") return;
     else {
         File source = SDM.open(filepath, "r");
+        bool restored = false;
         if (strcmp(partitionLabel, "spiffs") == 0) {
             prog_handler = 1;
-            uint8_t buffer[1024];
-            int bytesRead = 0;
-            int written = 0;
-            size_t total = source.size();
             progressHandler(0, 500);
-            if (launcherUpdateBegin(LAUNCHER_UPDATE_SPIFFS, total)) {
-                while (source.available() && written < total) {
-                    size_t toRead = min(sizeof(buffer), total - written);
-                    bytesRead = source.read(buffer, toRead);
-                    if (bytesRead <= 0) {
-                        launcherUpdateAbort();
-                        break;
-                    }
-                    size_t bytesWritten = launcherUpdateWrite(buffer, bytesRead);
-                    if (bytesWritten != static_cast<size_t>(bytesRead)) break;
-                    written += bytesWritten;
-                    progressHandler(written, total);
-                }
-                launcherUpdateEnd();
+            restored = launcherUpdateStream(source, source.size(), LAUNCHER_UPDATE_SPIFFS, progressHandler);
+            if (!restored) {
+                source.close();
+                displayRedStripe(launcherUpdateLastErrorName());
+                launcherDelayMs(2500);
+                return;
             }
         }
 
         if (strcmp(partitionLabel, "vfs") == 0) {
-            performFATUpdate(source, source.size(), "vfs");
+            restored = performFATUpdate(source, source.size(), "vfs");
         } else if (strcmp(partitionLabel, "sys") == 0) {
-            performFATUpdate(source, source.size(), "sys");
+            restored = performFATUpdate(source, source.size(), "sys");
         } else if (strcmp(partitionLabel, "spiffs") != 0) {
+            source.close();
             displayRedStripe("Unsupported data");
+            launcherDelayMs(2500);
+            return;
+        }
+        source.close();
+        if (!restored) {
+            displayRedStripe(launcherUpdateLastErrorName());
             launcherDelayMs(2500);
             return;
         }
@@ -879,34 +875,7 @@ void restorePartition(const char *partitionLabel) {
 }
 
 #define TAG "Partitioneer"
-#define BUFFER_SIZE 1024
 
-// Função para copiar partições com buffer de 1024 bytes
-esp_err_t copy_partition(const esp_partition_t *src, const esp_partition_t *dst) {
-    uint8_t buffer[BUFFER_SIZE];
-    esp_err_t err;
-    progressHandler(0, 500);
-    displayRedStripe("Launcher Update");
-    for (size_t offset = 0; offset < dst->size; offset += BUFFER_SIZE) {
-        size_t read_size = BUFFER_SIZE;
-        if (offset + BUFFER_SIZE > dst->size) { read_size = dst->size - offset; }
-
-        err = esp_partition_read(src, offset, buffer, read_size);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to read source partition at offset %u", offset);
-            return err;
-        }
-
-        err = esp_partition_write(dst, offset, buffer, read_size);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to write to destination partition at offset %u", offset);
-            return err;
-        }
-        progressHandler(offset + BUFFER_SIZE, dst->size);
-    }
-
-    return ESP_OK;
-}
 #if CONFIG_IDF_TARGET_ESP32P4
 #define TARGET_PARTITION ESP_PARTITION_SUBTYPE_APP_FACTORY
 #else
@@ -940,15 +909,15 @@ void partitionCrawler() {
     }
 
     ESP_LOGI(TAG, "Erasing test partition");
-    esp_err_t err = esp_partition_erase_range(test_partition, 0, test_partition->size);
-    if (err != ESP_OK) {
+    if (!launcherUpdateErasePartition(test_partition)) {
         ESP_LOGE(TAG, "Failed to erase test partition");
         return;
     }
 
     ESP_LOGI(TAG, "Copying running partition to test partition");
-    err = copy_partition(running_partition, test_partition);
-    if (err != ESP_OK) {
+    progressHandler(0, 500);
+    displayRedStripe("Launcher Update");
+    if (!launcherUpdateCopyPartition(running_partition, test_partition, progressHandler)) {
         ESP_LOGE(TAG, "Failed to copy partition data");
         displayRedStripe("Use M5Burner!");
         launcherDelayMs(5000);
@@ -957,7 +926,7 @@ void partitionCrawler() {
 
     ESP_LOGI(TAG, "Writing 0x00 to first byte of the running partition (break OTA0 Launcher)");
     uint8_t zero_byte = 0x00;
-    err = esp_partition_write(running_partition, 0, &zero_byte, 1);
+    esp_err_t err = esp_partition_write(running_partition, 0, &zero_byte, 1);
 
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write 0x00 to the first byte of the running partition");

@@ -1,6 +1,6 @@
 #include "powerSave.h"
-#include "settings.h"
 #include "idf/launcher_platform.h"
+#include "settings.h"
 
 /* Turn off the display */
 void turnOffDisplay() { setBrightness(0, false); }
@@ -24,11 +24,14 @@ bool wakeUpScreen() {
 /* Check if it's time to put the device to sleep */
 void checkPowerSaveTime() {
     if (dimmerSet != 0) {
-        if ((launcherMillis() - previousMillis) >= (dimmerSet * 1000) && dimmer == false && isSleeping == false) {
+        if ((launcherMillis() - previousMillis) >= (dimmerSet * 1000) && dimmer == false &&
+            isSleeping == false) {
             dimmer = true;
             setBrightness(5, false);
-        } else if ((launcherMillis() - previousMillis) >= ((dimmerSet * 1000) + 5000) && isScreenOff == false &&
-                   isSleeping == false) {
+        } else if (
+            (launcherMillis() - previousMillis) >= ((dimmerSet * 1000) + 5000) && isScreenOff == false &&
+            isSleeping == false
+        ) {
             isScreenOff = true;
             turnOffDisplay();
         }

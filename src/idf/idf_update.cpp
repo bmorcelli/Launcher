@@ -1,10 +1,10 @@
 #include "idf_update.h"
 
-#include "launcher_platform.h"
-#include "esp_image_format.h"
 #include "esp_flash.h"
+#include "esp_image_format.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "launcher_platform.h"
 #include <Arduino.h>
 #include <algorithm>
 #include <cstring>
@@ -34,13 +34,9 @@ struct LauncherUpdateContext {
 
 LauncherUpdateContext ctx;
 
-size_t roundUpToSector(size_t value) {
-    return (value + kSectorSize - 1) & ~(kSectorSize - 1);
-}
+size_t roundUpToSector(size_t value) { return (value + kSectorSize - 1) & ~(kSectorSize - 1); }
 
-size_t roundDownToSector(size_t value) {
-    return value & ~(kSectorSize - 1);
-}
+size_t roundDownToSector(size_t value) { return value & ~(kSectorSize - 1); }
 
 void setError(int error) {
     ctx.error = error;
@@ -89,7 +85,8 @@ bool validRawRange(uint32_t address, size_t size) {
 }
 
 bool writeRawFlashBytes(uint32_t address, const uint8_t *data, size_t len) {
-    if (address < ctx.raw_address || len > ctx.partition_size || address - ctx.raw_address > ctx.partition_size - len) {
+    if (address < ctx.raw_address || len > ctx.partition_size ||
+        address - ctx.raw_address > ctx.partition_size - len) {
         setError(LAUNCHER_UPDATE_ERROR_BAD_ARGUMENT);
         return false;
     }
@@ -97,14 +94,16 @@ bool writeRawFlashBytes(uint32_t address, const uint8_t *data, size_t len) {
     const size_t relStart = address - ctx.raw_address;
     const size_t relEnd = relStart + len;
     if (relEnd > ctx.erased_until) {
-        const size_t eraseStart = relStart < ctx.erased_until ? ctx.erased_until : roundDownToSector(relStart);
+        const size_t eraseStart =
+            relStart < ctx.erased_until ? ctx.erased_until : roundDownToSector(relStart);
         const size_t eraseEnd = roundUpToSector(relEnd);
         if (eraseEnd > ctx.partition_size || eraseEnd < eraseStart) {
             setError(LAUNCHER_UPDATE_ERROR_BAD_ARGUMENT);
             return false;
         }
 
-        esp_err_t eraseErr = esp_flash_erase_region(nullptr, ctx.raw_address + eraseStart, eraseEnd - eraseStart);
+        esp_err_t eraseErr =
+            esp_flash_erase_region(nullptr, ctx.raw_address + eraseStart, eraseEnd - eraseStart);
         if (eraseErr != ESP_OK) {
             setError(LAUNCHER_UPDATE_ERROR_ERASE);
             return false;
@@ -161,9 +160,7 @@ bool writeRawFlash(size_t offset, const uint8_t *data, size_t len) {
 }
 
 bool writeFlash(size_t offset, const uint8_t *data, size_t len) {
-    if (ctx.raw) {
-        return writeRawFlash(offset, data, len);
-    }
+    if (ctx.raw) { return writeRawFlash(offset, data, len); }
 
     const size_t relEnd = offset + len;
     if (relEnd > ctx.erased_until) {
@@ -224,7 +221,7 @@ bool writeData(const uint8_t *data, size_t len) {
     ctx.written += len;
     return true;
 }
-}
+} // namespace
 
 bool launcherUpdateBegin(LauncherUpdateTarget target, size_t size) {
     ctx = LauncherUpdateContext();
@@ -306,17 +303,13 @@ bool launcherUpdateEnd() {
     return true;
 }
 
-void launcherUpdateAbort() {
-    setError(LAUNCHER_UPDATE_ERROR_ABORT);
-}
+void launcherUpdateAbort() { setError(LAUNCHER_UPDATE_ERROR_ABORT); }
 
 bool launcherUpdateIsFinished() {
     return ctx.size > 0 && ctx.written == ctx.size && ctx.error == LAUNCHER_UPDATE_ERROR_OK;
 }
 
-int launcherUpdateLastError() {
-    return ctx.error;
-}
+int launcherUpdateLastError() { return ctx.error; }
 
 const char *launcherUpdateLastErrorName() {
     switch (ctx.error) {
@@ -336,7 +329,9 @@ const char *launcherUpdateLastErrorName() {
     }
 }
 
-bool launcherUpdateStream(Stream &source, size_t size, LauncherUpdateTarget target, LauncherUpdateProgress cb) {
+bool launcherUpdateStream(
+    Stream &source, size_t size, LauncherUpdateTarget target, LauncherUpdateProgress cb
+) {
     if (!launcherUpdateBegin(target, size)) return false;
 
     uint8_t buffer[1024];
@@ -361,12 +356,8 @@ bool launcherUpdateStream(Stream &source, size_t size, LauncherUpdateTarget targ
 
 bool launcherUpdateTargetFromCommand(int command, LauncherUpdateTarget &target) {
     switch (command) {
-        case LAUNCHER_UPDATE_COMMAND_FLASH:
-            target = LAUNCHER_UPDATE_APP;
-            return true;
-        case LAUNCHER_UPDATE_COMMAND_SPIFFS:
-            target = LAUNCHER_UPDATE_SPIFFS;
-            return true;
+        case LAUNCHER_UPDATE_COMMAND_FLASH: target = LAUNCHER_UPDATE_APP; return true;
+        case LAUNCHER_UPDATE_COMMAND_SPIFFS: target = LAUNCHER_UPDATE_SPIFFS; return true;
         default: return false;
     }
 }
@@ -399,13 +390,9 @@ bool launcherRawUpdateBegin(uint32_t address, size_t partitionSize, size_t image
     return true;
 }
 
-size_t launcherRawUpdateWrite(const uint8_t *data, size_t len) {
-    return launcherUpdateWrite(data, len);
-}
+size_t launcherRawUpdateWrite(const uint8_t *data, size_t len) { return launcherUpdateWrite(data, len); }
 
-bool launcherRawUpdateEnd() {
-    return launcherUpdateEnd();
-}
+bool launcherRawUpdateEnd() { return launcherUpdateEnd(); }
 
 bool launcherRawErase(uint32_t address, size_t size) {
     ctx.error = LAUNCHER_UPDATE_ERROR_OK;
@@ -424,6 +411,57 @@ bool launcherRawErase(uint32_t address, size_t size) {
 
 bool launcherRawPrepareDataPartition(uint32_t address, size_t size) {
     return launcherRawErase(address, size);
+}
+
+bool launcherUpdateErasePartition(const esp_partition_t *partition) {
+    ctx.error = LAUNCHER_UPDATE_ERROR_OK;
+    if (!partition) {
+        ctx.error = LAUNCHER_UPDATE_ERROR_NO_PARTITION;
+        return false;
+    }
+
+    esp_err_t err = esp_partition_erase_range(partition, 0, partition->size);
+    if (err != ESP_OK) {
+        ctx.error = LAUNCHER_UPDATE_ERROR_ERASE;
+        return false;
+    }
+    return true;
+}
+
+bool launcherUpdateCopyPartition(
+    const esp_partition_t *source, const esp_partition_t *destination, LauncherUpdateProgress cb
+) {
+    ctx.error = LAUNCHER_UPDATE_ERROR_OK;
+    if (!source || !destination) {
+        ctx.error = LAUNCHER_UPDATE_ERROR_NO_PARTITION;
+        return false;
+    }
+
+    constexpr size_t bufferSize = 1024;
+    uint8_t buffer[bufferSize];
+    const size_t copySize = std::min(source->size, destination->size);
+    size_t copied = 0;
+    if (cb) cb(0, copySize);
+
+    while (copied < copySize) {
+        const size_t chunk = std::min(bufferSize, copySize - copied);
+        esp_err_t err = esp_partition_read(source, copied, buffer, chunk);
+        if (err != ESP_OK) {
+            ctx.error = LAUNCHER_UPDATE_ERROR_READ;
+            return false;
+        }
+
+        err = esp_partition_write(destination, copied, buffer, chunk);
+        if (err != ESP_OK) {
+            ctx.error = LAUNCHER_UPDATE_ERROR_WRITE;
+            return false;
+        }
+
+        copied += chunk;
+        if (cb) cb(copied, copySize);
+        launcherDelayMs(1);
+    }
+    return true;
 }
 
 bool launcherClearCoredump() {
@@ -450,11 +488,7 @@ bool launcherClearCoredump() {
 }
 
 bool launcherRawUpdateStream(
-    Stream &source,
-    uint32_t address,
-    size_t partitionSize,
-    size_t imageSize,
-    bool appImage,
+    Stream &source, uint32_t address, size_t partitionSize, size_t imageSize, bool appImage,
     LauncherUpdateProgress cb
 ) {
     if (!launcherRawUpdateBegin(address, partitionSize, imageSize, appImage)) return false;

@@ -86,25 +86,6 @@ void _setup_gpio() {
     Wire.begin(BOARD_SDA, BOARD_SCL);
     launcherDelayMs(100);
 
-    Wire.beginTransmission(0x20); // test for XL9555, MAX exclusive IC
-    if (Wire.endTransmission() == 0) {
-        // do
-        variant = 2;
-    }
-    Wire.beginTransmission(0x20);
-    if (variant == 0 && Wire.endTransmission() == 0) {
-        variant = 1;
-        // do
-    }
-    if (variant == 0 && Wire.endTransmission() == 0) {
-        pinMode(TOUCH_RST, OUTPUT);
-        digitalWrite(TOUCH_RST, LOW);
-        launcherDelayMs(10);
-        digitalWrite(TOUCH_RST, HIGH);
-        launcherGpioOutput(BOARD_1V8_EN); // enable gyroscope module
-        launcherGpioWrite(BOARD_1V8_EN, HIGH);
-    }
-
     // BQ25896 --- 0x6B
     Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
     if (Wire.endTransmission() == 0) {
@@ -159,6 +140,45 @@ void _post_setup_gpio() {
     // Scan I2C devices
     launcherConsolePrintf("%s\n", String("Scanning for I2C devices ...").c_str());
     scanDevices();
+
+    keyboard = new Adafruit_TCA8418();
+    if (!keyboard->begin(BOARD_I2C_ADDR_KEYBOARD, &Wire)) {
+        launcherConsolePrintf("%s\n", String("keypad not found, check wiring & pullups!").c_str());
+    }
+    keyboard->matrix(KEYPAD_ROWS, KEYPAD_COLS);
+    keyboard->flush();
+
+    // Brightness control must be initialized after tft in this case @Pirata
+    pinMode(TFT_BL, OUTPUT);
+    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+    ledcWrite(TFT_BL, bright);
+
+    Wire.beginTransmission(0x20); // test for XL9555, MAX exclusive IC
+    if (Wire.endTransmission() == 0) {
+        launcherConsolePrintln("T-Deck Pro MAX detected");
+        variant = 2;
+    }
+    Wire.beginTransmission(0x5A); // test for DRV2605, t-deck Pro 1.1
+    if (variant == 0 && Wire.endTransmission() == 0) {
+        launcherConsolePrintln("T-Deck Pro 1.1 detected");
+        variant = 1;
+        pinMode(TOUCH_RST2, OUTPUT);
+        digitalWrite(TOUCH_RST2, LOW);
+        launcherDelayMs(10);
+        digitalWrite(TOUCH_RST2, HIGH);
+    } else if (variant == 0) {
+        launcherConsolePrintln("T-Deck Pro 1.0 detected");
+        pinMode(TOUCH_RST, OUTPUT);
+        digitalWrite(TOUCH_RST, LOW);
+        launcherDelayMs(10);
+        digitalWrite(TOUCH_RST, HIGH);
+        launcherGpioOutput(BOARD_1V8_EN); // enable gyroscope module
+        launcherGpioWrite(BOARD_1V8_EN, HIGH);
+    } else {
+        launcherConsolePrintln("No version of T-Deck Pro detected");
+        variant = -1;
+    }
+
     uint8_t address = 0xFF;
     Wire.beginTransmission(CST328_SLAVE_ADDRESS);
     if (Wire.endTransmission() == 0) { address = CST328_SLAVE_ADDRESS; }
@@ -176,19 +196,6 @@ void _post_setup_gpio() {
     }
     launcherConsolePrintf("%s", String("Model :").c_str());
     launcherConsolePrintf("%s\n", String(touch.getModelName()).c_str());
-
-    keyboard = new Adafruit_TCA8418();
-    if (!keyboard->begin(BOARD_I2C_ADDR_KEYBOARD, &Wire)) {
-        launcherConsolePrintf("%s\n", String("keypad not found, check wiring & pullups!").c_str());
-    }
-    keyboard->matrix(KEYPAD_ROWS, KEYPAD_COLS);
-    // flush the internal buffer
-    keyboard->flush();
-
-    // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
 }
 
 /***************************************************************************************

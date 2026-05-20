@@ -20,8 +20,7 @@ bool launcherHttpGetStream(
 );
 bool launcherHttpGetRange(
     const char *url, uint32_t offset, uint32_t size, LauncherHttpChunkCb cb, void *ctx,
-    LauncherHttpResponse *response = nullptr,
-    const char *hwid = nullptr
+    LauncherHttpResponse *response = nullptr, const char *hwid = nullptr
 );
 
 #endif

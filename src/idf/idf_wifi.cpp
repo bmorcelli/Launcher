@@ -72,9 +72,7 @@ bool ensureWifiInitialized() {
     if (!wifiInitialized) {
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         err = esp_wifi_init(&cfg);
-        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-            return false;
-        }
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) { return false; }
         wifiInitialized = true;
     }
 

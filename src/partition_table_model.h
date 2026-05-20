@@ -84,6 +84,32 @@ bool launcherPartitionCreateData(
     LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t size,
     LauncherPartitionEntry *created = nullptr, String *error = nullptr
 );
+String launcherPartitionSanitizedAppLabelBase(const String &name);
+bool launcherPartitionLabelExists(const LauncherPartitionTable &table, const String &label);
+String launcherPartitionNextAppLabel(const LauncherPartitionTable &table, const String &installedName);
+bool launcherPartitionRenameEntryByOffset(
+    LauncherPartitionTable &table, uint32_t offset, const String &label
+);
+bool launcherPartitionFindOrCreateData(
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t requestedSize,
+    LauncherPartitionEntry &entry, String &error
+);
+uint32_t launcherAlignUp(uint32_t value, uint32_t alignment);
+bool launcherPartitionCreateDataInLargestFreeRange(
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, LauncherPartitionEntry &entry,
+    String &error
+);
+String launcherHexSize(uint32_t value);
+String launcherHumanSize(uint32_t value);
+String launcherSizeLabel(uint32_t value);
+bool launcherPartitionRemoveEntryByOffset(LauncherPartitionTable &table, uint32_t offset);
+bool launcherPartitionIsReplaceableApp(const LauncherPartitionEntry &entry);
+bool launcherPartitionIsRemovableInstallData(const LauncherPartitionEntry &entry);
+bool launcherPartitionRemoveInstallDataPartitions(LauncherPartitionTable &table, bool removeSpiffs);
+bool launcherPartitionAddManualAppEntry(
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t offset, uint32_t size,
+    LauncherPartitionEntry &created, String &error
+);
 uint32_t launcherPartitionDefaultFatSize(const char *label);
 uint32_t launcherPartitionBoundedPayloadSize(
     uint32_t declaredSize, uint32_t requestedCopySize, uint32_t maxSize, uint32_t availableSize = UINT32_MAX

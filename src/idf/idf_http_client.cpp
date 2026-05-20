@@ -30,20 +30,21 @@ esp_err_t httpEventHandler(esp_http_client_event_t *evt) {
         if (status >= 300 && status < 400) return ESP_OK;
         if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Length") == 0) {
             response->content_length = atoll(evt->header_value);
-        } else if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Range") == 0) {
+        } else if (
+            evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Range") == 0
+        ) {
             strncpy(response->content_range, evt->header_value, sizeof(response->content_range) - 1);
             response->content_range[sizeof(response->content_range) - 1] = '\0';
         }
     } else if (evt->event_id == HTTP_EVENT_ON_DATA && evt->data && evt->data_len > 0) {
         int status = evt->client ? esp_http_client_get_status_code(evt->client) : 0;
-        if (status >= 300 && status < 400) {
-            return ESP_OK;
-        }
+        if (status >= 300 && status < 400) { return ESP_OK; }
         if (status > 0 && (status < 200 || status >= 300)) {
             request->callbackOk = false;
             return ESP_FAIL;
         }
-        if (request->cb && !request->cb(static_cast<const uint8_t *>(evt->data), evt->data_len, request->ctx)) {
+        if (request->cb &&
+            !request->cb(static_cast<const uint8_t *>(evt->data), evt->data_len, request->ctx)) {
             request->callbackOk = false;
             return ESP_FAIL;
         }

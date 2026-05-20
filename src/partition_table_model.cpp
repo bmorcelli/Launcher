@@ -8,6 +8,7 @@
 #include <cstring>
 #include <esp_flash.h>
 #include <esp_flash_partitions.h>
+#include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <mbedtls/md5.h>
 
@@ -636,6 +637,179 @@ bool launcherPartitionCreateData(
 
     if (!launcherPartitionAdd(table, entry, error)) return false;
     if (created) *created = entry;
+    return true;
+}
+
+String launcherPartitionSanitizedAppLabelBase(const String &name) {
+    String base;
+    for (size_t i = 0; i < name.length() && base.length() < 6; ++i) {
+        char c = name[i];
+        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) base += c;
+    }
+    if (base.isEmpty()) base = "app";
+    while (base.length() < 6) base += "0";
+    return base;
+}
+
+bool launcherPartitionLabelExists(const LauncherPartitionTable &table, const String &label) {
+    for (const LauncherPartitionEntry &entry : table.entries) {
+        if (label == entry.label) return true;
+    }
+    return false;
+}
+
+String launcherPartitionNextAppLabel(const LauncherPartitionTable &table, const String &installedName) {
+    String base = launcherPartitionSanitizedAppLabelBase(installedName);
+    if (!launcherPartitionLabelExists(table, base)) return base;
+
+    String prefix = base.substring(0, 5);
+    for (int i = 1; i <= 9; ++i) {
+        String candidate = prefix + String(i);
+        if (!launcherPartitionLabelExists(table, candidate)) return candidate;
+    }
+    String candidate = prefix + "0";
+    if (!launcherPartitionLabelExists(table, candidate)) return candidate;
+
+    for (int i = 1; i < 100; ++i) {
+        candidate = "app" + String(i);
+        if (!launcherPartitionLabelExists(table, candidate)) return candidate;
+    }
+    return "app";
+}
+
+bool launcherPartitionRenameEntryByOffset(
+    LauncherPartitionTable &table, uint32_t offset, const String &label
+) {
+    for (LauncherPartitionEntry &entry : table.entries) {
+        if (entry.offset != offset) continue;
+        memset(entry.label, 0, sizeof(entry.label));
+        strncpy(entry.label, label.c_str(), sizeof(entry.label) - 1);
+        return true;
+    }
+    return false;
+}
+
+bool launcherPartitionFindOrCreateData(
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t requestedSize,
+    LauncherPartitionEntry &entry, String &error
+) {
+    LauncherPartitionEntry *existing = launcherPartitionFindByLabel(table, label);
+    if (existing) {
+        if (existing->isData() && existing->subtype == subtype && existing->size >= requestedSize) {
+            entry = *existing;
+            return true;
+        }
+        error = String("Partition ") + label + " is too small or incompatible";
+        return false;
+    }
+    return launcherPartitionCreateData(table, subtype, label, requestedSize, &entry, &error);
+}
+
+uint32_t launcherAlignUp(uint32_t value, uint32_t alignment) {
+    if (alignment == 0) return value;
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+bool launcherPartitionCreateDataInLargestFreeRange(
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, LauncherPartitionEntry &entry,
+    String &error
+) {
+    LauncherPartitionRange best;
+    for (const LauncherPartitionRange &range : launcherPartitionFreeRanges(table)) {
+        const uint32_t alignedOffset = launcherAlignUp(range.offset, LAUNCHER_FLASH_SECTOR_SIZE);
+        if (alignedOffset < range.offset || range.size < alignedOffset - range.offset) continue;
+        const uint32_t alignedSize =
+            (range.size - (alignedOffset - range.offset)) & ~(LAUNCHER_FLASH_SECTOR_SIZE - 1);
+        if (alignedSize > best.size) best = {alignedOffset, alignedSize};
+    }
+    if (best.size == 0) {
+        error = "No free partition range large enough";
+        return false;
+    }
+
+    LauncherPartitionEntry created;
+    created.type = 0x01;
+    created.subtype = subtype;
+    created.offset = best.offset;
+    created.size = best.size;
+    created.flags = 0;
+    memset(created.label, 0, sizeof(created.label));
+    strncpy(created.label, label, sizeof(created.label) - 1);
+    if (!launcherPartitionAdd(table, created, &error)) return false;
+    entry = created;
+    return true;
+}
+
+String launcherHexSize(uint32_t value) {
+    char buffer[12];
+    snprintf(buffer, sizeof(buffer), "0x%06lX", static_cast<unsigned long>(value));
+    return String(buffer);
+}
+
+String launcherHumanSize(uint32_t value) {
+    if (value >= 1024 * 1024 && value % (1024 * 1024) == 0) return String(value / (1024 * 1024)) + "MB";
+    if (value >= 1024 && value % 1024 == 0) return String(value / 1024) + "KB";
+    return String(value) + " bytes";
+}
+
+String launcherSizeLabel(uint32_t value) {
+    return launcherHexSize(value) + " (" + launcherHumanSize(value) + ")";
+}
+
+bool launcherPartitionRemoveEntryByOffset(LauncherPartitionTable &table, uint32_t offset) {
+    for (auto it = table.entries.begin(); it != table.entries.end(); ++it) {
+        if (it->offset == offset) {
+            table.entries.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool launcherPartitionIsReplaceableApp(const LauncherPartitionEntry &entry) {
+    if (!entry.isOtaApp()) return false;
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (running && running->address == entry.offset) return false;
+    return true;
+}
+
+bool launcherPartitionIsRemovableInstallData(const LauncherPartitionEntry &entry) {
+    if (!entry.isData()) return false;
+    if (entry.subtype != 0x81 && entry.subtype != 0x82 && entry.subtype != 0x83) return false;
+    return strcmp(entry.label, "spiffs") == 0 || strcmp(entry.label, "sys") == 0 ||
+           strcmp(entry.label, "vfs") == 0;
+}
+
+bool launcherPartitionRemoveInstallDataPartitions(LauncherPartitionTable &table, bool removeSpiffs) {
+    bool removed = false;
+    for (auto it = table.entries.begin(); it != table.entries.end();) {
+        bool removable = launcherPartitionIsRemovableInstallData(*it);
+        if (removable && !removeSpiffs && strcmp(it->label, "spiffs") == 0) removable = false;
+        if (removable) {
+            it = table.entries.erase(it);
+            removed = true;
+        } else {
+            ++it;
+        }
+    }
+    return removed;
+}
+
+bool launcherPartitionAddManualAppEntry(
+    LauncherPartitionTable &table, uint8_t subtype, const char *label, uint32_t offset, uint32_t size,
+    LauncherPartitionEntry &created, String &error
+) {
+    LauncherPartitionEntry entry;
+    entry.type = 0x00;
+    entry.subtype = subtype;
+    entry.offset = offset;
+    entry.size = launcherAlignUp(size, LAUNCHER_APP_PARTITION_ALIGNMENT);
+    entry.flags = 0;
+    memset(entry.label, 0, sizeof(entry.label));
+    strncpy(entry.label, label, sizeof(entry.label) - 1);
+    if (!launcherPartitionAdd(table, entry, &error)) return false;
+    created = entry;
     return true;
 }
 
