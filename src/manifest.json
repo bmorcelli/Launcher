@@ -470,6 +470,15 @@
         },
         {
             "display": true,
+            "released_at": "2.7.0",
+            "name": "Reaper Board",
+            "description": "Bruce Firmware board",
+            "link": "https://www.elecrow.com/bruce-pcb-rf-reaper.html",
+            "family": "ESP32-S3",
+            "id": "reaper"
+        },
+        {
+            "display": true,
             "released_at": "2.4.8",
             "name": "Marauder V4-OG and V6",
             "description": "",
