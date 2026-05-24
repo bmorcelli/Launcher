@@ -47,6 +47,9 @@ const API_URL = "https://api.launcherhub.net/giveMeTheList";
 const DEVICES_API_URL = "https://api.launcherhub.net/devices";
 const CDN_COVER = "https://m5burner-cdn.m5stack.com/cover/";
 const CDN_FIRMWARE = "https://m5burner-cdn.m5stack.com/firmware/";
+const CORS_PROXY = "https://launcher-proxy.bmorcelli.workers.dev/?url=";
+
+const proxiedUrl = (url: string) => `${CORS_PROXY}${encodeURIComponent(url)}`;
 
 const SAMPLE_CARDPUTER_COVER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='200'%3E%3Crect width='320' height='200' fill='%2300dd00'/%3E%3Ctext x='160' y='110' font-family='Inter,Arial,sans-serif' font-size='32' fill='%2301110b' text-anchor='middle'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -117,12 +120,10 @@ const makeDownloadName = (entry: FirmwareEntry, versionLabel: string) => {
       .replace(/^-+|-+$/g, "")
       .toLowerCase();
 
-  const parts = [entry.name, entry.author, versionLabel]
-    .filter(Boolean)
-    .map((part) => normalize(part ?? ""));
+  const name = normalize(entry.name) || "launcher-firmware";
+  const version = normalize(versionLabel);
 
-  const base = parts.filter((part) => part.length > 0).join("-");
-  return `${base || "launcher-firmware"}.bin`;
+  return version ? `${name}.${version}.bin` : `${name}.bin`;
 };
 
 const formatPublishedDate = (value: string | undefined) => {
@@ -410,22 +411,44 @@ document.addEventListener("DOMContentLoaded", () => {
       select.disabled = true;
     }
 
-    const downloadButton = document.createElement("a");
+    const downloadButton = document.createElement("button");
+    downloadButton.type = "button";
     downloadButton.className = "button button--ghost";
     downloadButton.textContent = "Download firmware";
-    downloadButton.target = "_blank";
-    downloadButton.rel = "noopener";
-    downloadButton.href = select.value || "#";
-    downloadButton.toggleAttribute("aria-disabled", select.value.length === 0);
-    const initialVersionLabel =
-      select.selectedOptions[0]?.dataset.versionLabel ?? select.options[0]?.dataset.versionLabel ?? "";
-    downloadButton.download = makeDownloadName(entry, initialVersionLabel);
+    downloadButton.disabled = select.value.length === 0;
+
+    const getSelectedFilename = () => {
+      const versionLabel = select.selectedOptions[0]?.dataset.versionLabel ?? "";
+      return makeDownloadName(entry, versionLabel);
+    };
+
+    downloadButton.addEventListener("click", async () => {
+      const url = select.value;
+      if (!url) return;
+      const filename = getSelectedFilename();
+      const originalText = downloadButton.textContent;
+      downloadButton.disabled = true;
+      downloadButton.textContent = "Downloading…";
+      try {
+        const response = await fetch(proxiedUrl(url));
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(blobUrl);
+      } catch {
+        window.open(url, "_blank");
+      } finally {
+        downloadButton.textContent = originalText;
+        downloadButton.disabled = select.value.length === 0;
+      }
+    });
 
     select.addEventListener("change", () => {
-      downloadButton.href = select.value || "#";
-      downloadButton.toggleAttribute("aria-disabled", select.value.length === 0);
-      const versionLabel = select.selectedOptions[0]?.dataset.versionLabel ?? "";
-      downloadButton.download = makeDownloadName(entry, versionLabel);
+      downloadButton.disabled = select.value.length === 0;
     });
 
     controls.append(select, downloadButton);
