@@ -292,7 +292,7 @@
             "id": "CYD-8048W550C"
         },
         {
-            "display": false,
+            "display": true,
             "name": "CYD-3248W535C",
             "description": "(ESP32S3, 3.5in, 320x480, Capacitive)",
             "link": "",
@@ -300,7 +300,8 @@
             "id": "CYD-3248W535C"
         },
         {
-            "display": false,
+            "display": true,
+            "released_at": "2.7.0",
             "name": "CYD-4827S043R",
             "description": "(ESP32S3, 4.3in, 480x272, Resistive)",
             "link": "",
@@ -308,7 +309,7 @@
             "id": "CYD-4827S043R"
         },
         {
-            "display": false,
+            "display": true,
             "name": "NM-CYD-C5",
             "description": "(ESP32-C5, 2.8in, 320x240, Resistive)",
             "link": "",
@@ -425,7 +426,7 @@
             "id": "lilygo-t-hmi"
         },
         {
-            "display": false,
+            "display": true,
             "released_at": "2.6.9",
             "name": "T-Display-S3 AMOLED 1.9in",
             "description": "",
@@ -588,7 +589,7 @@
     ],
     "Waveshare": [
         {
-            "display": false,
+            "display": true,
             "name": "Waveshare ESP32-S3 LCD 1.47in",
             "description": "",
             "link": "https://www.waveshare.com/wiki/ESP32-S3-LCD-1.47",
