@@ -108,7 +108,8 @@
             "id": "m5stack-sticks3"
         },
         {
-            "display": false,
+            "display": true,
+            "released_at": "2.7.0",
             "name": "Arduino Nesso n1",
             "description": "",
             "link": "https://docs.arduino.cc/hardware/nesso-n1",
@@ -116,7 +117,8 @@
             "id": "arduino-nesso-n1"
         },
         {
-            "display": false,
+            "display": true,
+            "released_at": "2.7.0",
             "name": "DinMeter",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5stack-din-meter-w-m5stamps3?ref=Pirata",
