@@ -49,7 +49,3 @@ if (existsSync(flasherSource)) {
   cpSync(flasherSource, path.join(buildDir, 'flasher.json'));
 }
 
-for (const binsDir of ['binsBeta', 'binsRelease']) {
-  copyRecursive(path.join(projectRoot, 'src', binsDir), path.join(buildDir, binsDir));
-}
-
