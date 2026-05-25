@@ -220,6 +220,7 @@ header {
   border-radius: 999px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -239,6 +240,26 @@ header {
   border: 1px solid rgba(0, 221, 0, 0.35);
   color: var(--text);
   background: rgba(0, 221, 0, 0.05);
+}
+
+.button--ghost:hover,
+.button--ghost:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 221, 0, 0.18);
+  border-color: rgba(0, 221, 0, 0.6);
+  background: rgba(0, 221, 0, 0.1);
+}
+
+.button--warning {
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.92) 0%, rgba(255, 80, 0, 0.88) 100%);
+  color: #1a0800;
+  box-shadow: 0 8px 24px rgba(255, 140, 0, 0.22);
+}
+
+.button--warning:hover,
+.button--warning:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(255, 140, 0, 0.38);
 }
 
 .section {
