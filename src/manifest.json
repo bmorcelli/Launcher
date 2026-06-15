@@ -509,6 +509,14 @@
         },
         {
             "display": true,
+            "name": "Marauder V8",
+            "description": "",
+            "link": "https://justcallmekokollc.com/products/marauder-v8",
+            "family": "ESP32",
+            "id": "Marauder-v8"
+        },
+        {
+            "display": true,
             "released_at": "2.4.8",
             "name": "Marauder Mini",
             "description": "",
