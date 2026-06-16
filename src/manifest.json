@@ -512,7 +512,7 @@
             "name": "Marauder V8",
             "description": "",
             "link": "https://justcallmekokollc.com/products/marauder-v8",
-            "family": "ESP32",
+            "family": "ESP32-C5",
             "id": "Marauder-v8"
         },
         {
