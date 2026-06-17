@@ -559,6 +559,14 @@
             "link": "https://opensourcesdrlab.com/products/aifw-wavesentry-esp32?VariantsId=10330",
             "family": "ESP32",
             "id": "WaveSentry-R1"
+        },
+        {
+            "display": true,
+            "name": "Pancake",
+            "description": "",
+            "link": "https://github.com/C5Lab/pancake",
+            "family": "ESP32-C5",
+            "id": "pancake"
         }
     ],
     "Elecrow": [
