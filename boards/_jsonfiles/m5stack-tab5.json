@@ -10,6 +10,7 @@
     "f_cpu": "360000000L",
     "f_flash": "80000000L",
     "f_psram": "200000000L",
+    "psram_mode": "oct",
     "flash_mode": "qio",
     "mcu": "esp32p4",
     "chip_variant": "esp32p4_es",
