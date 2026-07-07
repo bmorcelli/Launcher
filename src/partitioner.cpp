@@ -989,7 +989,7 @@ void partitionCrawler() {
     }
 }
 
-bool attachPartition(String _from, String _to) {
+bool attachPartition(const String &_from, String _to) {
     size_t offset = 0;
     uint8_t bytes[16];
     uint8_t buff[bufSize]; // on-demand copy buffer (was a resident global, see docs/milestone_2.md)

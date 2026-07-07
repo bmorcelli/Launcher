@@ -79,7 +79,7 @@ bool setupSdCard() {
 ** Function name: deleteFromSd
 ** Description:   delete file or folder
 ***************************************************************************************/
-bool deleteFromSd(String path) {
+bool deleteFromSd(const String &path) {
     File dir = SDM.open(path);
     if (!dir.isDirectory()) { return SDM.remove(path.c_str()); }
 
@@ -107,7 +107,7 @@ bool deleteFromSd(String path) {
 ** Function name: renameFile
 ** Description:   rename file or folder
 ***************************************************************************************/
-bool renameFile(String path, String filename) {
+bool renameFile(const String &path, const String &filename) {
     String newName = keyboard(filename, 76, "Type the new Name:");
     if (newName == "" || newName == String(KEY_ESCAPE) || newName == filename) { return false; }
     if (!setupSdCard()) {
@@ -129,7 +129,7 @@ bool renameFile(String path, String filename) {
 ** Function name: copyFile
 ** Description:   copy file address to memory
 ***************************************************************************************/
-bool copyFile(String path) {
+bool copyFile(const String &path) {
     if (!setupSdCard()) {
         // Serial.println("Fail to start SDCard");
         return false;
@@ -151,7 +151,7 @@ bool copyFile(String path) {
 ** Function name: pasteFile
 ** Description:   paste file to new folder
 ***************************************************************************************/
-bool pasteFile(String path) {
+bool pasteFile(const String &path) {
     // Tamanho do buffer para leitura/escrita
     const size_t bufferSize = 2048 * 2; // Ajuste conforme necessário para otimizar a performance
     uint8_t buffer[bufferSize];
@@ -698,7 +698,7 @@ DONE:
 ** Function name: updateFromSD
 ** Description:   this function analyse the .bin and calls installFromSdDynamic
 ***************************************************************************************/
-void updateFromSD(String path) {
+void updateFromSD(const String &path) {
     uint8_t partitionEntry[LAUNCHER_PARTITION_ENTRY_SIZE];
     uint32_t app_size = 0;
     uint32_t app_offset = 0;

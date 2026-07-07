@@ -6,11 +6,11 @@
 #include <webFiles.h>
 
 String humanReadableSize(uint64_t bytes);
-String listFiles(String folder);
+String listFiles(const String &folder);
 String readLineFromFile(File myFile);
 
 void configureWebServer();
-void startWebUi(String ssid, int encryptation, bool mode_ap = false);
+void startWebUi(const String &ssid, int encryptation, bool mode_ap = false);
 
 void webUIMyNet();
 void loopOptionsWebUi();

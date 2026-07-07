@@ -232,7 +232,8 @@ KeyboardAction handleKeyboardSelection(
 
 template <int KeyboardHeight, int KeyboardWidth>
 String generalKeyboard(
-    String current_text, int max_size, String textbox_title, char keys[KeyboardHeight][KeyboardWidth][2]
+    String current_text, int max_size, const String &textbox_title,
+    char keys[KeyboardHeight][KeyboardWidth][2]
 ) {
     resetTftDisplay();
     touchPoint.Clear();
@@ -964,7 +965,7 @@ String generalKeyboard(
 
 /// This calls the QUERTY keyboard. Returns the user typed strings, return the ASCII ESC character
 /// if the operation was cancelled
-String keyboard(String current_text, int max_size, String textbox_title) {
+String keyboard(String current_text, int max_size, const String &textbox_title) {
     max_FM_size = tftWidth / (LW * FM) - 1;
     max_FP_size = tftWidth / (LW)-2;
     return generalKeyboard<qwerty_keyboard_height, qwerty_keyboard_width>(

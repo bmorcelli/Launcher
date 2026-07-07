@@ -486,7 +486,7 @@ String humanReadableSize(uint64_t bytes) {
     return String((bytes + 1073741823ULL) / 1073741824ULL) + " GB";
 }
 
-String listFiles(String folder) {
+String listFiles(const String &folder) {
     String returnText = "pa:" + folder + ":0\n";
     launcherConsolePrintln("Listing files stored on SD");
 
@@ -1520,7 +1520,7 @@ void stopWebServerAndWifi() {
 #endif
 }
 
-void startWebUi(String ssid, int encryptation, bool mode_ap) {
+void startWebUi(const String &ssid, int encryptation, bool mode_ap) {
     RAM_LOG(mode_ap ? "startWebUi-ap-start" : "startWebUi-sta-start");
     file_size = 0;
 #ifndef HEADLESS

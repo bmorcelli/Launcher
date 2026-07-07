@@ -27,7 +27,7 @@ constexpr int kWifiConnectAttempts = 20;
 ** Function name: wifiConnect
 ** Description:   Connects to wifiNetwork
 ***************************************************************************************/
-bool wifiConnect(String ssid, int encryptation, bool isAP) {
+bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
     RAM_LOG(isAP ? "wifiConnect-ap-start" : "wifiConnect-sta-start");
     if (!isAP) {
         bool found = false;
@@ -140,7 +140,7 @@ bool connectWifi() {
     return launcherWifiIsConnected();
 }
 
-bool ensureWifiConnected(String ssid, int encryptation, bool isAP) {
+bool ensureWifiConnected(const String &ssid, int encryptation, bool isAP) {
     RAM_LOG("ensureWifiConnected-start");
     if (launcherWifiIsConnected() && !isAP) return true;
     if (isAP) return wifiConnect(ssid, encryptation, true);
@@ -538,7 +538,7 @@ DONE:
     return success;
 }
 
-bool getInfo(String serverUrl, JsonDocument &_doc, JsonDocument *filter = nullptr) {
+bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter = nullptr) {
     if (!launcherWifiIsConnected()) {
         displayRedStripe("WiFi not connected");
         vTaskDelay(1500 / portTICK_PERIOD_MS);
@@ -632,7 +632,7 @@ String normalizeExtraQuery(String extra) {
     return extra;
 }
 
-bool GetJsonFromLauncherHub(uint8_t page, String order, bool star, String query) {
+bool GetJsonFromLauncherHub(uint8_t page, const String &order, bool star, const String &query) {
     String q = "&order_by=" + order;
     q += page > 1 ? "&page=" + String(page) : "";
     q += query.length() > 0 ? "&q=" + encodeQueryValue(query) : "";
@@ -655,7 +655,7 @@ bool GetJsonFromLauncherHub(uint8_t page, String order, bool star, String query)
     vTaskDelay(1500 / portTICK_PERIOD_MS);
     return false;
 }
-JsonDocument getVersionInfo(String fid) {
+JsonDocument getVersionInfo(const String &fid) {
     JsonDocument versions(launcherJsonAllocator());
     String serverUrl = "https://api.launcherhub.net/firmwares?fid=" + fid;
     if (!getInfo(serverUrl, versions)) {
@@ -665,7 +665,7 @@ JsonDocument getVersionInfo(String fid) {
     return versions;
 }
 
-void installFirmwareFromManifest(String fid, String version, String installedName) {
+void installFirmwareFromManifest(const String &fid, const String &version, String installedName) {
     displayRedStripe("Getting install info");
 
     JsonDocument detail(launcherJsonAllocator());
@@ -860,7 +860,8 @@ bool checkForUpdates() {
 }
 
 void downloadFirmware(
-    String fid, String file_url, String fileName, String folder, String version, bool autoAdvance
+    const String &fid, String file_url, String fileName, String folder, const String &version,
+    bool autoAdvance
 ) {
     displayRedStripe("Preparing..");
     if (!file_url.startsWith("https://")) file_url = M5_SERVER_PATH + file_url;
@@ -938,7 +939,7 @@ retry:
 ** Function name: installExtFirmware
 ** Description:   installs External Firmware using OTA grabbing file information from url
 ***************************************************************************************/
-bool installExtFirmware(String url) {
+bool installExtFirmware(const String &url) {
     size_t file_size;
     bool nb = 1;
     std::vector<LauncherInstallDataPartition> dataPartitions;

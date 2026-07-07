@@ -9,7 +9,7 @@ void dumpPartition(const char *partitionLabel, const char *outputPath);
 
 void restorePartition(const char *partitionLabel);
 
-bool attachPartition(String from, String to);
+bool attachPartition(const String &from, String to);
 
 void partitionCrawler();
 

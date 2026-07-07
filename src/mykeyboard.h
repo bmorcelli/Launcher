@@ -3,7 +3,7 @@
 #include <WString.h>
 #include <globals.h>
 
-String keyboard(String mytext, int maxSize = 76, String msg = "Type your message:");
+String keyboard(String mytext, int maxSize = 76, const String &msg = "Type your message:");
 
 keyStroke _getKeyPress(); // return the key pressed to use as shortcut or input in keyboard environment
                           // by using the flag HAS_KEYBOARD

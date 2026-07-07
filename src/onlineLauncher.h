@@ -5,30 +5,30 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 
-bool installExtFirmware(String url);
+bool installExtFirmware(const String &url);
 
 void installFirmware(
     String fid, String file, uint32_t app_size, uint32_t app_offset, bool nb,
     std::vector<LauncherInstallDataPartition> &dataPartitions, String installedName = ""
 );
-void installFirmwareFromManifest(String fid, String version, String installedName = "");
+void installFirmwareFromManifest(const String &fid, const String &version, String installedName = "");
 
 bool connectWifi();
-bool ensureWifiConnected(String ssid = "", int encryptation = 0, bool isAP = false);
+bool ensureWifiConnected(const String &ssid = "", int encryptation = 0, bool isAP = false);
 
 void ota_function();
 
-void downloadFirmware(String fid, String file, String fileName, String folder = "/downloads/", String version = "", bool autoAdvance = false);
+void downloadFirmware(const String &fid, String file, String fileName, String folder = "/downloads/", const String &version = "", bool autoAdvance = false);
 void saveDownloadedFirmware(const String &folder, const String &fid, const String &version);
 bool checkForUpdates();
 
-bool wifiConnect(String ssid, int encryptation, bool isAP = false);
+bool wifiConnect(const String &ssid, int encryptation, bool isAP = false);
 
 bool GetJsonFromLauncherHub(
-    uint8_t page = 1, String order = "downloads", bool star = false, String query = ""
+    uint8_t page = 1, const String &order = "downloads", bool star = false, const String &query = ""
 );
 
-JsonDocument getVersionInfo(String fid);
+JsonDocument getVersionInfo(const String &fid);
 
 bool installFAT_OTA(String file, uint32_t offset, uint32_t size, const char *label);
 

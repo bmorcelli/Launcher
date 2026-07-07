@@ -24,7 +24,7 @@ int loopOptions(
     std::vector<Option> &options, bool bright = false, uint16_t al = RED, uint16_t bg = BLACK,
     bool border = true, int index = 0
 );
-void loopVersions(String fid);
+void loopVersions(const String &fid);
 void loopFirmware(bool isUpdate = false);
 void initDisplay(bool doAll = false); // Início da função e mostra bootscreen
 void initDisplayLoop();
@@ -40,11 +40,12 @@ void setTftDisplay(
 );
 
 void displayCurrentVersion(
-    String name, String author, String version, String published_at, int versionIndex, JsonArray versions
+    const String &name, const String &author, const String &version, const String &published_at,
+    int versionIndex, JsonArray versions
 );
 uint16_t getComplementaryColor(uint16_t color);
 void displayRedStripe(
-    String text, uint16_t fgcolor = getComplementaryColor(BGCOLOR), uint16_t bgcolor = ALCOLOR
+    const String &text, uint16_t fgcolor = getComplementaryColor(BGCOLOR), uint16_t bgcolor = ALCOLOR
 );
 
 void progressHandler(size_t progress, size_t total);
@@ -77,8 +78,8 @@ void TouchFooter(uint16_t color = FGCOLOR);
 
 void TouchFooter2(uint16_t color = FGCOLOR);
 
-void tftprintln(String txt, int margin, int numlines = 0);
+void tftprintln(const String &txt, int margin, int numlines = 0);
 
-void tftprint(String txt, int margin, int numlines = 0);
+void tftprint(const String &txt, int margin, int numlines = 0);
 
 #endif

@@ -15,13 +15,13 @@ extern SPIClass sdcardSPI;
 
 bool setupSdCard();
 
-bool deleteFromSd(String path);
+bool deleteFromSd(const String &path);
 
-bool renameFile(String path, String filename);
+bool renameFile(const String &path, const String &filename);
 
-bool copyFile(String path);
+bool copyFile(const String &path);
 
-bool pasteFile(String path);
+bool pasteFile(const String &path);
 
 bool createFolder(String path);
 
@@ -31,7 +31,7 @@ bool sortList(const Option &a, const Option &b);
 
 String loopSD(bool filePicker = false);
 
-void updateFromSD(String path);
+void updateFromSD(const String &path);
 
 bool performDATAUpdate(Stream &updateSource, size_t updateSize, const char *label);
 
