@@ -554,7 +554,7 @@ window.addEventListener("load", () => {
 });
 let fileQueue = [];
 let activeUploads = 0;
-const maxConcurrentUploads = 3;
+const maxConcurrentUploads = 2;
 function handleFileForm(files, folder) {
     uploadIdx = 0;
     writeSendForm();
@@ -586,9 +586,9 @@ function processNextUpload(folder) {
             _("status").innerHTML = `Uploaded ${completedFiles} of ${totalFiles} files.`;
             processNextUpload(folder);
         })
-        .catch(() => {
+        .catch((error) => {
             activeUploads--;
-            _("status").innerHTML = "Upload Failed";
+            _("status").innerHTML = error || "Upload Failed";
             processNextUpload(folder);
         });
 }
@@ -600,14 +600,20 @@ function uploadFile(folder, file) {
         row.innerHTML = `<div class="upl-fill" id="${id}"></div><div class="upl-lbl">${file.webkitRelativePath || file.name}</div>`;
         _('uplist').appendChild(row);
         const formdata = new FormData();
-        formdata.append("file", file, file.webkitRelativePath || file.name);
         formdata.append("folder", folder);
+        formdata.append("file", file, file.webkitRelativePath || file.name);
         const ajax = new XMLHttpRequest();
         ajax.upload.addEventListener("progress", (event) => {
             if (event.lengthComputable)
                 _(id).style.width = Math.round(event.loaded / event.total * 100) + '%';
         }, false);
-        ajax.addEventListener("load", () => resolve(), false);
+        ajax.addEventListener("load", () => {
+            if (ajax.status === 200 && ajax.responseText === "OK") {
+                resolve();
+            } else {
+                reject(ajax.responseText || "Upload failed");
+            }
+        }, false);
         ajax.addEventListener("error", () => reject(), false);
         ajax.addEventListener("abort", () => reject(), false);
         ajax.open("POST", "/");

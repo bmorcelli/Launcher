@@ -9,18 +9,18 @@
       name: Cache maker
       runs-on: ubuntu-latest
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v5
             with:
               submodules: true
 
           - id: build
             name: setup Python
-            uses: actions/setup-python@v2
+            uses: actions/setup-python@v6
             with:
               python-version: "3.13"
 
           - name: Cache pip
-            uses: actions/cache@v4
+            uses: actions/cache@v5
             with:
               path: ~/.cache/pip
               key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -29,7 +29,7 @@
                 ${{ runner.os }}-pip-
 
           - name: Cache PlatformIO Framework
-            uses: actions/cache@v4
+            uses: actions/cache@v5
             with:
               path: |
                 .pio/core

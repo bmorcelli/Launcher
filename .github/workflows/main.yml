@@ -111,18 +111,18 @@
             - { env: "waveshare-esp32-s3-lcd-147" }
 
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v5
             with:
               submodules: true
 
           - id: build
             name: setup Python
-            uses: actions/setup-python@v2
+            uses: actions/setup-python@v6
             with:
               python-version: "3.13"
 
           - name: Cache pip
-            uses: actions/cache@v4
+            uses: actions/cache@v5
             with:
               path: ~/.cache/pip
               key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -131,7 +131,7 @@
                 ${{ runner.os }}-pip-
 
           - name: Cache PlatformIO Framework
-            uses: actions/cache@v4
+            uses: actions/cache@v5
             with:
               path: |
                 .pio/core
@@ -141,7 +141,7 @@
                 ${{ runner.os }}-platformio-
 
           - name: PIO libraries cache
-            uses: actions/cache@v4
+            uses: actions/cache@v5
             with:
               path: |
                 .pio/libdeps
@@ -198,7 +198,7 @@
               platformio run -e ${{ matrix.board.env }}
 
           - name: Upload Artifacts
-            uses: actions/upload-artifact@v4
+            uses: actions/upload-artifact@v6
             with:
               name: Artifacts-${{ matrix.board.env }}
               path: |
@@ -212,13 +212,13 @@
       needs: compile_sketch
       if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') || github.ref_type == 'tag'
       steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
           with:
             ref: WebPage
             fetch-depth: 1
 
         - name: Download all artifacts
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v7
           with:
             path: ~/LauncherArtifacts
 
@@ -232,7 +232,7 @@
 
         - name: Ensure releases exist and get IDs
           id: get_release
-          uses: actions/github-script@v7
+          uses: actions/github-script@v8
           with:
             script: |
               const ensureByTag = async (tag, prerelease=true) => {
@@ -268,7 +268,7 @@
             echo "GITHUB_SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
         - name: Delete old betaRelease assets
-          uses: actions/github-script@v6
+          uses: actions/github-script@v8
           with:
             script: |
               const release_id = ${{ steps.get_release.outputs.beta }};
@@ -296,7 +296,7 @@
             generate_release_notes: false
 
         - name: Delete old lastRelease assets
-          uses: actions/github-script@v6
+          uses: actions/github-script@v8
           if: github.ref_type == 'tag'
           with:
             script: |
@@ -340,7 +340,7 @@
       needs: [compile_sketch]
       if: github.ref_type == 'tag'
       steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - id: launcher_version
         name: Get Version
@@ -350,7 +350,7 @@
           echo "version=${version}" > $GITHUB_OUTPUT
 
       - name: setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -358,12 +358,12 @@
         run: |
           pip install requests
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           merge-multiple: true
 
       - name: Create Release ${{ steps.launcher_version.outputs.version }}
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Launcher Release ${{ steps.launcher_version.outputs.version }}
           tag_name: ${{ steps.launcher_version.outputs.version }}

@@ -8,6 +8,7 @@
 #include "littlefs_patch.h"
 #include "mykeyboard.h"
 #include "partition_table_model.h"
+#include "ram_profile.h"
 #include "sd_functions.h"
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
@@ -632,6 +633,7 @@ bool applyPartitionChanges(const LauncherPartitionTable &table) {
 } // namespace
 
 void partList() {
+    RAM_LOG("partList-start");
     int idx = 0;
     LauncherPartitionTable table;
     bool dirty = false;

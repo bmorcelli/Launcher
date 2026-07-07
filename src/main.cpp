@@ -17,6 +17,7 @@
 #include <SPIFFS.h>
 
 #include "powerSave.h"
+#include "ram_profile.h"
 #include <functional>
 #include <iostream>
 #include <string>
@@ -158,9 +159,11 @@ void _post_setup_gpio() {}
 *********************************************************************/
 void setup() {
     Serial.begin(115200);
+    RAM_LOG("setup-start");
     nvs_flash_init();
     launcherPartitionInitDefaultSizes();
     ensureM5StackUiFlowNVSDefaults();
+    RAM_LOG("after-nvs-partition-defaults");
 
 #if CONFIG_IDF_TARGET_ESP32P4
     esp_err_t nve;
@@ -194,6 +197,7 @@ void setup() {
 
     // Get Configuration from NVS partition
     getFromNVS();
+    RAM_LOG("after-getFromNVS");
 
     // declare variables
     size_t currentIndex = 0;
@@ -230,9 +234,11 @@ void setup() {
     tft->fillScreen(BGCOLOR);
     setBrightness(bright, false);
     initDisplay(true);
+    RAM_LOG("after-first-display");
 
     // Performs the verification when Launcher is installed through OTA
     partitionCrawler();
+    RAM_LOG("after-partitionCrawler");
 
 #if defined(USE_CARDKB2) && defined(CARDKB2_SDA) && defined(CARDKB2_SCL)
     cardkb2_setup(CARDKB2_SDA, CARDKB2_SCL);
@@ -246,6 +252,7 @@ void setup() {
 #endif
     // Gets the config.conf from SD Card and fill out the settings JSON
     getConfigs();
+    RAM_LOG("after-getConfigs");
 #if defined(HAS_TOUCH)
     TouchFooter2();
 #endif
@@ -269,6 +276,7 @@ void setup() {
     int i = launcherMillis();
     int j = 0;
     LongPress = true;
+    RAM_LOG("before-bootscreen");
     while (launcherMillis() < i + (2000 + bootToApp * 3000)) { // increased from 2500 to 5000
         initDisplay();                                         // Inicia o display
 
@@ -324,6 +332,7 @@ void setup() {
 
 // If M5 or Enter button is pressed, continue from here
 Launcher:
+    RAM_LOG("launcher-label");
     LongPress = false;
     tft->fillScreen(BGCOLOR);
 #if LED > 0 && defined(HEADLESS)
@@ -337,6 +346,11 @@ Launcher:
 **********************************************************************/
 #ifndef HEADLESS
 void loop() {
+    static bool loggedFirstLoop = false;
+    if (!loggedFirstLoop) {
+        RAM_LOG("first-loop-start");
+        loggedFirstLoop = true;
+    }
     bool redraw = true;
     bool update_sd;
     int index = 0;
@@ -407,6 +421,7 @@ void loop() {
          [=]() { settings_menu(); }
         }
     };
+    if (first_loop) RAM_LOG("first-mainMenu-built");
 
     for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
         String appLabel = app.label;
@@ -574,6 +589,7 @@ END:
 
 #else
 void loop() { // Start SD card, If there's no SD Card installed, see if there's ssid saved on memory,
+    RAM_LOG("headless-loop-start");
     launcherConsolePrint(
         "     _                            _               \n"
         "    | |                          | |              \n"

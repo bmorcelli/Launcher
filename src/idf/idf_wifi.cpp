@@ -1,5 +1,7 @@
 #include "idf_wifi.h"
 
+#include "ram_profile.h"
+
 #include "esp_event.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
@@ -123,6 +125,7 @@ bool ensureWifiInitialized() {
     }
 
     if (!wifiInitialized) {
+        RAM_LOG("before-esp-wifi-init");
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 #if CONFIG_ESP_HOSTED_ENABLED
         // Required for ESP-Hosted remote Wi-Fi; matches Arduino's WiFiGeneric
@@ -132,6 +135,7 @@ bool ensureWifiInitialized() {
         err = esp_wifi_init(&cfg);
         if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) { return false; }
         wifiInitialized = true;
+        RAM_LOG("after-esp-wifi-init");
     }
 
     if (!handlersRegistered) {

@@ -9,6 +9,7 @@
 #include "mykeyboard.h"
 #include "partition_install_layout.h"
 #include "partition_table_model.h"
+#include "ram_profile.h"
 #include "settings.h"
 #include <algorithm>
 #include <esp_app_format.h>
@@ -288,6 +289,7 @@ void readFs(String &folder, std::vector<Option> &opt) {
 **  Where you choose what to do wuth your SD Files
 **********************************************************************/
 String loopSD(bool filePicker) {
+    RAM_LOG(filePicker ? "loopSD-picker-start" : "loopSD-start");
     // Function using loopOptions to store and handle files
     returnToMenu = false;
     fileToUse = ""; // resets global variable
@@ -303,7 +305,9 @@ String loopSD(bool filePicker) {
     bool bkf = false;
 RESTART:
     if (_Folder != Folder || read_fs) {
+        RAM_LOG("loopSD-before-readFs");
         readFs(Folder, options);
+        RAM_LOG("loopSD-after-readFs");
         if (options.size() == 0) return ""; // Failed reading SD card.
         _Folder = Folder;
         index = 0;

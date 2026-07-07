@@ -1,6 +1,7 @@
 #include "backup_manager.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
+#include "ram_profile.h"
 #include "sd_functions.h"
 #include <ArduinoJson.h>
 #include <SD.h>
@@ -223,6 +224,7 @@ int nextBackupIndex(const String &appNum, const char *type, const char *label) {
 }
 
 String backupPartition(const String &appNum, const char *partitionLabel, const char *type) {
+    RAM_LOG("backupPartition-start");
     if (!setupSdCard()) return "";
 
     int idx = nextBackupIndex(appNum, type, partitionLabel);
@@ -281,6 +283,7 @@ String backupPartition(const String &appNum, const char *partitionLabel, const c
     updateInstalledBackupPath(appNum, String(partitionLabel), outPath);
     displayRedStripe("Backup saved");
     launcherDelayMs(1500);
+    RAM_LOG("backupPartition-end");
     return outPath;
 }
 
@@ -297,6 +300,7 @@ bool backupAllPartitionsForApp(const String &appNum) {
 }
 
 bool restorePartitionFromBackup(const char *partitionLabel, const char *backupFilePath) {
+    RAM_LOG("restorePartition-start");
     if (!setupSdCard()) return false;
 
     File inFile = SDM.open(backupFilePath, FILE_READ);
@@ -363,12 +367,14 @@ bool restorePartitionFromBackup(const char *partitionLabel, const char *backupFi
     inFile.close();
     displayRedStripe("Data restored");
     launcherDelayMs(1500);
+    RAM_LOG("restorePartition-end");
     return true;
 }
 
 bool restorePartitionFromBackupDirect(
     const char *partitionLabel, const char *backupFilePath, uint32_t flashOffset, uint32_t flashSize
 ) {
+    RAM_LOG("restorePartitionDirect-start");
     if (!setupSdCard()) return false;
 
     File inFile = SDM.open(backupFilePath, FILE_READ);
@@ -428,5 +434,6 @@ bool restorePartitionFromBackupDirect(
     inFile.close();
     displayRedStripe("Data restored");
     launcherDelayMs(1500);
+    RAM_LOG("restorePartitionDirect-end");
     return true;
 }

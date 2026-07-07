@@ -1,0 +1,46 @@
+Launcher m5stack-cardputer RAM baseline
+=======================================
+
+Date: 2026-07-06
+Source artifacts:
+- .pio/build/m5stack-cardputer/firmware.elf
+- .pio/build/m5stack-cardputer/firmware.map
+- .pio/build/m5stack-cardputer/firmware.bin
+
+Command:
+.pio/core/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-size.exe -A .pio/build/m5stack-cardputer/firmware.elf
+
+Static RAM summary:
+- .dram0.data: 21,300 B
+- .dram0.bss: 72,232 B
+- .dram0.data + .dram0.bss: 93,532 B
+
+Other relevant sections:
+- .iram0.text: 74,835 B
+- .flash.text: 1,016,772 B
+- .flash.rodata: 198,324 B
+- firmware.bin: 1,312,656 B
+
+Largest project-owned DRAM/static symbols found with nm/map:
+- 4,096 B  gPartitionTableRaw                 src/partition_table_model.cpp
+- 4,096 B  gPartitionTableVerify              src/partition_table_model.cpp
+- 4,096 B  gPartitionMoveBuffer               src/partition_table_model.cpp
+- 4,096 B  backupPartition::buf               src/backup_manager.cpp
+- 4,096 B  restorePartitionFromBackup::buf    src/backup_manager.cpp
+- 4,096 B  restorePartitionFromBackupDirect::buf src/backup_manager.cpp
+- 1,024 B  buff                               src/main.cpp
+
+Runtime heap baseline:
+- Instrumented build command passed on 2026-07-06:
+  pio run -e m5stack-cardputer
+- ENABLE_RAM_LOGGING=1 was added in build_src_flags for m5stack-cardputer.
+- Static RAM after instrumentation is unchanged:
+  .dram0.data: 21,300 B
+  .dram0.bss: 72,232 B
+  .dram0.data + .dram0.bss: 93,532 B
+- Symbol check:
+  ramProfileLog is present in .text as _Z13ramProfileLogPKc, size 0x56.
+- Upload/capture blocked on this machine:
+  esptool could not open COM10, and no COM ports were enumerated by Windows.
+- Pending serial capture with ENABLE_RAM_LOGGING=1 once the Cardputer appears as a COM port.
+- Capture should include boot, first menu render, SD navigation, OTA/WebUI start, and return from touched features.

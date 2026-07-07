@@ -12,6 +12,7 @@
 #include "partition_install_layout.h"
 #include "partition_table_model.h"
 #include "powerSave.h"
+#include "ram_profile.h"
 #include "sd_functions.h"
 #include "settings.h"
 #include <esp_ota_ops.h>
@@ -26,6 +27,7 @@ constexpr int kWifiConnectAttempts = 20;
 ** Description:   Connects to wifiNetwork
 ***************************************************************************************/
 bool wifiConnect(String ssid, int encryptation, bool isAP) {
+    RAM_LOG(isAP ? "wifiConnect-ap-start" : "wifiConnect-sta-start");
     if (!isAP) {
         bool found = false;
         bool wrongPass = false;
@@ -73,6 +75,7 @@ bool wifiConnect(String ssid, int encryptation, bool isAP) {
 
         int count = 0;
         LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
+        RAM_LOG("before-wifi-connect-status");
         while (connectState != LauncherWifiConnectState::Connected) {
             connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
             if (connectState == LauncherWifiConnectState::Connected) break;
@@ -102,14 +105,17 @@ bool wifiConnect(String ssid, int encryptation, bool isAP) {
         launcherWifiStop();
         vTaskDelay(50 / portTICK_PERIOD_MS);
 #endif
+        RAM_LOG("before-wifi-start-ap");
         launcherWifiStartAp("Launcher", "", 6, 4);
         vTaskDelay(250 / portTICK_PERIOD_MS);
         launcherConsolePrintf("IP: %s\n", launcherWifiApIp().c_str());
     }
     launcherDelayMs(0);
+    RAM_LOG("wifiConnect-end");
     return isAP || launcherWifiIsConnected();
 }
 bool connectWifi() {
+    RAM_LOG("connectWifi-start");
     displayRedStripe("Scanning...");
 #if CONFIG_ESP_HOSTED_ENABLED
     launcherWifiStop();
@@ -134,6 +140,7 @@ bool connectWifi() {
 }
 
 bool ensureWifiConnected(String ssid, int encryptation, bool isAP) {
+    RAM_LOG("ensureWifiConnected-start");
     if (launcherWifiIsConnected() && !isAP) return true;
     if (isAP) return wifiConnect(ssid, encryptation, true);
     if (!ssid.isEmpty()) return wifiConnect(ssid, encryptation, false);
@@ -145,6 +152,7 @@ bool ensureWifiConnected(String ssid, int encryptation, bool isAP) {
 ***************************************************************************************/
 void ota_function() {
 #ifndef DISABLE_OTA
+    RAM_LOG("ota-start");
     bool fav = false;
     bool upd = false;
     if (ensureWifiConnected()) {
