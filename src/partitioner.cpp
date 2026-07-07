@@ -992,6 +992,7 @@ void partitionCrawler() {
 bool attachPartition(String _from, String _to) {
     size_t offset = 0;
     uint8_t bytes[16];
+    uint8_t buff[bufSize]; // on-demand copy buffer (was a resident global, see docs/milestone_2.md)
     launcherConsolePrintf("From: %s\nTo: %s\n", _from.c_str(), _to.c_str());
     File to = SDM.open(_to, FILE_READ);
     if (!to) {

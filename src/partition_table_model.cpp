@@ -9,9 +9,11 @@
 #include <cstring>
 #include <esp_flash.h>
 #include <esp_flash_partitions.h>
+#include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <mbedtls/md5.h>
+#include <memory>
 
 uint32_t LAUNCHER_DEFAULT_SPIFFS_SIZE = 0x20000;
 uint32_t LAUNCHER_DEFAULT_FAT_SIZE = 0x50000;
@@ -30,9 +32,18 @@ constexpr uint8_t kSubtypeDataNvs = PART_SUBTYPE_DATA_NVS_KEYS;
 constexpr uint8_t kSubtypeDataRf = PART_SUBTYPE_DATA_RF;
 constexpr uint8_t kSubtypeDataWifi = PART_SUBTYPE_DATA_WIFI;
 constexpr uint8_t kSubtypeDataEfuse = PART_SUBTYPE_DATA_EFUSE_EM;
-uint8_t gPartitionTableRaw[LAUNCHER_PARTITION_TABLE_SIZE];
-uint8_t gPartitionTableVerify[LAUNCHER_PARTITION_TABLE_SIZE];
-uint8_t gPartitionMoveBuffer[LAUNCHER_FLASH_SECTOR_SIZE];
+
+struct HeapCapsDeleter {
+    void operator()(uint8_t *ptr) const {
+        if (ptr) heap_caps_free(ptr);
+    }
+};
+
+using HeapBuffer = std::unique_ptr<uint8_t, HeapCapsDeleter>;
+
+HeapBuffer makeInternalBuffer(size_t size) {
+    return HeapBuffer(static_cast<uint8_t *>(heap_caps_malloc(size, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
+}
 
 uint16_t readU16(const uint8_t *p) {
     return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
@@ -155,15 +166,21 @@ bool launcherPartitionParseInternal(
 }
 
 bool launcherPartitionReadCurrentInternal(LauncherPartitionTable &table, String *error, bool validate) {
+    HeapBuffer partitionTable = makeInternalBuffer(LAUNCHER_PARTITION_TABLE_SIZE);
+    if (!partitionTable) {
+        setError(error, "Could not allocate partition table buffer");
+        return false;
+    }
+
     esp_err_t err = esp_flash_read(
-        nullptr, gPartitionTableRaw, LAUNCHER_PARTITION_TABLE_OFFSET, sizeof(gPartitionTableRaw)
+        nullptr, partitionTable.get(), LAUNCHER_PARTITION_TABLE_OFFSET, LAUNCHER_PARTITION_TABLE_SIZE
     );
     if (err != ESP_OK) {
         setError(error, "Could not read partition table from flash");
         return false;
     }
     return launcherPartitionParseInternal(
-        gPartitionTableRaw, sizeof(gPartitionTableRaw), table, error, validate
+        partitionTable.get(), LAUNCHER_PARTITION_TABLE_SIZE, table, error, validate
     );
 }
 } // namespace
@@ -396,10 +413,16 @@ bool launcherPartitionMigrateMovedData(
         );
 
         const bool copyForward = target.offset < source->offset;
+        HeapBuffer moveBuffer = makeInternalBuffer(LAUNCHER_FLASH_SECTOR_SIZE);
+        if (!moveBuffer) {
+            setError(error, "Could not allocate partition move buffer");
+            return false;
+        }
+
         if (copyForward) {
             for (uint32_t offset = 0; offset < copySize; offset += LAUNCHER_FLASH_SECTOR_SIZE) {
                 esp_err_t err = esp_flash_read(
-                    nullptr, gPartitionMoveBuffer, source->offset + offset, sizeof(gPartitionMoveBuffer)
+                    nullptr, moveBuffer.get(), source->offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
                 );
                 if (err != ESP_OK) {
                     setError(error, "Could not read partition while moving");
@@ -411,7 +434,7 @@ bool launcherPartitionMigrateMovedData(
                     return false;
                 }
                 err = esp_flash_write(
-                    nullptr, gPartitionMoveBuffer, target.offset + offset, sizeof(gPartitionMoveBuffer)
+                    nullptr, moveBuffer.get(), target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
                 );
                 if (err != ESP_OK) {
                     setError(error, "Could not write partition while moving");
@@ -423,7 +446,7 @@ bool launcherPartitionMigrateMovedData(
             for (uint32_t remaining = copySize; remaining > 0; remaining -= LAUNCHER_FLASH_SECTOR_SIZE) {
                 const uint32_t offset = remaining - LAUNCHER_FLASH_SECTOR_SIZE;
                 esp_err_t err = esp_flash_read(
-                    nullptr, gPartitionMoveBuffer, source->offset + offset, sizeof(gPartitionMoveBuffer)
+                    nullptr, moveBuffer.get(), source->offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
                 );
                 if (err != ESP_OK) {
                     setError(error, "Could not read partition while moving");
@@ -435,7 +458,7 @@ bool launcherPartitionMigrateMovedData(
                     return false;
                 }
                 err = esp_flash_write(
-                    nullptr, gPartitionMoveBuffer, target.offset + offset, sizeof(gPartitionMoveBuffer)
+                    nullptr, moveBuffer.get(), target.offset + offset, LAUNCHER_FLASH_SECTOR_SIZE
                 );
                 if (err != ESP_OK) {
                     setError(error, "Could not write partition while moving");
@@ -455,9 +478,17 @@ bool launcherPartitionMigrateMovedData(
 }
 
 bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, String *error) {
-    if (!launcherPartitionBuild(table, gPartitionTableRaw, sizeof(gPartitionTableRaw), error)) return false;
+    HeapBuffer partitionTable = makeInternalBuffer(LAUNCHER_PARTITION_TABLE_SIZE);
+    HeapBuffer verifyTable = makeInternalBuffer(LAUNCHER_PARTITION_TABLE_SIZE);
+    if (!partitionTable || !verifyTable) {
+        setError(error, "Could not allocate partition table write buffers");
+        return false;
+    }
 
-    if (gPartitionTableRaw[0] != 0xAA || gPartitionTableRaw[1] != 0x50) {
+    if (!launcherPartitionBuild(table, partitionTable.get(), LAUNCHER_PARTITION_TABLE_SIZE, error))
+        return false;
+
+    if (partitionTable.get()[0] != 0xAA || partitionTable.get()[1] != 0x50) {
         setError(error, "Generated partition table has invalid magic");
         return false;
     }
@@ -472,10 +503,10 @@ bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, S
         }
 
         bool writeOk = true;
-        for (size_t offset = 0; offset < sizeof(gPartitionTableRaw); offset += kWriteChunk) {
-            size_t len = std::min(kWriteChunk, sizeof(gPartitionTableRaw) - offset);
+        for (size_t offset = 0; offset < LAUNCHER_PARTITION_TABLE_SIZE; offset += kWriteChunk) {
+            size_t len = std::min(kWriteChunk, static_cast<size_t>(LAUNCHER_PARTITION_TABLE_SIZE) - offset);
             err = esp_flash_write(
-                nullptr, gPartitionTableRaw + offset, LAUNCHER_PARTITION_TABLE_OFFSET + offset, len
+                nullptr, partitionTable.get() + offset, LAUNCHER_PARTITION_TABLE_OFFSET + offset, len
             );
             if (err != ESP_OK) {
                 writeOk = false;
@@ -488,10 +519,10 @@ bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, S
         }
 
         err = esp_flash_read(
-            nullptr, gPartitionTableVerify, LAUNCHER_PARTITION_TABLE_OFFSET, sizeof(gPartitionTableVerify)
+            nullptr, verifyTable.get(), LAUNCHER_PARTITION_TABLE_OFFSET, LAUNCHER_PARTITION_TABLE_SIZE
         );
         if (err == ESP_OK &&
-            memcmp(gPartitionTableRaw, gPartitionTableVerify, sizeof(gPartitionTableRaw)) == 0) {
+            memcmp(partitionTable.get(), verifyTable.get(), LAUNCHER_PARTITION_TABLE_SIZE) == 0) {
             return true;
         }
         setError(error, "Partition table verify failed");

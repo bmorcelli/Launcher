@@ -5,6 +5,7 @@
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
 #include "powerSave.h"
+#include "ram_profile.h"
 #include "sd_functions.h"
 #include "settings.h"
 #include <cstring>
@@ -356,6 +357,7 @@ void displayRedStripe(String text, uint16_t fgcolor, uint16_t bgcolor) {
     int _y = tft->getCursorY();
     uint16_t _color = tft->getTextcolor();
     uint16_t _bgcolor = tft->getTextbgcolor();
+    Serial.println(String("Display Red Stripe: ") + text);
 
 #if E_PAPER_DISPLAY
     bgcolor = BLACK;
@@ -1335,6 +1337,7 @@ RESTART:
     }
     if (!returnToMenu && index >= 0) goto RESTART;
     doc.clear();
+    RAM_LOG("firmwareList-doc-cleared");
 }
 
 /*********************************************************************

@@ -219,9 +219,7 @@ extern int rotation;
 
 extern bool returnToMenu;
 
-extern uint8_t buff[1024];
-
-extern const int bufSize;
+constexpr int bufSize = 1024;
 
 // Used to handle the update in webUI
 extern bool update;

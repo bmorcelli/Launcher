@@ -15,6 +15,7 @@
 #include "ram_profile.h"
 #include "sd_functions.h"
 #include "settings.h"
+#include "utils.h"
 #include <esp_ota_ops.h>
 #include <globals.h>
 
@@ -537,7 +538,7 @@ DONE:
     return success;
 }
 
-bool getInfo(String serverUrl, JsonDocument &_doc) {
+bool getInfo(String serverUrl, JsonDocument &_doc, JsonDocument *filter = nullptr) {
     if (!launcherWifiIsConnected()) {
         displayRedStripe("WiFi not connected");
         vTaskDelay(1500 / portTICK_PERIOD_MS);
@@ -557,7 +558,10 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
         LauncherHttpResponse resp;
         if (launcherHttpGetToString(serverUrl.c_str(), payload, 65536, &resp)) {
             _doc.clear();
-            DeserializationError error = deserializeJson(_doc, payload);
+            RAM_LOG("getInfo-before-parse");
+            DeserializationError error =
+                filter ? deserializeJson(_doc, payload, DeserializationOption::Filter(*filter))
+                       : deserializeJson(_doc, payload);
             if (error) {
                 displayRedStripe(String("JSON Parse Failed: ") + error.c_str());
                 vTaskDelay(1500 / portTICK_PERIOD_MS);
@@ -565,6 +569,7 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
                 resumeInputHandlerTask();
                 return false;
             }
+            RAM_LOG("getInfo-after-parse");
             resumeInputHandlerTask();
             return true;
         }
@@ -578,9 +583,7 @@ bool getInfo(String serverUrl, JsonDocument &_doc) {
         } else {
             reason = String("Net err ") + resp.transport_error;
         }
-        displayRedStripe(
-            String("GET failed (") + (attempt + 1) + "/" + maxAttempts + "): " + reason
-        );
+        displayRedStripe(String("GET failed (") + (attempt + 1) + "/" + maxAttempts + "): " + reason);
 
         // The connection may have dropped mid-flow; abort early instead of burning
         // the remaining attempts (each can block up to the HTTP timeout).
@@ -639,10 +642,13 @@ bool GetJsonFromLauncherHub(uint8_t page, String order, bool star, String query)
 #endif
     String serverUrl = "https://api.launcherhub.net/firmwares?category=" + String(OTA_TAG) + q;
 
-    if (getInfo(serverUrl, doc)) {
+    JsonDocument filter;
+    buildFirmwareListFilter(filter);
+    if (getInfo(serverUrl, doc, &filter)) {
         total_firmware = doc["total"].as<int>();
         num_pages = doc["total"].as<int>() / doc["page_size"].as<int>();
         current_page = page;
+        RAM_LOG("firmwareList-doc-resident");
         return true;
     }
     displayRedStripe("Firmware list fetch Failed");
@@ -650,7 +656,7 @@ bool GetJsonFromLauncherHub(uint8_t page, String order, bool star, String query)
     return false;
 }
 JsonDocument getVersionInfo(String fid) {
-    JsonDocument versions;
+    JsonDocument versions(launcherJsonAllocator());
     String serverUrl = "https://api.launcherhub.net/firmwares?fid=" + fid;
     if (!getInfo(serverUrl, versions)) {
         displayRedStripe("Version fetch Failed");
@@ -662,7 +668,7 @@ JsonDocument getVersionInfo(String fid) {
 void installFirmwareFromManifest(String fid, String version, String installedName) {
     displayRedStripe("Getting install info");
 
-    JsonDocument detail;
+    JsonDocument detail(launcherJsonAllocator());
     String serverUrl =
         "https://api.launcherhub.net/firmwares?fid=" + fid + "&version=" + encodeQueryValue(version);
     if (!getInfo(serverUrl, detail)) {
@@ -825,7 +831,11 @@ bool checkForUpdates() {
     }
 
     doc.clear();
-    DeserializationError err = deserializeJson(doc, response);
+    JsonDocument filter;
+    buildFirmwareListFilter(filter);
+    RAM_LOG("updateList-before-parse");
+    DeserializationError err = deserializeJson(doc, response, DeserializationOption::Filter(filter));
+    RAM_LOG("updateList-after-parse");
     if (err) {
         displayRedStripe("Bad server response");
         launcherDelayMs(1500);
@@ -933,6 +943,7 @@ bool installExtFirmware(String url) {
     bool nb = 1;
     std::vector<LauncherInstallDataPartition> dataPartitions;
     uint8_t bytes[32];
+    uint8_t buff[bufSize]; // on-demand range/parse buffer (was a resident global, see docs/milestone_2.md)
     if (!url.startsWith("http")) {
         displayRedStripe("Invalid link");
         launcherDelayMs(2000);

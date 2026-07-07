@@ -1,5 +1,6 @@
+#include "utils.h"
+#include <esp_heap_caps.h>
 #include <globals.h>
-
 /*********************************************************************
 ** Function: touchHeatMap
 ** Touchscreen Mapping, include this function after reading the touchPoint
@@ -52,4 +53,45 @@ void touchHeatMap(struct LTouchPoint t) {
                                               Lthird_x*3
     */
 #endif
+}
+
+// Prefer PSRAM (isolates ArduinoJson churn from the internal heap), fall back
+// to internal RAM on boards without PSRAM (e.g. m5stack-cardputer).
+class LauncherJsonAllocator : public ArduinoJson::Allocator {
+public:
+    void *allocate(size_t size) override {
+        void *p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!p) p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        return p;
+    }
+
+    void deallocate(void *ptr) override { heap_caps_free(ptr); }
+
+    void *reallocate(void *ptr, size_t new_size) override {
+        // heap_caps_realloc leaves the original block untouched when it returns
+        // NULL, so retrying with a different capability is safe.
+        void *p = heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!p) p = heap_caps_realloc(ptr, new_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        return p;
+    }
+};
+
+ArduinoJson::Allocator *launcherJsonAllocator() {
+    static LauncherJsonAllocator instance;
+    return &instance;
+}
+
+void buildFirmwareListFilter(JsonDocument &filter) {
+    filter["total"] = true;
+    filter["page"] = true;
+    filter["page_size"] = true;
+    // The first element of a filter array is the template applied to every
+    // element of the input array.
+    JsonObject item = filter["items"].add<JsonObject>();
+    item["fid"] = true;
+    item["file"] = true;
+    item["name"] = true;
+    item["version"] = true;
+    item["author"] = true;
+    item["star"] = true;
 }

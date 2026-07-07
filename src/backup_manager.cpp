@@ -1,16 +1,33 @@
 #include "backup_manager.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
+#include "partition_table_model.h"
 #include "ram_profile.h"
 #include "sd_functions.h"
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <esp_flash.h>
+#include <esp_heap_caps.h>
 #include <esp_partition.h>
 #include <globals.h>
 #include <memory>
 
 #define BACKUP_DATA_PATH "/bkp/backupData.json"
+static constexpr size_t kBackupBufferSize = 4096;
+
+namespace {
+struct HeapCapsDeleter {
+    void operator()(uint8_t *ptr) const {
+        if (ptr) heap_caps_free(ptr);
+    }
+};
+
+using HeapBuffer = std::unique_ptr<uint8_t, HeapCapsDeleter>;
+
+HeapBuffer makeInternalBuffer(size_t size) {
+    return HeapBuffer(static_cast<uint8_t *>(heap_caps_malloc(size, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
+}
+} // namespace
 
 String generateAppNum(const String &sdFilepath) {
     uint32_t crc = 0xFFFFFFFF;
@@ -223,6 +240,29 @@ int nextBackupIndex(const String &appNum, const char *type, const char *label) {
     return idx;
 }
 
+// Resolve a data partition's flash offset/size by label. Prefers the IDF
+// runtime cache, but falls back to the partition table read straight from
+// flash. That fallback matters right after an install: the new table is
+// already on flash but the IDF cache still reflects the pre-install layout,
+// so esp_partition_find_first() can't see a just-created partition yet.
+static bool resolveDataRegion(const char *label, uint32_t &flashOffset, uint32_t &regionSize) {
+    const esp_partition_t *part =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, label);
+    if (part) {
+        flashOffset = part->address;
+        regionSize = part->size;
+        return true;
+    }
+
+    LauncherPartitionTable table;
+    if (!launcherPartitionReadCurrentUnchecked(table)) return false;
+    const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label);
+    if (!entry) return false;
+    flashOffset = entry->offset;
+    regionSize = entry->size;
+    return true;
+}
+
 String backupPartition(const String &appNum, const char *partitionLabel, const char *type) {
     RAM_LOG("backupPartition-start");
     if (!setupSdCard()) return "";
@@ -235,9 +275,9 @@ String backupPartition(const String &appNum, const char *partitionLabel, const c
 
     SDM.mkdir(dir);
 
-    const esp_partition_t *part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, partitionLabel);
-    if (!part) {
+    uint32_t flashOffset = 0;
+    uint32_t regionSize = 0;
+    if (!resolveDataRegion(partitionLabel, flashOffset, regionSize)) {
         displayRedStripe((String("Backup failed: ") + partitionLabel).c_str());
         launcherDelayMs(2500);
         return "";
@@ -250,17 +290,24 @@ String backupPartition(const String &appNum, const char *partitionLabel, const c
         return "";
     }
 
-    static uint8_t buf[4096];
+    HeapBuffer buf = makeInternalBuffer(kBackupBufferSize);
+    if (!buf) {
+        outFile.close();
+        SDM.remove(outPath);
+        displayRedStripe("Backup failed: no RAM");
+        launcherDelayMs(2500);
+        return "";
+    }
     size_t written = 0;
-    size_t total = part->size;
+    size_t total = regionSize;
 
     prog_handler = 1;
     progressHandler(0, total);
     displayRedStripe((String("Backing up ") + partitionLabel).c_str());
 
     while (written < total) {
-        size_t chunk = min((size_t)sizeof(buf), total - written);
-        esp_err_t err = esp_partition_read(part, written, buf, chunk);
+        size_t chunk = min(kBackupBufferSize, total - written);
+        esp_err_t err = esp_flash_read(nullptr, buf.get(), flashOffset + written, chunk);
         if (err != ESP_OK) {
             outFile.close();
             SDM.remove(outPath);
@@ -268,7 +315,7 @@ String backupPartition(const String &appNum, const char *partitionLabel, const c
             launcherDelayMs(2500);
             return "";
         }
-        if (outFile.write(buf, chunk) != chunk) {
+        if (outFile.write(buf.get(), chunk) != chunk) {
             outFile.close();
             SDM.remove(outPath);
             displayRedStripe((String("Backup failed: ") + partitionLabel).c_str());
@@ -344,17 +391,23 @@ bool restorePartitionFromBackup(const char *partitionLabel, const char *backupFi
     progressHandler(0, fileSize);
     displayRedStripe((String("Restoring ") + partitionLabel).c_str());
 
-    static uint8_t buf[4096];
+    HeapBuffer buf = makeInternalBuffer(kBackupBufferSize);
+    if (!buf) {
+        inFile.close();
+        displayRedStripe("Restore failed: no RAM");
+        launcherDelayMs(2500);
+        return false;
+    }
     size_t written = 0;
     while (written < fileSize) {
-        size_t chunk = min((size_t)sizeof(buf), fileSize - written);
-        if (inFile.read(buf, chunk) != (int)chunk) {
+        size_t chunk = min(kBackupBufferSize, fileSize - written);
+        if (inFile.read(buf.get(), chunk) != (int)chunk) {
             inFile.close();
             displayRedStripe((String("Restore failed: ") + partitionLabel).c_str());
             launcherDelayMs(2500);
             return false;
         }
-        err = esp_partition_write(part, written, buf, chunk);
+        err = esp_partition_write(part, written, buf.get(), chunk);
         if (err != ESP_OK) {
             inFile.close();
             displayRedStripe((String("Restore failed: ") + partitionLabel).c_str());
@@ -392,7 +445,13 @@ bool restorePartitionFromBackupDirect(
         return false;
     }
 
-    static uint8_t buf[4096];
+    HeapBuffer buf = makeInternalBuffer(kBackupBufferSize);
+    if (!buf) {
+        inFile.close();
+        displayRedStripe("Restore failed: no RAM");
+        launcherDelayMs(2500);
+        return false;
+    }
     size_t written = 0;
 
     prog_handler = 1;
@@ -400,11 +459,11 @@ bool restorePartitionFromBackupDirect(
     displayRedStripe((String("Restoring ") + partitionLabel).c_str());
 
     while (written < fileSize) {
-        size_t chunk = min((size_t)sizeof(buf), fileSize - written);
+        size_t chunk = min(kBackupBufferSize, fileSize - written);
         uint32_t addr = flashOffset + written;
 
-        if ((written % sizeof(buf)) == 0) {
-            esp_err_t err = esp_flash_erase_region(nullptr, addr, sizeof(buf));
+        if ((written % kBackupBufferSize) == 0) {
+            esp_err_t err = esp_flash_erase_region(nullptr, addr, kBackupBufferSize);
             if (err != ESP_OK) {
                 inFile.close();
                 displayRedStripe((String("Restore failed: ") + partitionLabel).c_str());
@@ -413,14 +472,14 @@ bool restorePartitionFromBackupDirect(
             }
         }
 
-        if (inFile.read(buf, chunk) != (int)chunk) {
+        if (inFile.read(buf.get(), chunk) != (int)chunk) {
             inFile.close();
             displayRedStripe((String("Restore failed: ") + partitionLabel).c_str());
             launcherDelayMs(2500);
             return false;
         }
 
-        esp_err_t err = esp_flash_write(nullptr, buf, addr, chunk);
+        esp_err_t err = esp_flash_write(nullptr, buf.get(), addr, chunk);
         if (err != ESP_OK) {
             inFile.close();
             displayRedStripe((String("Restore failed: ") + partitionLabel).c_str());

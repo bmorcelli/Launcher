@@ -16,6 +16,7 @@
 #include <SD.h>
 #include <SPIFFS.h>
 
+#include "utils.h"
 #include "powerSave.h"
 #include "ram_profile.h"
 #include <functional>
@@ -122,12 +123,10 @@ String lastInstalledApp = "";
 uint16_t total_firmware = 0;
 uint8_t current_page = 1;
 uint8_t num_pages = 0;
-JsonDocument doc;
+JsonDocument doc(launcherJsonAllocator());
 JsonArray favorite;
 JsonDocument settings;
 std::vector<Option> options;
-const int bufSize = 1024;
-uint8_t buff[1024] = {0};
 
 #include "app_registry.h"
 #include "display.h"

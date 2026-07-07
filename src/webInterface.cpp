@@ -17,6 +17,7 @@
 #include "sd_functions.h"
 #include "settings.h"
 #include <globals.h>
+#include <memory>
 #include <vector>
 
 #include <SD.h>
@@ -583,6 +584,9 @@ bool receiveBody(httpd_req_t *req, String &body, size_t maxSize = 8192) {
     body = "";
     body.reserve(req->content_len + 1);
     size_t remaining = req->content_len;
+    std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow) uint8_t[bufSize]); // on-demand, httpd task has a small stack
+    uint8_t *buff = buffGuard.get();
+    if (!buff) return false;
     while (remaining > 0) {
         int readLen =
             httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
@@ -803,6 +807,12 @@ bool streamMultipartUpload(httpd_req_t *req) {
     bool finishedFile = false;
     size_t written = 0;
     size_t remaining = req->content_len;
+    std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow) uint8_t[bufSize]); // on-demand, httpd task has a small stack
+    uint8_t *buff = buffGuard.get();
+    if (!buff) {
+        sendText(req, 500, "text/plain", "Out of memory");
+        return false;
+    }
 
     while (remaining > 0) {
         int readLen =
@@ -1079,6 +1089,13 @@ void sendFileDownload(httpd_req_t *req, const String &fileName) {
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     String disposition = "attachment; filename=\"" + fileName.substring(fileName.lastIndexOf('/') + 1) + "\"";
     httpd_resp_set_hdr(req, "Content-Disposition", disposition.c_str());
+    std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow) uint8_t[bufSize]); // on-demand, httpd task has a small stack
+    uint8_t *buff = buffGuard.get();
+    if (!buff) {
+        file.close();
+        sendText(req, 500, "text/plain", "Out of memory");
+        return;
+    }
     while (file.available()) {
         size_t readLen = file.read(buff, bufSize);
         if (httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buff), readLen) != ESP_OK) break;
@@ -1135,6 +1152,13 @@ esp_err_t editfileHandler(httpd_req_t *req) {
         }
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow) uint8_t[bufSize]); // on-demand, httpd task has a small stack
+        uint8_t *buff = buffGuard.get();
+        if (!buff) {
+            file.close();
+            sendText(req, 500, "text/plain", "Out of memory");
+            return ESP_OK;
+        }
         while (file.available()) {
             size_t len = file.read(buff, bufSize);
             httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buff), len);
