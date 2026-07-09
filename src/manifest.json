@@ -567,6 +567,14 @@
             "link": "https://github.com/C5Lab/pancake",
             "family": "ESP32-C5",
             "id": "pancake"
+        },
+        {
+            "display": true,
+            "name": "Xueersi XiaoMiao",
+            "description": "",
+            "link": "",
+            "family": "ESP32",
+            "id": "xueersi-xiaomiao"
         }
     ],
     "Elecrow": [
