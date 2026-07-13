@@ -46,7 +46,7 @@ if os.environ.get("CI") != "true":
 
 REPO = "bmorcelli/Launcher"
 ASSET_LINK = "https://github.com/bmorcelli/Launcher/releases/download"
-JSDELIVR_BASE = f"https://launcher-proxy.bmorcelli.workers.dev/?url="
+JSDELIVR_BASE = f"https://launcher-cors-proxy-99894582617.europe-west1.run.app/?url="
 GITHUB_API = "https://api.github.com"
 
 def github_get(path: str, token: str | None) -> list | dict:
