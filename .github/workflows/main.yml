@@ -54,6 +54,7 @@
             - { env: "m5stack-tab5"               }
             - { env: "m5stack-paper-s3"           }
             - { env: "m5stack-paper"              }
+            - { env: "m5stack-paper-color"        }
             - { env: "m5stack-sticks3"            }
             - { env: "headless-esp32s3-4mb"       }
             - { env: "headless-esp32s3-8mb"       }
@@ -215,7 +216,7 @@
       steps:
         - uses: actions/checkout@v5
           with:
-            submodules: false         
+            submodules: false
 
         - name: Download all artifacts
           uses: actions/download-artifact@v7
