@@ -7,6 +7,7 @@
 #include "idf/launcher_platform.h"
 #include "littlefs_patch.h"
 #include "mykeyboard.h"
+#include "partition_fs.h"
 #include "partition_table_model.h"
 #include "ram_profile.h"
 #include "sd_functions.h"
@@ -704,6 +705,8 @@ void partList() {
                              entryOptions.push_back({"Associate to Bin", [&]() { selected = 7; }});
                          entryOptions.push_back({"Backup", [&]() { selected = 5; }});
                          entryOptions.push_back({"Restore data", [&]() { selected = 6; }});
+                         if (entry.subtype == 0x81 || entry.subtype == 0x83)
+                             entryOptions.push_back({"Browse files", [&]() { selected = 8; }});
                      }
                      if (!isProtectedPartition(entry)) {
                          entryOptions.push_back({"Edit Size", [&]() { selected = 1; }});
@@ -759,6 +762,9 @@ void partList() {
                              saveInstalledToConfig(info);
                              displayError(("Linked to " + launcherAppNameFromFile(selectedBin)).c_str());
                          }
+                     } else if (selected == 8) {
+                         if (dirty) displayError("Apply changes first");
+                         else launcherBrowsePartitionFiles(entry);
                      }
                  },
                  isProtectedPartition(entry) ? ALCOLOR : FGCOLOR}

@@ -151,6 +151,13 @@ bool patchLittlefsRootCommit(uint8_t *block, uint32_t blockSize, uint32_t newBlo
 }
 } // namespace
 
+bool launcherPartitionLooksLikeLittlefs(uint32_t address, uint32_t partitionSize) {
+    if (address == 0 || partitionSize < kProbeSize) return false;
+    uint8_t probe[kProbeSize];
+    if (esp_flash_read(nullptr, probe, address, sizeof(probe)) != ESP_OK) return false;
+    return looksLikeLittlefsSuperblock(probe, sizeof(probe));
+}
+
 bool launcherPatchReducedLittlefsSuperblocks(
     uint32_t address, uint32_t partitionSize, String *error, bool *patched
 ) {

@@ -7,6 +7,8 @@ bool launcherPatchReducedLittlefsSuperblocks(
     uint32_t address, uint32_t partitionSize, String *error = nullptr, bool *patched = nullptr
 );
 
+bool launcherPartitionLooksLikeLittlefs(uint32_t address, uint32_t partitionSize);
+
 inline bool launcherPatchReducedLittlefsSuperblocks(
     const LauncherPartitionEntry &entry, String *error = nullptr, bool *patched = nullptr
 ) {
