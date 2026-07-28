@@ -2,6 +2,7 @@
 #include "massStorage.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
+#include "interface.h"
 #include "sd_functions.h"
 #ifdef SOC_USB_OTG_SUPPORTED
 #include "esp_private/usb_phy.h"
@@ -258,6 +259,17 @@ void MassStorage::setup() {
 
     setShouldStop(false);
     SDM.end(); // Forces SDCard mounting again.
+    // Re-run board GPIO setup before remounting: on boards like the
+    // Cardputer ADV, this pin (e.g. GPIO5, the SD SPI CS) can get
+    // disturbed by other peripherals (TCA8418 I2C keyboard controller,
+    // other I2C sensors) between boot and now. _setup_gpio() already
+    // fixes this once at boot (see boards/m5stack-cardputer/interface.cpp,
+    // "Set GPIO5 HIGH for SD card compatibility") but was never called
+    // again before this forced remount, so entering Mass Storage mode
+    // could hit the exact same interference and require a physical card
+    // reseat to recover. Re-running it here (idempotent, board-specific)
+    // fixes that without needing a reseat.
+    _setup_gpio();
     if (!setupSdCard()) {
         displayError("SD card not found.");
         return;
