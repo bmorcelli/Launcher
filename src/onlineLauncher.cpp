@@ -743,6 +743,14 @@ void installFirmwareFromManifest(const String &fid, const String &version, Strin
             } else {
                 dp.partitionSize = LAUNCHER_DEFAULT_SPIFFS_SIZE;
             }
+            // A partition we are about to fill must be able to hold what goes
+            // into it: the copy is clamped to the entry size at install time, so
+            // a default-sized partition silently truncates a larger payload and
+            // the filesystem lands corrupt. Grow to fit whenever there is one.
+            if (dp.partitionSize != LAUNCHER_INSTALL_USE_REMAINING_SPIFFS_SIZE &&
+                dp.copySize > dp.partitionSize) {
+                dp.partitionSize = dp.copySize;
+            }
             dataPartitions.push_back(dp);
         } else if (type == "data" && subtype == "fat") {
             LauncherInstallDataPartition dp;

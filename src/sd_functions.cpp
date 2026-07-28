@@ -787,13 +787,13 @@ void updateFromSD(const String &path) {
                 } else {
                     dp.partitionSize = LAUNCHER_DEFAULT_SPIFFS_SIZE;
                 }
-                dp.copySize = boundedSdPartitionPayload(
-                    file,
-                    dp.sourceOffset,
-                    declaredSize,
-                    dp.partitionSize == LAUNCHER_INSTALL_USE_REMAINING_SPIFFS_SIZE ? declaredSize
-                                                                                   : dp.partitionSize
-                );
+                dp.copySize = boundedSdPartitionPayload(file, dp.sourceOffset, declaredSize, declaredSize);
+                // See the note in onlineLauncher.cpp: size the partition to the
+                // payload rather than truncating the payload to the partition.
+                if (dp.partitionSize != LAUNCHER_INSTALL_USE_REMAINING_SPIFFS_SIZE &&
+                    dp.copySize > dp.partitionSize) {
+                    dp.partitionSize = dp.copySize;
+                }
                 if (file.size() < dp.sourceOffset) {
                     dp.copySize = 0;
                     launcherConsolePrintf(
