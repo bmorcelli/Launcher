@@ -506,7 +506,10 @@ void chargeMode() {
     unsigned long tmp = 0;
     while (!check(SelPress)) {
         if (launcherMillis() - tmp > 5000) {
-            displayRedStripe(String(getBattery()) + " %");
+            // The whole point of this mode is a device that goes dark on the charger,
+            // so this repaint must not restart the screen-off timer: it comes round
+            // faster than the shortest timeout and would hold the backlight forever.
+            displayRedStripe(String(getBattery()) + " %", getComplementaryColor(BGCOLOR), ALCOLOR, false);
             tmp = launcherMillis();
         }
     }

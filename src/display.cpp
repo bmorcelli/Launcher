@@ -353,7 +353,7 @@ void displayCurrentVersion(
 ** Function name: displayRedStripe
 ** Description:   Display Red Stripe with information
 ***************************************************************************************/
-void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor) {
+void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bool keepAwake) {
     // save tft settings before showing the stripe
     int _size = tft->getTextsize();
     int _x = tft->getCursorX();
@@ -361,6 +361,10 @@ void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor) {
     uint16_t _color = tft->getTextcolor();
     uint16_t _bgcolor = tft->getTextbgcolor();
     Serial.println(String("Display Red Stripe: ") + text);
+    // A stripe is put up to be read, so it restarts the idle clock. Long stages —
+    // an HTTP connect, an erase, a retry backoff — otherwise pass without a single
+    // wake, and the user ends up watching an unlit screen for the whole of one.
+    if (keepAwake) wakeUpScreen();
 
 #if E_PAPER_DISPLAY
     bgcolor = BLACK;

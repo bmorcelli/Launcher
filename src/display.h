@@ -44,8 +44,12 @@ void displayCurrentVersion(
     int versionIndex, JsonArray versions
 );
 uint16_t getComplementaryColor(uint16_t color);
+// keepAwake: a stripe is normally put up to be read, so it restarts the screen-off
+// timer. Pass false where a stripe is repainted on a timer by something that wants
+// the screen to go dark anyway — see chargeMode().
 void displayRedStripe(
-    const String &text, uint16_t fgcolor = getComplementaryColor(BGCOLOR), uint16_t bgcolor = ALCOLOR
+    const String &text, uint16_t fgcolor = getComplementaryColor(BGCOLOR), uint16_t bgcolor = ALCOLOR,
+    bool keepAwake = true
 );
 
 void displayMsg(String txt, bool waitKeyPress = false); // Red Stripe + wait/delay

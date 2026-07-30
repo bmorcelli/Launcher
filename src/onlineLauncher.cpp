@@ -270,7 +270,14 @@ void pauseInputHandlerTask() {
 void resumeInputHandlerTask() {
     if (!xHandle || inputHandlerPauseDepth == 0) return;
     inputHandlerPauseDepth--;
-    if (inputHandlerPauseDepth == 0) vTaskResume(xHandle);
+    if (inputHandlerPauseDepth == 0) {
+        // Time spent suspended is not idle time. checkPowerSaveTime() lives in the very
+        // task we froze, so the screen-off deadline went on ageing with nothing able to
+        // act on it; the first tick after the resume finds it long past and blanks the
+        // display just as the outcome — often an error — reaches the screen.
+        wakeUpScreen();
+        vTaskResume(xHandle);
+    }
 }
 
 bool discardHttpCb(const uint8_t *, size_t, void *) { return true; }
