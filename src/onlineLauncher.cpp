@@ -409,7 +409,12 @@ bool flashRawRangeFromHttp(
             );
         }
         if (httpOk && update.written == imageSize) break;
-        if (update.written == before && response.status >= 400) break;
+        // Any non-2xx that produced no data is the server's answer, not a hiccup:
+        // repeating the request cannot change it. That includes redirects we
+        // failed to follow (3xx with a transport error), which previously fell
+        // through this check and burned all 24 attempts — several minutes of a
+        // motionless progress bar before the error finally surfaced.
+        if (update.written == before && response.status >= 300) break;
         launcherDelayMs(500);
     }
     bool complete = update.written == imageSize;
@@ -434,7 +439,9 @@ bool flashRawRangeFromHttp(
         } else if (!httpOk && response.transport_error != 0) {
             *errorOut = String("HTTP transport error ") + response.transport_error;
         } else if (!httpOk && response.status != 0) {
-            *errorOut = String("HTTP status ") + response.status;
+            *errorOut = response.status >= 300 && response.status < 400
+                            ? String("Redirect ") + response.status + " not followed"
+                            : String("HTTP status ") + response.status;
         } else if (!complete) {
             *errorOut = String("Download incomplete (") + update.written + "/" + imageSize + ")";
         } else {
