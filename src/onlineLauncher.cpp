@@ -402,8 +402,6 @@ bool flashRawRangeFromHttp(
     LauncherHttpResponse response;
     String activeUrl = url;
     bool triedProxyFallback = false;
-    uint8_t redirectFailStreak = 0;
-    constexpr uint8_t kProxyFallbackThreshold = 2;
     constexpr uint8_t maxAttempts = 24;
     for (uint8_t attempt = 0; update.written < imageSize && attempt < maxAttempts; ++attempt) {
         size_t before = update.written;
@@ -429,32 +427,24 @@ bool flashRawRangeFromHttp(
         if (update.written == before) {
             const bool unfollowedRedirect = response.status >= 300 && response.status < 400;
             if (unfollowedRedirect) {
-                ++redirectFailStreak;
                 // A redirect the device can't follow is api.launcherhub.net's answer,
-                // not a transient hiccup on the CDN side — the /download endpoint always
-                // sends the same Location. After a couple of tries, fall back to /proxy,
-                // where api.launcherhub.net fetches the CDN itself and streams the bytes
-                // back, so the device never has to open that second connection.
-                if (!triedProxyFallback && redirectFailStreak >= kProxyFallbackThreshold &&
-                    activeUrl.indexOf("/download?") >= 0) {
+                // not a transient hiccup on the CDN side: /download sends the same
+                // Location every time, so trying it again cannot change anything. Switch
+                // to /proxy, where api.launcherhub.net fetches the CDN itself and streams
+                // the bytes back, and the device never opens that second connection at
+                // all. If /proxy redirects too, there is nothing left to try.
+                if (!triedProxyFallback && activeUrl.indexOf("/download?") >= 0) {
                     activeUrl.replace("/download?", "/proxy?");
                     triedProxyFallback = true;
-                    redirectFailStreak = 0;
-                    launcherConsolePrintf(
-                        "Redirect not followed after %u attempts, falling back to /proxy\n",
-                        kProxyFallbackThreshold
-                    );
+                    launcherConsolePrintln("Redirect not followed, falling back to /proxy");
                 } else {
                     break;
                 }
-            } else {
+            } else if (response.status >= 400) {
                 // Any other non-2xx that produced no data is a definitive answer
                 // (repeating it cannot change it), whether from /download or /proxy.
-                if (response.status >= 400) break;
-                redirectFailStreak = 0;
+                break;
             }
-        } else {
-            redirectFailStreak = 0;
         }
         launcherDelayMs(500);
     }
