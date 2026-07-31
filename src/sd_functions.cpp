@@ -878,6 +878,7 @@ void updateFromSD(const String &path) {
                 } else {
                     dp.partitionSize = LAUNCHER_DEFAULT_SPIFFS_SIZE;
                 }
+                launcherNoteDataPartitionShrink(dp.label, declaredSize, dp.partitionSize);
                 dp.copySize = partitionEmpty
                                   ? 0
                                   : boundedSdPartitionPayload(

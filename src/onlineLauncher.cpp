@@ -802,6 +802,7 @@ void installFirmwareFromManifest(const String &fid, const String &version, Strin
             } else {
                 dp.partitionSize = LAUNCHER_DEFAULT_SPIFFS_SIZE;
             }
+            launcherNoteDataPartitionShrink(dp.label, declaredSize, dp.partitionSize);
             dataPartitions.push_back(dp);
         } else if (type == "data" && subtype == "fat") {
             LauncherInstallDataPartition dp;

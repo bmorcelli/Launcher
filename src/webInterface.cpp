@@ -347,6 +347,7 @@ bool parseWebInstallManifest(const String &manifestJson, size_t uploadSize, Stri
             } else {
                 dp.partitionSize = LAUNCHER_DEFAULT_SPIFFS_SIZE;
             }
+            launcherNoteDataPartitionShrink(dp.label, declaredSize, dp.partitionSize);
         } else {
             continue;
         }

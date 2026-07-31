@@ -1,8 +1,20 @@
 #include "partition_install_layout.h"
 
 #include "display.h"
+#include "idf/launcher_platform.h"
 
 #include <algorithm>
+
+void launcherNoteDataPartitionShrink(const String &label, uint32_t declaredSize, uint32_t chosenSize) {
+    if (chosenSize == LAUNCHER_INSTALL_USE_REMAINING_SPIFFS_SIZE) return;
+    if (declaredSize == 0 || chosenSize >= declaredSize) return;
+    launcherConsolePrintf(
+        "Data partition '%s': asked %u KB, allocating %u KB (empty filesystem, using the default)\n",
+        label.c_str(),
+        static_cast<unsigned>(declaredSize / 1024),
+        static_cast<unsigned>(chosenSize / 1024)
+    );
+}
 
 bool launcherPrepareInstallDataPartitions(
     LauncherPartitionTable &table,

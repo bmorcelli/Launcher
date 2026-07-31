@@ -20,6 +20,14 @@ struct LauncherInstallDataPartition {
     String sourceUrl;
 };
 
+// Reports, on the console, when a data partition ends up smaller than its manifest or
+// partition table asked for. Every install path deliberately gives an empty filesystem
+// LAUNCHER_DEFAULT_SPIFFS_SIZE regardless of the declared size, which is the right call
+// for the many images that are whole-flash dumps — but a firmware built around a larger
+// filesystem gets it silently, and only finds out by reading its own partition table
+// afterwards. Say it out loud instead; the decision itself is unchanged.
+void launcherNoteDataPartitionShrink(const String &label, uint32_t declaredSize, uint32_t chosenSize);
+
 bool launcherPrepareInstallDataPartitions(
     LauncherPartitionTable &table,
     std::vector<LauncherInstallDataPartition> &dataPartitions,
