@@ -46,7 +46,9 @@ if os.environ.get("CI") != "true":
 
 REPO = "bmorcelli/Launcher"
 ASSET_LINK = "https://github.com/bmorcelli/Launcher/releases/download"
-JSDELIVR_BASE = f"https://launcher-proxy-99894582617.us-central1.run.app/?url="
+# CORS proxy, whitelisted server-side to only accept URLs matching
+# ASSET_LINK (see Launcher-API's /flasherProxy route).
+JSDELIVR_BASE = "https://api.launcherhub.net/flasherProxy?url="
 GITHUB_API = "https://api.github.com"
 
 def github_get(path: str, token: str | None) -> list | dict:

@@ -10,6 +10,7 @@ type FirmwareVersion = {
 };
 
 type FirmwareEntry = {
+  fid?: string;
   name: string;
   author: string;
   category: string;
@@ -51,9 +52,25 @@ const API_URL = "https://api.launcherhub.net/giveMeTheList";
 const DEVICES_API_URL = "https://api.launcherhub.net/devices";
 const CDN_COVER = "https://m5burner-cdn.m5stack.com/cover/";
 const CDN_FIRMWARE = "https://m5burner-cdn.m5stack.com/firmware/";
-const CORS_PROXY = "https://launcher-proxy-99894582617.us-central1.run.app/?url=";
+const PROXY_URL = "https://api.launcherhub.net/proxy";
+const PROXY_HWID = "FA:DA:DA:B0:C3:74";
 
-const proxiedUrl = (url: string) => `${CORS_PROXY}${encodeURIComponent(url)}`;
+// Reuses the same fid/HWID-whitelisted proxy the firmware itself uses to
+// download from the manifest (see Launcher-API's /proxy). Only files that
+// belong to this firmware's manifest entries are allowed through.
+const proxiedUrl = (url: string, fid: string) =>
+  `${PROXY_URL}?fid=${encodeURIComponent(fid)}&file=${encodeURIComponent(url)}`;
+
+const proxiedFetch = (url: string, fid: string) =>
+  fetch(proxiedUrl(url, fid), { headers: { HWID: PROXY_HWID } });
+
+const isSameOrigin = (url: string) => {
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
 
 const SAMPLE_CARDPUTER_COVER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='200'%3E%3Crect width='320' height='200' fill='%2300dd00'/%3E%3Ctext x='160' y='110' font-family='Inter,Arial,sans-serif' font-size='32' fill='%2301110b' text-anchor='middle'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -461,6 +478,7 @@ const flashFirmwareParts = async (
   port: SerialPort,
   parts: FlashPart[],
   expectedChipFamily: string,
+  fid: string,
   eraseFirst: boolean,
   onState: (s: CatalogFlashState) => void
 ) => {
@@ -507,7 +525,9 @@ const flashFirmwareParts = async (
     const label = parts.length === 1 ? "firmware" : `part ${i + 1} of ${parts.length}`;
     fire("preparing", `Downloading ${label}...`);
     try {
-      const resp = await fetch(proxiedUrl(parts[i].url));
+      const resp = isSameOrigin(parts[i].url)
+        ? await fetch(parts[i].url)
+        : await proxiedFetch(parts[i].url, fid);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       fileArray.push({ data: new Uint8Array(await resp.arrayBuffer()), address: parts[i].address });
     } catch (err) {
@@ -567,7 +587,13 @@ const flashFirmwareParts = async (
   fire("done", "Firmware installed successfully!", 100);
 };
 
-const openCatalogFlashDialog = (parts: FlashPart[], expectedChipFamily: string, firmwareName: string, isApp = false) => {
+const openCatalogFlashDialog = (
+  parts: FlashPart[],
+  expectedChipFamily: string,
+  firmwareName: string,
+  fid: string,
+  isApp = false
+) => {
   ensureCatalogFlashStyles();
 
   const backdrop = document.createElement("div");
@@ -659,7 +685,7 @@ const openCatalogFlashDialog = (parts: FlashPart[], expectedChipFamily: string, 
     rocketWrapper.style.setProperty("--rocket-progress", "0");
     statusEl.textContent = "Starting...";
     statusEl.className = "wf-dialog__status";
-    await flashFirmwareParts(port, parts, expectedChipFamily, eraseCheckbox.checked, updateUI);
+    await flashFirmwareParts(port, parts, expectedChipFamily, fid, eraseCheckbox.checked, updateUI);
   };
 
   installBtn.addEventListener("click", () => {
@@ -945,7 +971,7 @@ document.addEventListener("DOMContentLoaded", () => {
     downloadButton.type = "button";
     downloadButton.className = "button button--ghost";
     downloadButton.textContent = "Download";
-    downloadButton.disabled = select.value.length === 0;
+    downloadButton.disabled = select.value.length === 0 || !entry.fid;
 
     const getSelectedFilename = () => {
       const versionLabel = select.selectedOptions[0]?.dataset.versionLabel ?? "";
@@ -969,22 +995,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const updateFlashButtonVisibility = () => {
       const format = select.selectedOptions[0]?.dataset.format ?? "";
-      const showMerged = format === "merged" && !!entry.esp && isWebSerialAvailable;
-      const showApp = format === "app" && !!entry.esp && isWebSerialAvailable;
+      const showMerged = format === "merged" && !!entry.esp && !!entry.fid && isWebSerialAvailable;
+      const showApp = format === "app" && !!entry.esp && !!entry.fid && isWebSerialAvailable;
       flashButton.style.display = showMerged ? "" : "none";
       appFlashButton.style.display = showApp ? "" : "none";
     };
 
     flashButton.addEventListener("click", () => {
       const url = select.value;
-      if (!url || !entry.esp) return;
+      if (!url || !entry.esp || !entry.fid) return;
       const chipFamily = ESP_CHIP_FAMILY[entry.esp] ?? "";
-      openCatalogFlashDialog([{ url, address: 0x0 }], chipFamily, getSelectedFilename().replace(/\.bin$/, ""));
+      openCatalogFlashDialog(
+        [{ url, address: 0x0 }],
+        chipFamily,
+        getSelectedFilename().replace(/\.bin$/, ""),
+        entry.fid
+      );
     });
 
     appFlashButton.addEventListener("click", () => {
       const url = select.value;
-      if (!url || !entry.esp) return;
+      if (!url || !entry.esp || !entry.fid) return;
       const chipFamily = ESP_CHIP_FAMILY[entry.esp] ?? "";
       const envName = ESP_ENV_NAME[entry.esp] ?? "";
       const bootloaderOffset = BOOTLOADER_OFFSET[entry.esp] ?? 0x1000;
@@ -994,18 +1025,18 @@ document.addEventListener("DOMContentLoaded", () => {
         { url: `${baseUrl}${envName}/partitions.bin`, address: 0x8000 },
         { url, address: 0x10000 },
       ];
-      openCatalogFlashDialog(parts, chipFamily, getSelectedFilename().replace(/\.bin$/, ""), true);
+      openCatalogFlashDialog(parts, chipFamily, getSelectedFilename().replace(/\.bin$/, ""), entry.fid, true);
     });
 
     downloadButton.addEventListener("click", async () => {
       const url = select.value;
-      if (!url) return;
+      if (!url || !entry.fid) return;
       const filename = getSelectedFilename();
       const originalText = downloadButton.textContent;
       downloadButton.disabled = true;
       downloadButton.textContent = "Downloading…";
       try {
-        const response = await fetch(proxiedUrl(url));
+        const response = await proxiedFetch(url, entry.fid);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
@@ -1025,7 +1056,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateFlashButtonVisibility();
 
     select.addEventListener("change", () => {
-      downloadButton.disabled = select.value.length === 0;
+      downloadButton.disabled = select.value.length === 0 || !entry.fid;
       updateFlashButtonVisibility();
     });
 
