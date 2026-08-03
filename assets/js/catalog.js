@@ -20,7 +20,7 @@ const API_URL = "https://api.launcherhub.net/giveMeTheList";
 const DEVICES_API_URL = "https://api.launcherhub.net/devices";
 const CDN_COVER = "https://m5burner-cdn.m5stack.com/cover/";
 const CDN_FIRMWARE = "https://m5burner-cdn.m5stack.com/firmware/";
-const CORS_PROXY = "https://launcher-cors-proxy-99894582617.europe-west1.run.app/?url=";
+const CORS_PROXY = "https://launcher-proxy-99894582617.us-central1.run.app/?url=";
 const proxiedUrl = (url) => `${CORS_PROXY}${encodeURIComponent(url)}`;
 const SAMPLE_CARDPUTER_COVER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='200'%3E%3Crect width='320' height='200' fill='%2300dd00'/%3E%3Ctext x='160' y='110' font-family='Inter,Arial,sans-serif' font-size='32' fill='%2301110b' text-anchor='middle'%3ENo Image%3C/text%3E%3C/svg%3E";
 const SAMPLE_TDISPLAY_COVER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='200'%3E%3Crect width='320' height='200' fill='%23202124'/%3E%3Crect x='48' y='40' width='224' height='120' rx='16' fill='%2300dd00' opacity='0.9'/%3E%3Ctext x='160' y='112' font-family='Inter,Arial,sans-serif' font-size='28' fill='%2301110b' text-anchor='middle'%3ET-Display%3C/text%3E%3C/svg%3E";
