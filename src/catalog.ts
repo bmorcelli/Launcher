@@ -51,7 +51,7 @@ const API_URL = "https://api.launcherhub.net/giveMeTheList";
 const DEVICES_API_URL = "https://api.launcherhub.net/devices";
 const CDN_COVER = "https://m5burner-cdn.m5stack.com/cover/";
 const CDN_FIRMWARE = "https://m5burner-cdn.m5stack.com/firmware/";
-const CORS_PROXY = "https://launcher-cors-proxy-99894582617.europe-west1.run.app/?url=";
+const CORS_PROXY = "https://launcher-proxy-99894582617.us-central1.run.app/?url=";
 
 const proxiedUrl = (url: string) => `${CORS_PROXY}${encodeURIComponent(url)}`;
 
