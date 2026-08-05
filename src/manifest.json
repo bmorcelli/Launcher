@@ -355,6 +355,22 @@
         },
         {
             "display": true,
+            "name": "T-Display P4 (TFT)",
+            "description": "",
+            "link": "https://www.lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO",
+            "family": "ESP32-P4",
+            "id": "lilygo-t-display-p4"
+        },
+        {
+            "display": true,
+            "name": "T-Display P4 (AMOLED)",
+            "description": "",
+            "link": "https://www.lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO",
+            "family": "ESP32-P4",
+            "id": "lilygo-t-display-p4-amoled"
+        },
+        {
+            "display": true,
             "released_at": "2.3.0",
             "name": "T-Embed",
             "description": "",
