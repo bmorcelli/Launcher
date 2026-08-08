@@ -355,6 +355,14 @@
         },
         {
             "display": true,
+            "name": "T-Display-C5",
+            "description": "(single press and longpress logic on both buttons)",
+            "link": "https://www.lilygo.cc/products/t-display-c5?bg_ref=sDI8Bh4HmO",
+            "family": "ESP32-C5",
+            "id": "lilygo-t-display-c5"
+        },
+        {
+            "display": true,
             "name": "T-Display P4 (TFT)",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO",
