@@ -1,12 +1,12 @@
 [submodule "ArduinoJson"]
-	path = lib_modules/ArduinoJson
+	path = lib/ArduinoJson
 	url = https://github.com/bblanchon/ArduinoJson.git
 [submodule "Arduino_GFX"]
-	path = lib_modules/Arduino_GFX
+	path = lib/Arduino_GFX
 	url = https://github.com/moononournation/Arduino_GFX.git
 [submodule "SensorLib"]
-	path = lib_modules/SensorLib
+	path = lib/SensorLib
 	url = https://github.com/lewisxhe/SensorLib.git
-[submodule "lib_modules/XPowersLib"]
-	path = lib_modules/XPowersLib
+[submodule "XPowersLib"]
+	path = lib/XPowersLib
 	url = https://github.com/lewisxhe/XPowersLib.git

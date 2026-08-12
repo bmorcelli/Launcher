@@ -553,8 +553,6 @@ public:
 #define TFT_BUS_TYPE Arduino_ESP32RGBPanel
 #elif TFT_DSI_PANEL
 #include <databus/Arduino_ESP32DSIPanel.h>
-
-#include "tft_inits.h"
 #define TFT_BUS_TYPE Arduino_ESP32DSIPanel
 #else
 #define TFT_BUS_TYPE Arduino_DataBus

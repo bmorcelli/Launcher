@@ -698,15 +698,8 @@ void _setBrightness(uint8_t brightval) {
         analogWrite(TFT_BL, value);
     }
 #else
-    // The AMOLED has no backlight rail: brightness is the RM69A10's DCS 0x51
-    // (WRDISBV), which rm69a10_lcd_init_cmd sets to full at init. Driving it at
-    // runtime needs writeCommand(), which upstream Arduino_ESP32DSIPanel does not
-    // expose - support_files/patch_dsi_writecommand.py adds it at build time.
-    // defined in display.cpp
     extern Arduino_ESP32DSIPanel *bus;
     if (bus == nullptr) return;
-    // WRDISBV takes a single byte, 0x00..0xFF. The init sequence uses 0xFE for
-    // "full", so the usual 0-100 scale maps straight onto 0-255.
     const uint8_t level = (uint8_t)((brightval * 255) / 100);
     bus->writeCommand(0x51, &level, 1);
 #endif

@@ -26,8 +26,8 @@ def run_command(cmd, cwd):
 
 
 print("Checking submodules...")
-if not (ROOT / "lib_modules").exists():
-    print("lib_modules directory not found. Initializing submodules...")
+if not (ROOT / "lib" / "Arduino_GFX").exists():
+    print("Submodules not checked out. Initializing...")
     run_command(SUBMODULE_CMD, ROOT)
 else:
     print("Initializing missing submodules and updating existing ones...")
