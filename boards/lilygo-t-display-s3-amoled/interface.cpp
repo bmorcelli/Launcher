@@ -1,11 +1,13 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <TouchDrv.hpp>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 #define BOARD_I2C_SDA 3
 #define BOARD_I2C_SCL 2
 #define BOARD_SENSOR_IRQ 21
 #define BOARD_TOUCH_RST 16
+#define SEL_BTN 0
+
 TouchDrvCST816 touch;
 static bool touch_OK = false;
 
@@ -126,7 +128,12 @@ void InputHandler(void) {
             if (touched) {
 
                 launcherConsolePrintf(
-                    "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), tm
+                    "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
+                    t.x,
+                    t.y,
+                    rotation,
+                    launcherMillis(),
+                    tm
                 );
                 tm = launcherMillis();
 
@@ -150,7 +157,7 @@ void InputHandler(void) {
             pendingNextPress = false;
         }
 
-        bool buttonDown = (launcherGpioRead(0) == LOW);
+        bool buttonDown = (launcherGpioRead(SEL_BTN) == LOW);
 
         if (buttonDown && !buttonWasDown) {
             buttonWasDown = true;

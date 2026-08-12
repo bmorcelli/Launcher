@@ -17,20 +17,16 @@
     #endif
 #endif
 
+#ifndef TFT_BRIGHT_CHANNEL
+#define TFT_BRIGHT_CHANNEL 0
+#endif
 
-#ifndef HAS_BTN
-    #define HAS_BTN 0
-    #define SEL_BTN -1
-    #define UP_BTN -1
-    #define DW_BTN -1
-    #define BTN_ACT LOW
-    #define BTN_ALIAS '"Boot"'
+#ifndef TFT_BRIGHT_Bits
+#define TFT_BRIGHT_Bits 8
 #endif
-#ifndef LED
-    #define LED -1
-#endif
-#ifndef LED_ON
-    #define LED_ON 1
+
+#ifndef TFT_BRIGHT_FREQ
+#define TFT_BRIGHT_FREQ 5000
 #endif
 
 #ifndef TFT_WIDTH

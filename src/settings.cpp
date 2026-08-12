@@ -185,7 +185,7 @@ bool getWifiCredential(const String &searchSsid, String &outPwd) {
 }
 
 bool ensureM5StackUiFlowNVSDefaults() {
-#if defined(M5STACK) || defined(ARDUINO_M5STACK_TAB5)
+#if defined(M5STACK)
     esp_err_t err = ESP_OK;
     auto nvsHandle = openNamespace("uiflow", NVS_READWRITE, err);
     if (!nvsHandle) return false;
@@ -417,9 +417,7 @@ void settings_menu() {
         }
         if (dev_mode) options.push_back({"Reset Configs/Wifi", factoryReset});
         options.push_back({"Restart", [=]() { return (void)releaseHeapObjectsAndReboot(); }});
-#if !defined(CARDPUTER)
         options.push_back({"Turn-off", [=]() { powerOff(); }});
-#endif
 
         options.push_back({"Main Menu", [=]() { returnToMenu = true; }});
         idx = loopOptions(options);

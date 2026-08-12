@@ -3,13 +3,8 @@
 #include <Wire.h>
 #include <interface.h>
 
-#ifndef TFT_BRIGHT_CHANNEL
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_FREQ 5000
-#define TFT_BRIGHT_Bits 8
 #ifndef TFT_BL
 #define TFT_BL GPIO_BCKL
-#endif
 #endif
 
 #if defined(HAS_CAPACITIVE_TOUCH)

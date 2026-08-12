@@ -5,12 +5,12 @@
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <TouchDrv.hpp>
+#include <Wire.h>
 #include <esp_sleep.h>
 #include <interface.h>
-
-#include <Wire.h>
 #include <sd_pwr_ctrl_by_on_chip_ldo.h>
-
+#define BTN_ACT LOW
+#define SEL_BTN 35
 IoExpanderXL9555 io;
 GaugeBQ27220 gauge;
 // The TFT build carries an HI8561 (touch integrated with the display driver,
@@ -687,11 +687,11 @@ void _post_setup_gpio() {
 
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
-#if defined(BACKLIGHT)
+#if defined(TFT_BL)
     // Gama correction
     float linear = (float)brightval / 100.0;
     uint8_t value = round(pow(linear, 2.2) * 255.0);
-    analogWrite(BACKLIGHT, value);
+    analogWrite(TFT_BL, value);
 #else
     // The AMOLED has no backlight rail: brightness is the RM69A10's DCS 0x51
     // (WRDISBV), which rm69a10_lcd_init_cmd sets to full at init. Driving it at
@@ -810,8 +810,8 @@ int getBattery() { return gaugePercent; }
 static void _peripherals_power_down() {
     SD_MMC.end();
     if (kbReady) analogWrite(KB_BL_PIN, 0);
-#if defined(BACKLIGHT)
-    analogWrite(BACKLIGHT, 0);
+#if defined(TFT_BL)
+    analogWrite(TFT_BL, 0);
 #endif
     if (!ioOk) return;
     // io.digitalWrite(XL_SCREEN_RST, LOW);
@@ -828,10 +828,10 @@ static void _peripherals_power_down() {
 
 void powerOff() {
     _setBrightness(0);
-#if defined(BACKLIGHT)
-    ledcDetach(BACKLIGHT);
-    pinMode(BACKLIGHT, OUTPUT);
-    digitalWrite(BACKLIGHT, LOW);
+#if defined(TFT_BL)
+    ledcDetach(TFT_BL);
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, LOW);
 #endif
     _peripherals_power_down();
 

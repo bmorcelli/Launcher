@@ -3,13 +3,6 @@
 #include <Wire.h>
 #include <interface.h>
 
-#ifndef TFT_BRIGHT_CHANNEL
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_FREQ 5000
-#define TFT_BRIGHT_Bits 8
-#define TFT_BL 25
-#endif
-
 // NM-CYD-C5 uses XPT2046 resistive touch on the shared SPI bus
 #include "CYD28_TouchscreenR.h"
 #ifndef CYD28_DISPLAY_HOR_RES_MAX

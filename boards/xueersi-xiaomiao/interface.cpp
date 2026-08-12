@@ -2,9 +2,13 @@
 #include "powerSave.h"
 #include <interface.h>
 
-#ifndef ESC_BTN
-#define ESC_BTN -1
-#endif
+#define UP_BTN 2
+#define DW_BTN 13
+#define L_BTN 27
+#define R_BTN 35
+#define SEL_BTN 34
+#define ESC_BTN 12
+#define BTN_ACT LOW
 
 /***************************************************************************************
 ** Function name: _setup_gpio()

@@ -176,9 +176,6 @@ void _setup_gpio() {
 ** Location: main.cpp
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_Bits 8
-#define TFT_BRIGHT_FREQ 5000
 #define TFT_BL 40
 
 void scanDevices(void) {

@@ -9,7 +9,7 @@
 #elif defined(USE_TFT_ESPI)
 
 #elif defined(USE_M5GFX)
-#if defined(E_PAPER_DISPLAY)
+#if defined(USE_CANVAS)
 M5Canvas sprite(&M5.Display);
 #endif
 #else

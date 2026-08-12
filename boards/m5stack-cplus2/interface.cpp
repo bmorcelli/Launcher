@@ -1,6 +1,9 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <interface.h>
-#include "idf/launcher_platform.h"
+#define SEL_BTN 37
+#define UP_BTN 35
+#define DW_BTN 39
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -11,7 +14,7 @@ void _setup_gpio() {
     launcherGpioInput(UP_BTN); // Sets the power btn as an INPUT
     launcherGpioInput(SEL_BTN);
     launcherGpioInput(DW_BTN);
-    launcherGpioOutput(4);    // Keeps the Stick alive after take off the USB cable
+    launcherGpioOutput(4);      // Keeps the Stick alive after take off the USB cable
     launcherGpioWrite(4, HIGH); // Keeps the Stick alive after take off the USB cable
     // https://github.com/pr3y/Bruce/blob/main/media/connections/cc1101_stick_SDCard.jpg
     // Keeps this pin high to allow working with the following pinout
@@ -33,8 +36,9 @@ void _setBrightness(uint8_t brightval) {
     if (brightval == 0) {
         analogWrite(TFT_BL, brightval);
     } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
+        float linear = (float)brightval / 100.0;
+        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        analogWrite(TFT_BL, value);
     }
 }
 

@@ -1,7 +1,9 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <AXP192.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
+#define SEL_BTN 37
+#define DW_BTN 39
 AXP192 axp192;
 
 /***************************************************************************************
@@ -12,9 +14,9 @@ void _setup_gpio() {
     launcherGpioInput(SEL_BTN);
     launcherGpioInput(DW_BTN);
     // https://github.com/pr3y/Bruce/blob/main/media/connections/cc1101_stick_SDCard.jpg
-    launcherGpioOutput(33);    // Keeps this pin high to allow working with the following pinout
+    launcherGpioOutput(33);      // Keeps this pin high to allow working with the following pinout
     launcherGpioWrite(33, HIGH); // Keeps this pin high to allow working with the following pinout
-    axp192.begin();         // Start the energy management of AXP192
+    axp192.begin();              // Start the energy management of AXP192
 }
 
 /***************************************************************************************

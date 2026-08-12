@@ -3,6 +3,15 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+
+#define SEL_BTN 0
+#define UP_BTN 3
+#define DW_BTN 15
+#define L_BTN 2
+#define R_BTN 1
+#define BTN_ACT LOW
+#define PIN_POWER_ON 10
+
 TouchDrvGT911 touch;
 
 struct LTouchPointPro {
@@ -111,9 +120,10 @@ void _setBrightness(uint8_t brightval) {
         analogWrite(TFT_BL, brightval);
         Wire.write(brightval);
     } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
-        Wire.write(bl);
+        float linear = (float)brightval / 100.0;
+        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        analogWrite(TFT_BL, value);
+        Wire.write(value);
     }
     Wire.endTransmission();
 }
@@ -261,17 +271,3 @@ void powerOff() {
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
 }
-
-/*********************************************************************
-** Function: _checkNextPagePress
-** location: mykeyboard.cpp
-** returns the key from the keyboard
-**********************************************************************/
-bool _checkNextPagePress() { return false; }
-
-/*********************************************************************
-** Function: _checkPrevPagePress
-** location: mykeyboard.cpp
-** returns the key from the keyboard
-**********************************************************************/
-bool _checkPrevPagePress() { return false; }

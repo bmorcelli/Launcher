@@ -1,9 +1,38 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
+#include <Wire.h>
 #include <globals.h>
 #include <interface.h>
-
-#include "idf/launcher_platform.h"
-#include <Wire.h>
+// Keyboard definitions
+#define KB_I2C_ADDRESS 0x34
+#define BQ25896_I2C_ADDRESS 0x6B
+#define CAPS_LOCK 0x00
+#define SHIFT 0x1c
+#define KEY_LEFT_SHIFT 0x1c
+#define KEY_FN 0x14
+#define KEY_BACKSPACE 0x1d
+#define KEY_ENTER 0x13
+// Pinouts definitions
+#define KEYBOARD_BL 46
+#define ENCODER_INA 40
+#define ENCODER_INB 41
+#define ENCODER_KEY 7
+#define HAS_BTN 1
+#define SEL_BTN 7
+#define BTN_ACT LOW
+#define BK_BTN 0
+#define EXPANDS_DRV_EN 0
+#define EXPANDS_AMP_EN 1
+#define EXPANDS_KB_RST 2
+#define EXPANDS_LORA_EN 3
+#define EXPANDS_GPS_EN 4
+#define EXPANDS_NFC_EN 5
+#define EXPANDS_GPS_RST 7
+#define EXPANDS_KB_EN 8
+#define EXPANDS_GPIO_EN 9
+#define EXPANDS_SD_DET 10
+#define EXPANDS_SD_PULLEN 11
+#define EXPANDS_SD_EN 12
 
 // GPIO expander
 #include <ExtensionIOXL9555.hpp>
@@ -199,9 +228,10 @@ void _setBrightness(uint8_t brightval) {
         analogWrite(TFT_BL, brightval);
         analogWrite(KEYBOARD_BL, brightval);
     } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
-        analogWrite(KEYBOARD_BL, bl);
+        float linear = (float)brightval / 100.0;
+        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        analogWrite(TFT_BL, value);
+        analogWrite(KEYBOARD_BL, value);
     }
 }
 
@@ -324,7 +354,8 @@ void InputHandler(void) {
     }
 
     if (launcherMillis() - tm < 500) {
-        if (nextPulse || prevPulse || upPulse || downPulse || selPulse || escPulse || keyPulse) tm = launcherMillis();
+        if (nextPulse || prevPulse || upPulse || downPulse || selPulse || escPulse || keyPulse)
+            tm = launcherMillis();
         return;
     }
 
@@ -346,8 +377,8 @@ void InputHandler(void) {
     }
 
 END:
-    if (sel == BTN_ACT || esc == BTN_ACT || nextPulse || prevPulse || upPulse || downPulse || selPulse || escPulse ||
-        keyPulse)
+    if (sel == BTN_ACT || esc == BTN_ACT || nextPulse || prevPulse || upPulse || downPulse || selPulse ||
+        escPulse || keyPulse)
         tm = launcherMillis();
 }
 

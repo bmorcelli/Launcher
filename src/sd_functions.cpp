@@ -31,12 +31,7 @@ static inline void resumeSdInstallInput() {
 }
 
 bool setupSdCard() {
-#if defined(ARDUINO_M5STACK_PAPER)
-    // M5GFX and the SD slot share VSPI on the original M5Paper. Use Arduino's
-    // canonical VSPI instance so both libraries coordinate the same hardware
-    // bus instead of creating a second SPIClass owner for it.
-    if (!SDM.begin(_cs, SPI))
-#elif !defined(SDM_SD) 
+#if !defined(SDM_SD)
     if (sdcardMounted) return true;
     bool OnebitMode = true; // default to one bit mode
 #if defined(USE_SD_MMC) && defined(PIN_SD_CLK) && defined(PIN_SD_CMD) && defined(PIN_SD_D0)

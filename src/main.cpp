@@ -271,9 +271,7 @@ void setup() {
     // Gets the config.conf from SD Card and fill out the settings JSON
     getConfigs();
     RAM_LOG("after-getConfigs");
-#if defined(HAS_TOUCH)
     TouchFooter2();
-#endif
 
     // Some boards need input polling to stay on the main loop thread because
     // display/touch drivers are not safe to service from a helper task.
@@ -373,7 +371,7 @@ void setup() {
         bool anyKeyTriggered = key.pressed && !key.enter;
 #elif defined(HAS_1_BUTTON)
         bool anyKeyTriggered = check(EscPress);
-#elif defined(STICK_C_PLUS2) || defined(STICK_C_PLUS)
+#elif defined(HAS_3_BUTTONS)
         bool anyKeyTriggered = check(NextPress);
 #else
         bool anyKeyTriggered = check(AnyKeyPress);
@@ -517,13 +515,12 @@ void loop() {
         );
     }
 
-#if !defined(CARDPUTER)
     menuItems.push_back(
         // Add power off option for devices that are not easy to turn off
         // on e-paper, it keeps the Launcher bootscreen printed
         {"OFF", "Turn off Device", [=]() { powerOff(); }}
     );
-#endif
+
     opt = menuItems.size(); // number of options in the menu
     update_sd = sdcardMounted;
     while (1) {
@@ -541,9 +538,7 @@ void loop() {
                 saveConfigs();
             }
             drawMainMenu(menuItems, index);
-#if defined(HAS_TOUCH)
             TouchFooter();
-#endif
             redraw = false;
             LongPress = false;
             returnToMenu = false;

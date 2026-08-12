@@ -4,6 +4,8 @@
 #include <SD_MMC.h>
 #include <interface.h>
 
+#define SEL_BTN 0
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
@@ -55,12 +57,12 @@ int getBattery() { return 0; }
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
     if (brightval == 0) {
-        analogWrite(TFT_BL, 0);
-        return;
+        analogWrite(TFT_BL, brightval);
+    } else {
+        float linear = (float)brightval / 100.0;
+        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        analogWrite(TFT_BL, value);
     }
-
-    int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100.0));
-    analogWrite(TFT_BL, bl);
 }
 
 /*********************************************************************

@@ -24,22 +24,7 @@ def generate_build_flags(board_config):
     flags = []
 
     # Configurações de hardware
-    flags.append("-DHAS_BTN=0")
-    flags.append("-DSEL_BTN=-1")
-    flags.append("-DUP_BTN=-1")
-    flags.append("-DDW_BTN=-1")
-    flags.append("-DBTN_ACT=LOW")
-    flags.append("-DBTN_ALIAS='\"Sel\"'")
-    flags.append("-DMINBRIGHT=190")
-    flags.append("-DBACKLIGHT=21")
-    flags.append("-DLED=-1")
-    flags.append("-DLED_ON=LOW")
     flags.append("-DHAS_TOUCH=1")
-
-    # Configuração de brilho do display
-    flags.append("-DTFT_BRIGHT_CHANNEL=0")
-    flags.append("-DTFT_BRIGHT_Bits=8")
-    flags.append("-DTFT_BRIGHT_FREQ=5000")
 
     # Verifica os drivers de video habilitados na board
     extra_flags = board_config.get("build", {}).get("extra_flags", [])
@@ -145,7 +130,6 @@ def generate_build_flags(board_config):
         flags.append("-DTFT_BL=GPIO_BCKL")
         flags.append("-DTFT_BUS_SHARED=0")
         flags.append("-DTFT_INVERTED=0")
-        flags.append("-DGFX_BL=GPIO_BCKL")
         flags.append("-DTFT_IPS=0")
         flags.append("-DTFT_COL_OFS1=0")
         flags.append("-DTFT_ROW_OFS1=0")

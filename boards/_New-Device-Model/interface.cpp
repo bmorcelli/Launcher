@@ -1,20 +1,27 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 /***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
+** Function:    _setup_gpio()
+** Location:    main.cpp
+** Description: initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {}
 
 /***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
+** Function:    _post_setup_gpio()
+** Location:    main.cpp
+** Description: second stage gpio setup, run after TFT and before SD card initialization
 ***************************************************************************************/
 void _post_setup_gpio() {}
+
+/***************************************************************************************
+** Function: _late_setup_gpio()
+** Location: main.cpp
+** Description: third stage gpio, run befor bootscreen animation
+***************************************************************************************/
+void _late_setup_gpio() {}
 
 /***************************************************************************************
 ** Function name: getBattery()
@@ -58,22 +65,25 @@ END:
 }
 
 /*********************************************************************
-** Function: keyboard
+** Function: powerOff
 ** location: mykeyboard.cpp
-** Starts keyboard to type data
+** Turns off the device (or try to)
 **********************************************************************/
-String keyboard(String mytext, int maxSize, String msg) {}
+void powerOff() {
+    // put into deepsleep mode, or shutdown if PMIC is available
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
+    vTaskDelay(pdMS_TO_TICKS(200));
+    esp_deep_sleep_start();
+    // or PMIC shutdown if available
+    // PPM.shutdown();
+}
 
 /*********************************************************************
-** Function: _checkNextPagePress
-** location: mykeyboard.cpp
-** returns the key from the keyboard
+** Function: reboot
+** Handles reboot process for devices
 **********************************************************************/
-bool _checkNextPagePress() { return false; }
-
-/*********************************************************************
-** Function: _checkPrevPagePress
-** location: mykeyboard.cpp
-** returns the key from the keyboard
-**********************************************************************/
-bool _checkPrevPagePress() { return false; }
+void reboot() {
+    // function to replace the ESP.restart() function, which is not working on some devices
+    // some devices need specific process before ESP.restart() to enable SD mounting and other processes
+    ESP.restart();
+}

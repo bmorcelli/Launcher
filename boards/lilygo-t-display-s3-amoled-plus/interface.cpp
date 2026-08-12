@@ -1,6 +1,6 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <PowersBQ25896.tpp>
-#include "idf/launcher_platform.h"
 static PowersBQ25896 PMU;
 static bool PMU_OK = false;
 #include <TouchDrv.hpp>
@@ -9,6 +9,7 @@ static bool PMU_OK = false;
 #define BOARD_I2C_SCL 2
 #define BOARD_SENSOR_IRQ 21
 #define BOARD_TOUCH_RST 16
+
 TouchDrvCST816 touch;
 
 void touchHomeKeyCallback(void *user_data) {
@@ -123,7 +124,12 @@ void InputHandler(void) {
         if (touched) {
 
             launcherConsolePrintf(
-                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(), _tmptmp
+                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
+                t.x,
+                t.y,
+                rotation,
+                launcherMillis(),
+                _tmptmp
             );
             _tmptmp = launcherMillis();
 

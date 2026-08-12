@@ -161,12 +161,14 @@ void setTftDisplay(int x, int y, uint16_t fc, int size, uint16_t bg) {
 ** Description:   Draw touch screen footer
 ***************************************************************************************/
 void TouchFooter(uint16_t color) {
+#if defined(HAS_TOUCH)
     tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (FM * LH + 4), 5, color);
     tft->setTextColor(color);
     tft->setTextSize(FM);
     tft->drawString("<<<", 11 + RES, tftHeight + 4);
     tft->drawCentreString("SEL", tftWidth / 2, tftHeight + 4, 1);
     tft->drawRightString(">>>", tftWidth - (RES + 11), tftHeight + 4, 1);
+#endif
 }
 
 /***************************************************************************************
@@ -174,12 +176,14 @@ void TouchFooter(uint16_t color) {
 ** Description:   Draw touch screen footer
 ***************************************************************************************/
 void TouchFooter2(uint16_t color) {
+#if defined(HAS_TOUCH)
     tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (FM * LH + 4), 5, color);
     tft->setTextColor(color);
     tft->setTextSize(FM);
     tft->drawString("<<", 11 + RES, tftHeight + 4);
     tft->drawCentreString("LAUNCHER", tftWidth / 2, tftHeight + 4, 1);
     tft->drawRightString(">>", tftWidth - (RES + 11), tftHeight + 4, 1);
+#endif
 }
 
 /***************************************************************************************
@@ -359,9 +363,7 @@ void displayCurrentVersion(
     int div = versions.size();
     if (div == 0) div = 1;
 
-#if defined(HAS_TOUCH)
     TouchFooter(ALCOLOR);
-#endif
 
     int bar = int(tftWidth / div);
     if (bar < 5) bar = 5;
@@ -1112,9 +1114,8 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
                 }
             }
             if (bright) { setBrightness(100 * (numOpt - index) / numOpt, false); }
-#if defined(HAS_TOUCH)
+
             TouchFooter();
-#endif
             redraw = false;
         }
         if (index >= 0 && index < static_cast<int>(options.size())) {
@@ -1122,7 +1123,7 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
             displayScrollingText(txt, coord);
         }
 
-#if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
+#if defined(HAS_ENCODER) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
 #if defined(HAS_TOUCH)
         if (border == false) EscPress = false;
         if (touchPoint.pressed) {
@@ -1222,10 +1223,9 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
         if (check(EscPress) || returnToMenu || exit) return -1;
 #endif
     }
-    // if (border) tft->fillScreen(BGCOLOR);
-#if defined(HAS_TOUCH)
+
     TouchFooter(FGCOLOR);
-#endif
+
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
     M5.Display.setEpdMode(epd_mode_t::epd_quality);
 #endif
@@ -1271,7 +1271,7 @@ void loopVersions(const String &_fid) {
 
         /* UP Btn go back to FW menu and ´<´ go to previous version item */
 
-#if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
+#if defined(HAS_ENCODER) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
         /* UP Btn go to previous item */
         if (check(PrevPress)) {
             versionIndex--;

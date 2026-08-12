@@ -5,6 +5,10 @@
 #include <Wire.h>
 #include <interface.h>
 
+#define TCA8418_INT_PIN 11
+#define TCA8418_I2C_ADDR 0x34
+#define TCA8418_SDA_PIN 8
+#define TCA8418_SCL_PIN 9
 // Cardputer and 1.1 keyboard
 Keyboard_Class Keyboard;
 // TCA8418 keyboard controller for ADV variant
@@ -155,8 +159,9 @@ void _setBrightness(uint8_t brightval) {
     if (brightval == 0) {
         analogWrite(TFT_BL, brightval);
     } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
+        float linear = (float)brightval / 100.0;
+        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        analogWrite(TFT_BL, value);
     }
 }
 

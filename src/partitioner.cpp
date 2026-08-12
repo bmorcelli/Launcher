@@ -348,9 +348,7 @@ void showPartitionDetails(const LauncherPartitionEntry &entry) {
         entry.flags,
         isProtectedPartition(entry)
     );
-#if defined(HAS_TOUCH)
     TouchFooter();
-#endif
     waitForSelectRelease();
 }
 
@@ -369,9 +367,7 @@ void showFreeRangeDetails(const LauncherPartitionRange &range) {
         range.size,
         range.offset + range.size
     );
-#if defined(HAS_TOUCH)
     TouchFooter();
-#endif
     waitForSelectRelease();
 }
 

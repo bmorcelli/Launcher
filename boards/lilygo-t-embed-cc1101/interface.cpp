@@ -2,14 +2,20 @@
 #include "powerSave.h"
 #include <globals.h>
 #include <interface.h>
-
 // Rotary encoder
 #include <RotaryEncoder.h>
 RotaryEncoder *encoder = nullptr;
 IRAM_ATTR void checkPosition() { encoder->tick(); }
 
 // Battery libs
-#if defined(T_EMBED_1101)
+#if TFT_MOSI < 10
+#define PIN_POWER_ON 15
+#define SEL_BTN 0
+#define BK_BTN 6
+#define ENCODER_INA 4
+#define ENCODER_INB 5
+#define ENCODER_KEY 0
+#define BTN_ACT LOW
 // Power handler for battery detection
 #include <Wire.h>
 // Charger chip
@@ -17,6 +23,14 @@ IRAM_ATTR void checkPosition() { encoder->tick(); }
 #include <XPowersLib.h>
 #include <esp32-hal-dac.h>
 XPowersPPM PPM;
+#else
+#define PIN_POWER_ON 46
+#define HAS_BTN 1
+#define SEL_BTN 0
+#define ENCODER_INA 2
+#define ENCODER_INB 1
+#define ENCODER_KEY 0
+#define BTN_ACT LOW
 #endif
 
 #ifdef USE_BQ27220_VIA_I2C
@@ -33,7 +47,7 @@ void _setup_gpio() {
     launcherGpioOutput(PIN_POWER_ON);
     launcherGpioWrite(PIN_POWER_ON, HIGH);
     launcherGpioInput(SEL_BTN);
-#ifdef T_EMBED_1101
+#if TFT_MOSI < 10
     // T-Embed CC1101 has a antenna circuit optimized to each frequency band, controlled by SW0 and SW1
     // Set antenna frequency settings
     launcherGpioOutput(CC1101_SW1_PIN);
@@ -73,7 +87,7 @@ void _setup_gpio() {
 
 #endif
 
-#ifdef T_EMBED_1101
+#if TFT_MOSI < 10
     launcherGpioInput(BK_BTN);
 #endif
     launcherGpioInput(ENCODER_KEY);
@@ -103,8 +117,9 @@ void _setBrightness(uint8_t brightval) {
     } else if (brightval > 99) {
         analogWrite(TFT_BL, 254);
     } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
+        float linear = (float)brightval / 100.0;
+        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        analogWrite(TFT_BL, value);
     }
 }
 
@@ -128,7 +143,7 @@ void InputHandler(void) {
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
     sel = launcherGpioRead(SEL_BTN);
-#ifdef T_EMBED_1101
+#if TFT_MOSI < 10
     esc = launcherGpioRead(BK_BTN);
 #endif
 
@@ -157,7 +172,7 @@ void InputHandler(void) {
 }
 
 void powerOff() {
-#ifdef T_EMBED_1101
+#if TFT_MOSI < 10
     options = {
         {"Deep Sleep",
          []() {
@@ -189,7 +204,7 @@ void powerOff() {
 }
 
 void checkReboot() {
-#ifdef T_EMBED_1101
+#if TFT_MOSI < 10
     int countDown;
     /* Long press power off */
     if (launcherGpioRead(BK_BTN) == BTN_ACT) {
