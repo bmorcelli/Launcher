@@ -233,7 +233,7 @@ void _setBrightness(uint8_t brightval) {
         float linear = (float)brightval / 100.0;
         uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
         analogWrite(TFT_BL, value);
-        nalogWrite(KEYBOARD_BL, value);
+        analogWrite(KEYBOARD_BL, value);
     }
 }
 

@@ -50,25 +50,25 @@ void _setup_gpio() {
 #if TFT_MOSI < 10 // T-Embed CC1101
     // T-Embed CC1101 has a antenna circuit optimized to each frequency band, controlled by SW0 and SW1
     // Set antenna frequency settings
-    launcherGpioOutput(CC1101_SW1_PIN);
-    launcherGpioOutput(CC1101_SW0_PIN);
+    launcherGpioOutput(47); // antenna circuit
+    launcherGpioOutput(48); // antenna circuit
 
     // Chip Select CC1101, SD and TFT to HIGH State to fix SD initialization
-    launcherGpioOutput(CC1101_SS_PIN);
-    launcherGpioWrite(CC1101_SS_PIN, HIGH);
-    launcherGpioOutput(TFT_CS);
-    launcherGpioWrite(TFT_CS, HIGH);
-    launcherGpioOutput(SDCARD_CS);
-    launcherGpioWrite(SDCARD_CS, HIGH);
-    launcherGpioOutput(44);
-    launcherGpioWrite(44, HIGH);
+    launcherGpioOutput(12);             // CC1101
+    launcherGpioWrite(12, HIGH);        // 1101
+    launcherGpioOutput(TFT_CS);         // display
+    launcherGpioWrite(TFT_CS, HIGH);    // Display
+    launcherGpioOutput(SDCARD_CS);      // SDCArd
+    launcherGpioWrite(SDCARD_CS, HIGH); // SDCArd
+    launcherGpioOutput(44);             // nrf24
+    launcherGpioWrite(44, HIGH);        // nrf24
 
     // Power chip pin
     launcherGpioOutput(PIN_POWER_ON);
     launcherGpioWrite(PIN_POWER_ON, HIGH); // Power on CC1101 and LED
     bool pmu_ret = false;
-    Wire.begin(GROVE_SDA, GROVE_SCL);
-    pmu_ret = PPM.init(Wire, GROVE_SDA, GROVE_SCL, BQ25896_SLAVE_ADDRESS);
+    Wire.begin(8, 18);
+    pmu_ret = PPM.init(Wire, 8, 18, BQ25896_SLAVE_ADDRESS);
     if (pmu_ret) {
         PPM.setSysPowerDownVoltage(3300);
         PPM.setInputCurrentLimit(3250);
