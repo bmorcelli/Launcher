@@ -17,7 +17,7 @@
 #if defined(HEADLESS)
 SerialDisplayClass *tft = new SerialDisplayClass();
 #elif defined(USE_EPD_PAINTER) || defined(USE_EPDIY) || defined(USE_TFT_ESPI) || defined(USE_LOVYANGFX) ||   \
-    defined(GxEPD2_DISPLAY) || defined(USE_M5GFX)
+    defined(USE_GXEPD2) || defined(USE_M5GFX)
 Ard_eSPI *tft = new Ard_eSPI();
 #else
 #ifdef TFT_PARALLEL_8_BIT
@@ -545,7 +545,7 @@ void progressHandler(size_t progress, size_t total) {
     if (prog_handler == 1) tft->fillRect(20, tftHeight - 26, barWidth, 13, ALCOLOR);
     else tft->fillRect(20, tftHeight - 45, barWidth, 13, FGCOLOR);
 
-#if defined(E_PAPER_DISPLAY) && (defined(GxEPD2_DISPLAY) || defined(USE_M5GFX))
+#if defined(E_PAPER_DISPLAY) && (defined(USE_GXEPD2) || defined(USE_M5GFX))
     if (launcherMillis() - lastUpdate > 2000) {
         tft->display();
         lastUpdate = launcherMillis();

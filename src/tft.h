@@ -227,7 +227,7 @@ public:
 
 private:
 };
-#elif defined(GxEPD2_DISPLAY)
+#elif defined(USE_GXEPD2)
 #include <GxEPD2_BW.h>
 // #include <Fonts/FreeMonoBold9pt7b.h>
 #define BOARD_SPI_CS 34
