@@ -74,21 +74,6 @@ int getBattery() {
 }
 
 /*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-    } else {
-        float linear = (float)brightval / 100.0;
-        uint8_t value = round(pow(linear, 2.2) * 255.0);
-        analogWrite(TFT_BL, value);
-    }
-}
-
-/*********************************************************************
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/

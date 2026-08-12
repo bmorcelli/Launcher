@@ -427,7 +427,19 @@ void settings_menu() {
 }
 
 // This function comes from interface.h
-void _setBrightness(uint8_t brightval) {}
+void _setBrightness(uint8_t brightval) {
+#ifdef TFT_BL
+    if (brightval == 0) {
+        analogWrite(TFT_BL, brightval);
+    } else {
+        const uint8_t PWM_MIN = 85;
+        const uint8_t PWM_MAX = 255;
+        float linear = (float)brightval / 100.0;
+        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
+        analogWrite(TFT_BL, value);
+    }
+#endif
+}
 
 /*********************************************************************
 **  Function: setBrightness
@@ -511,7 +523,7 @@ void setBrightnessMenu() {
         {"75 %", [=]() { setBrightness(75); } },
         {"50 %", [=]() { setBrightness(50); } },
         {"25 %", [=]() { setBrightness(25); } },
-        {" 0 %", [=]() { setBrightness(1); }  },
+        // {" 0 %", [=]() { setBrightness(1); }  },
     };
     loopOptions(options, true);
 }
@@ -607,7 +619,7 @@ void chargeMode() {
 #ifndef CONFIG_IDF_TARGET_ESP32P4
     setCpuFrequencyMhz(80);
 #endif
-    setBrightness(5, false);
+    setBrightness(25, false);
     vTaskDelay(pdTICKS_TO_MS(500));
     tft->fillScreen(BGCOLOR);
     unsigned long tmp = 0;

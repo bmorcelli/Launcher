@@ -228,10 +228,12 @@ void _setBrightness(uint8_t brightval) {
         analogWrite(TFT_BL, brightval);
         analogWrite(KEYBOARD_BL, brightval);
     } else {
+        const uint8_t PWM_MIN = 85;
+        const uint8_t PWM_MAX = 255;
         float linear = (float)brightval / 100.0;
-        uint8_t value = round(pow(linear, 2.2) * 255.0);
+        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
         analogWrite(TFT_BL, value);
-        analogWrite(KEYBOARD_BL, value);
+        nalogWrite(KEYBOARD_BL, value);
     }
 }
 

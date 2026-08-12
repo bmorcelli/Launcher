@@ -8,7 +8,7 @@ RotaryEncoder *encoder = nullptr;
 IRAM_ATTR void checkPosition() { encoder->tick(); }
 
 // Battery libs
-#if TFT_MOSI < 10
+#if TFT_MOSI < 10 // T-Embed CC1101
 #define PIN_POWER_ON 15
 #define SEL_BTN 0
 #define BK_BTN 6
@@ -23,6 +23,12 @@ IRAM_ATTR void checkPosition() { encoder->tick(); }
 #include <XPowersLib.h>
 #include <esp32-hal-dac.h>
 XPowersPPM PPM;
+
+#define USE_BQ27220_VIA_I2C
+#define BATTERY_DESIGN_CAPACITY 1300
+#include <bq27220.h>
+BQ27220 bq;
+
 #else
 #define PIN_POWER_ON 46
 #define HAS_BTN 1
@@ -33,12 +39,6 @@ XPowersPPM PPM;
 #define BTN_ACT LOW
 #endif
 
-#ifdef USE_BQ27220_VIA_I2C
-#define BATTERY_DESIGN_CAPACITY 1300
-#include <bq27220.h>
-BQ27220 bq;
-#endif
-
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Description:   initial setup for the device
@@ -47,7 +47,7 @@ void _setup_gpio() {
     launcherGpioOutput(PIN_POWER_ON);
     launcherGpioWrite(PIN_POWER_ON, HIGH);
     launcherGpioInput(SEL_BTN);
-#if TFT_MOSI < 10
+#if TFT_MOSI < 10 // T-Embed CC1101
     // T-Embed CC1101 has a antenna circuit optimized to each frequency band, controlled by SW0 and SW1
     // Set antenna frequency settings
     launcherGpioOutput(CC1101_SW1_PIN);
@@ -87,7 +87,7 @@ void _setup_gpio() {
 
 #endif
 
-#if TFT_MOSI < 10
+#if TFT_MOSI < 10 // T-Embed CC1101
     launcherGpioInput(BK_BTN);
 #endif
     launcherGpioInput(ENCODER_KEY);
@@ -107,21 +107,6 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 #endif
-/*********************************************************************
-**  Function: setBrightness
-**  set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-    } else if (brightval > 99) {
-        analogWrite(TFT_BL, 254);
-    } else {
-        float linear = (float)brightval / 100.0;
-        uint8_t value = round(pow(linear, 2.2) * 255.0);
-        analogWrite(TFT_BL, value);
-    }
-}
 
 /*********************************************************************
 ** Function: InputHandler
@@ -143,7 +128,7 @@ void InputHandler(void) {
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
     sel = launcherGpioRead(SEL_BTN);
-#if TFT_MOSI < 10
+#if TFT_MOSI < 10 // T-Embed CC1101
     esc = launcherGpioRead(BK_BTN);
 #endif
 
@@ -172,7 +157,7 @@ void InputHandler(void) {
 }
 
 void powerOff() {
-#if TFT_MOSI < 10
+#if TFT_MOSI < 10 // T-Embed CC1101
     options = {
         {"Deep Sleep",
          []() {
@@ -204,7 +189,7 @@ void powerOff() {
 }
 
 void checkReboot() {
-#if TFT_MOSI < 10
+#if TFT_MOSI < 10 // T-Embed CC1101
     int countDown;
     /* Long press power off */
     if (launcherGpioRead(BK_BTN) == BTN_ACT) {

@@ -688,10 +688,15 @@ void _post_setup_gpio() {
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
 #if defined(TFT_BL)
-    // Gama correction
-    float linear = (float)brightval / 100.0;
-    uint8_t value = round(pow(linear, 2.2) * 255.0);
-    analogWrite(TFT_BL, value);
+    if (brightval == 0) {
+        analogWrite(TFT_BL, brightval);
+    } else {
+        const uint8_t PWM_MIN = 85;
+        const uint8_t PWM_MAX = 255;
+        float linear = (float)brightval / 100.0;
+        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
+        analogWrite(TFT_BL, value);
+    }
 #else
     // The AMOLED has no backlight rail: brightness is the RM69A10's DCS 0x51
     // (WRDISBV), which rm69a10_lcd_init_cmd sets to full at init. Driving it at
