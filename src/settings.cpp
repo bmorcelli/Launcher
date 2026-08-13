@@ -1020,8 +1020,9 @@ void getConfigs() {
         count++;
         log_i("getConfigs: missing dimmerSet");
     }
-
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
     if (setting[get_efuse_mac_as_string()].is<int>()) rotation = setting[get_efuse_mac_as_string()].as<int>();
+    else if (setting[rot_dev_name].is<int>()) rotation = setting[rot_dev_name].as<int>();
     else {
         count++;
         log_i("getConfigs: missing rotation");
@@ -1153,7 +1154,8 @@ void saveConfigs() {
     setting["askSpiffs"] = askSpiffs;
     setting["bright"] = bright;
     setting["dimmerSet"] = dimmerSet;
-    setting[get_efuse_mac_as_string()] = rotation;
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
+    setting[rot_dev_name] = rotation;
     setting["FGCOLOR"] = FGCOLOR;
     setting["BGCOLOR"] = BGCOLOR;
     setting["ALCOLOR"] = ALCOLOR;

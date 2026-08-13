@@ -1291,8 +1291,8 @@ void loopVersions(const String &_fid) {
                                    }});
                 options.push_back({"Add to Favorite", [=] {
                                        JsonObject fav = favorite.add<JsonObject>();
-                                       fav["name"] = String(name) + " - " + String(author) + " (" +
-                                                     String(OTA_TAG) + ")";
+                                       fav["name"] =
+                                           String(name) + " - " + String(author) + " (" + ota_tag + ")";
                                        fav["fid"] = _fid;
                                        fav["link"] = "";
                                        saveConfigs();

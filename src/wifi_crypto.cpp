@@ -8,13 +8,13 @@
 #ifndef WIFI_ENC_KEY
 #define WIFI_ENC_KEY "LauncherWifi2025"
 #endif
-
+// clang-format off
 // Fixed IV — distinct from key so CBC mode has a proper non-zero IV.
 static const uint8_t AES_IV[16] = {
     0x4C, 0x61, 0x75, 0x6E, 0x63, 0x68, 0x65, 0x72,  // "Launcher"
     0x57, 0x69, 0x66, 0x69, 0x4B, 0x65, 0x79, 0x21    // "WifiKey!"
 };
-
+// clang-format on
 // Build a 16-byte AES key from WIFI_ENC_KEY (cyclic pad/truncate).
 static void buildKey(uint8_t key[16]) {
     const char *raw = WIFI_ENC_KEY;
@@ -25,15 +25,13 @@ static void buildKey(uint8_t key[16]) {
 
 // ── Base64 ────────────────────────────────────────────────────────────────────
 
-static const char B64C[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static const char B64C[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static String b64Encode(const uint8_t *data, size_t len) {
     String out;
     out.reserve(((len + 2) / 3) * 4 + 1);
     for (size_t i = 0; i < len; i += 3) {
-        uint32_t n = ((uint32_t)data[i] << 16) |
-                     (i + 1 < len ? (uint32_t)data[i + 1] << 8 : 0) |
+        uint32_t n = ((uint32_t)data[i] << 16) | (i + 1 < len ? (uint32_t)data[i + 1] << 8 : 0) |
                      (i + 2 < len ? (uint32_t)data[i + 2] : 0);
         out += B64C[(n >> 18) & 0x3F];
         out += B64C[(n >> 12) & 0x3F];

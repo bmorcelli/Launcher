@@ -10,7 +10,7 @@ struct LauncherAppMetadata {
     String label;
     std::vector<String> fatLabels;
     String spiffsLabel;
-    String appNum;  // CRC32 8-char hash of SD filepath (e.g. "a1b2c3d4")
+    String appNum; // CRC32 8-char hash of SD filepath (e.g. "a1b2c3d4")
 };
 
 std::vector<LauncherAppMetadata> launcherLoadAppRegistry();

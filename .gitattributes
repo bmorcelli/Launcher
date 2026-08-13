@@ -1,0 +1,18 @@
+# LF in the repository and in the working tree, on every platform.
+#
+# This overrides whatever core.autocrlf each clone happens to have (GitHub
+# Desktop sets it to true on Windows), so the library reads the same on
+# Windows, on Linux and in Codespaces, and a contributor's first PR does not
+# arrive with every file rewritten.
+* text=auto eol=lf
+
+# Never touched
+*.png binary
+*.jpg binary
+*.ico binary
+*.bin binary
+*.gz  binary
+*.xz  binary
+*.zip binary
+*.webp binary
+*.gif binary

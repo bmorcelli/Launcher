@@ -121,6 +121,8 @@ bool askSpiffs;
 
 // bool command;
 size_t file_size;
+String ota_tag = OTA_TAG;
+String device_name = DEVICE_NAME;
 String ssid;
 String pwd;
 String wui_usr = "admin";

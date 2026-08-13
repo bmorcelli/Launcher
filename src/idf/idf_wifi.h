@@ -55,13 +55,10 @@ LauncherWifiBackend launcherWifiActiveBackend();
 // ENABLE_ESP_AT_INTERFACE this is just launcherWifiInitHostedSdioGuarded() under a
 // different name, so boards can call it unconditionally regardless of whether that
 // build flag is set.
-bool launcherWifiInitSdioAuto(
-    int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3, int8_t rst
-);
+bool launcherWifiInitSdioAuto(int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3, int8_t rst);
 
-LauncherWifiConnectState launcherWifiConnectStatus(
-    const char *ssid, const char *password, uint32_t timeout_ms
-);
+LauncherWifiConnectState
+launcherWifiConnectStatus(const char *ssid, const char *password, uint32_t timeout_ms);
 bool launcherWifiConnect(const char *ssid, const char *password, uint32_t timeout_ms);
 int launcherWifiScan(std::vector<LauncherWifiAp> &out);
 bool launcherWifiStartAp(const char *ssid, const char *password, uint8_t channel, uint8_t max_clients);

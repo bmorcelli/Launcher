@@ -294,9 +294,7 @@ int parseCwjapError(const std::string &response) {
     return atoi(response.c_str() + pos + 7);
 }
 
-int transportTypeForUrl(const char *url) {
-    return (url && strncmp(url, "https://", 8) == 0) ? 2 : 1;
-}
+int transportTypeForUrl(const char *url) { return (url && strncmp(url, "https://", 8) == 0) ? 2 : 1; }
 
 bool sendDataModeCommand(
     const std::string &cmd, const uint8_t *data, size_t len, const char *doneToken, uint32_t timeoutMs
@@ -330,7 +328,9 @@ bool clearHttpHeaders() {
 bool addHttpHeader(const std::string &header) {
     if (header.empty()) return true;
     std::string cmd = "AT+HTTPCHEAD=" + std::to_string(header.size());
-    return sendDataModeCommand(cmd, reinterpret_cast<const uint8_t *>(header.data()), header.size(), "\r\nOK\r\n", 5000);
+    return sendDataModeCommand(
+        cmd, reinterpret_cast<const uint8_t *>(header.data()), header.size(), "\r\nOK\r\n", 5000
+    );
 }
 
 struct RangeLimitSink {
@@ -540,7 +540,8 @@ int consumeIpdLength(std::string &raw) {
     if (lenEnd == lenStart) return 0;
     int len = atoi(raw.c_str() + lenStart);
     size_t eraseEnd = lenEnd;
-    while (eraseEnd < raw.size() && (raw[eraseEnd] == '\r' || raw[eraseEnd] == '\n' || raw[eraseEnd] == ':')) {
+    while (eraseEnd < raw.size() &&
+           (raw[eraseEnd] == '\r' || raw[eraseEnd] == '\n' || raw[eraseEnd] == ':')) {
         eraseEnd++;
     }
     raw.erase(0, eraseEnd);
@@ -563,7 +564,8 @@ bool feedRawHttpBytes(
         const size_t bodyStart = headerEnd + 4;
         const size_t bodyLen = meta.headerBuf.size() - bodyStart;
         if (bodyLen > 0 && resp->status >= 200 && resp->status < 300) {
-            if (cb && !cb(reinterpret_cast<const uint8_t *>(meta.headerBuf.data() + bodyStart), bodyLen, ctx)) {
+            if (cb &&
+                !cb(reinterpret_cast<const uint8_t *>(meta.headerBuf.data() + bodyStart), bodyLen, ctx)) {
                 meta.callbackOk = false;
                 return false;
             }
@@ -611,7 +613,9 @@ bool rawHttpGetOnce(
     std::string startCmd = "AT+CIPSTART=\"" + type + "\",\"" + atEscape(parsed.host.c_str()) + "\"," +
                            std::to_string(parsed.port) + ",,,30000";
     launcherConsolePrintf(
-        "[wifi-at] RAW GET host=%s port=%d path_len=%u\n", parsed.host.c_str(), parsed.port,
+        "[wifi-at] RAW GET host=%s port=%d path_len=%u\n",
+        parsed.host.c_str(),
+        parsed.port,
         (unsigned)parsed.path.size()
     );
     if (!sendCommand(startCmd, response, 35000)) {
@@ -703,8 +707,10 @@ bool rawHttpGetOnce(
     if (!(resp->status >= 200 && resp->status < 300)) return false;
     if (resp->content_length >= 0 && meta.bodyReceived != resp->content_length) {
         launcherConsolePrintf(
-            "[wifi-at] RAW GET incomplete status=%d got=%lld expected=%lld\n", resp->status,
-            (long long)meta.bodyReceived, (long long)resp->content_length
+            "[wifi-at] RAW GET incomplete status=%d got=%lld expected=%lld\n",
+            resp->status,
+            (long long)meta.bodyReceived,
+            (long long)resp->content_length
         );
         resp->transport_error = -1;
         return false;
@@ -764,9 +770,7 @@ bool atHttpGetSizeWithHeaders(const char *url, const std::vector<std::string> &h
 
 } // namespace
 
-LauncherC6Firmware launcherWifiAtProbe(
-    int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3
-) {
+LauncherC6Firmware launcherWifiAtProbe(int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3) {
     if (!busBringUp(clk, cmd, d0, d1, d2, d3)) return LauncherC6Firmware::kNoResponse;
 
     LauncherC6Firmware result = LauncherC6Firmware::kOther;
@@ -812,7 +816,8 @@ bool launcherWifiAtInit(int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2,
     return true;
 }
 
-LauncherWifiConnectState launcherWifiAtConnectStatus(const char *ssid, const char *password, uint32_t timeout_ms) {
+LauncherWifiConnectState
+launcherWifiAtConnectStatus(const char *ssid, const char *password, uint32_t timeout_ms) {
     if (!g_busUp || !ssid) return LauncherWifiConnectState::Failed;
     std::string cmd = "AT+CWJAP=\"" + atEscape(ssid) + "\",\"" + atEscape(password ? password : "") + "\"";
     std::string response;
@@ -923,7 +928,9 @@ bool launcherWifiAtHttpGet(
     LauncherHttpResponse *resp = response ? response : &localResp;
     *resp = LauncherHttpResponse();
     if (!g_busUp || !url) return false;
-    launcherConsolePrintf("[wifi-at] HTTP GET url_len=%u range=%u\n", (unsigned)strlen(url), (unsigned)rangeSize);
+    launcherConsolePrintf(
+        "[wifi-at] HTTP GET url_len=%u range=%u\n", (unsigned)strlen(url), (unsigned)rangeSize
+    );
 
     std::vector<std::string> headers;
     headers.push_back("Accept-Encoding: identity");
@@ -934,7 +941,10 @@ bool launcherWifiAtHttpGet(
 
         char range[96];
         snprintf(
-            range, sizeof(range), "Range: bytes=%lu-%lu", (unsigned long)rangeOffset,
+            range,
+            sizeof(range),
+            "Range: bytes=%lu-%lu",
+            (unsigned long)rangeOffset,
             (unsigned long)(rangeOffset + rangeSize - 1)
         );
         headers.push_back(range);
@@ -964,8 +974,9 @@ bool launcherWifiAtHttpGet(
         size_t bodyLen = 0;
         bool ok = false;
         int atHttpError = 0;
-        const bool completed =
-            waitForHttpDataResponse("+HTTPCGET:", 90000, bufferedRangeCb, &buffered, bodyLen, ok, atHttpError);
+        const bool completed = waitForHttpDataResponse(
+            "+HTTPCGET:", 90000, bufferedRangeCb, &buffered, bodyLen, ok, atHttpError
+        );
         clearHttpHeaders();
         if (!completed) {
             resp->status = 0;
@@ -975,7 +986,9 @@ bool launcherWifiAtHttpGet(
         if (!ok) {
             resp->status = statusFromHttpClientError(atHttpError);
             resp->transport_error = atHttpError;
-            launcherConsolePrintf("[wifi-at] HTTPCGET failed at=0x%04X status=%d\n", atHttpError, resp->status);
+            launcherConsolePrintf(
+                "[wifi-at] HTTPCGET failed at=0x%04X status=%d\n", atHttpError, resp->status
+            );
             return false;
         }
 
@@ -983,7 +996,8 @@ bool launcherWifiAtHttpGet(
             resp->status = strstr(url, "/download?") != nullptr ? 302 : 200;
             resp->content_length = bodyLen;
             launcherConsolePrintf(
-                "[wifi-at] HTTPCGET range ignored requested=%u received=%u\n", (unsigned)rangeSize,
+                "[wifi-at] HTTPCGET range ignored requested=%u received=%u\n",
+                (unsigned)rangeSize,
                 (unsigned)bodyLen
             );
             return false;
@@ -997,8 +1011,12 @@ bool launcherWifiAtHttpGet(
         resp->content_length = bodyLen;
         const unsigned long end = bodyLen == 0 ? rangeOffset : rangeOffset + (unsigned long)bodyLen - 1;
         snprintf(
-            resp->content_range, sizeof(resp->content_range), "bytes %lu-%lu/%lld", (unsigned long)rangeOffset,
-            end, (long long)(totalSize >= 0 ? totalSize : (int64_t)(end + 1))
+            resp->content_range,
+            sizeof(resp->content_range),
+            "bytes %lu-%lu/%lld",
+            (unsigned long)rangeOffset,
+            end,
+            (long long)(totalSize >= 0 ? totalSize : (int64_t)(end + 1))
         );
         return true;
     }
@@ -1023,7 +1041,9 @@ bool launcherWifiAtHttpGet(
     if (!ok) {
         resp->status = statusFromHttpClientError(atHttpError);
         resp->transport_error = atHttpError;
-        launcherConsolePrintf("[wifi-at] HTTPCLIENT GET failed at=0x%04X status=%d\n", atHttpError, resp->status);
+        launcherConsolePrintf(
+            "[wifi-at] HTTPCLIENT GET failed at=0x%04X status=%d\n", atHttpError, resp->status
+        );
         return false;
     }
     resp->status = 200;
@@ -1046,8 +1066,11 @@ bool launcherWifiAtHttpGetStreamRaw(
         std::string redirectTo;
         const bool ok = rawHttpGetOnce(currentUrl.c_str(), cb, ctx, resp, headerKey, headerValue, redirectTo);
         launcherConsolePrintf(
-            "[wifi-at] RAW GET done ok=%d status=%d bytes=%lld redirect=%u\n", (int)ok, resp->status,
-            (long long)resp->content_length, (unsigned)redirectTo.size()
+            "[wifi-at] RAW GET done ok=%d status=%d bytes=%lld redirect=%u\n",
+            (int)ok,
+            resp->status,
+            (long long)resp->content_length,
+            (unsigned)redirectTo.size()
         );
         if (ok) return true;
         if (!redirectTo.empty() && currentUrl.find("/download?") != std::string::npos) {
@@ -1132,7 +1155,9 @@ bool launcherWifiAtHttpPost(
     resp->status = ok ? 200 : statusFromHttpClientError(atHttpError);
     resp->transport_error = ok ? 0 : atHttpError;
     if (!ok) {
-        launcherConsolePrintf("[wifi-at] HTTPCLIENT POST failed at=0x%04X status=%d\n", atHttpError, resp->status);
+        launcherConsolePrintf(
+            "[wifi-at] HTTPCLIENT POST failed at=0x%04X status=%d\n", atHttpError, resp->status
+        );
     }
     resp->content_length = respLen;
     if (!ok) return false;

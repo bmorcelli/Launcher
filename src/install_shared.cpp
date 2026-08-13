@@ -3,9 +3,7 @@
 #include "backup_manager.h"
 #include <globals.h>
 
-const char *launcherInstallDefaultDataLabel(uint8_t subtype) {
-    return subtype == 0x81 ? "vfs" : "spiffs";
-}
+const char *launcherInstallDefaultDataLabel(uint8_t subtype) { return subtype == 0x81 ? "vfs" : "spiffs"; }
 
 String launcherInstallAppDisplayName(const String &sourceName, const String &fallbackName) {
     if (!fallbackName.isEmpty()) return fallbackName;

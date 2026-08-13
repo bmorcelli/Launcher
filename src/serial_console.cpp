@@ -771,6 +771,8 @@ static void handleCalibrateCommand(const std::vector<String> &tokens) {
 
 static void printVersion() { launcherConsolePrintln("Launcher " LAUNCHER); }
 
+static void printWhoami() { launcherConsolePrintln(device_name.c_str()); }
+
 static void printHelp() {
     launcherConsolePrintln("Commands:");
     launcherConsolePrintln("  nav <NextPress|PrevPress|SelPress|EscPress>");
@@ -825,6 +827,8 @@ static void handleSerialCommand(const String &line) {
 #endif
     } else if (cmd.equalsIgnoreCase("version")) {
         printVersion();
+    } else if (cmd.equalsIgnoreCase("whoami")) {
+        printWhoami();
     } else {
         launcherConsolePrintln("ERR unknown command, type 'help' for command list");
     }

@@ -7,7 +7,7 @@
 CYD28_TouchR touch(320, 240);
 
 // --- MAX17048 fuel gauge (SDA=GPIO5, SCL=GPIO4) ---
-#define MAX17048_ADDR    0x36
+#define MAX17048_ADDR 0x36
 #define MAX17048_REG_SOC 0x04
 
 int getBattery() {
@@ -20,7 +20,6 @@ int getBattery() {
     if (hi > 100) hi = 100;
     return (int)hi;
 }
-
 
 /***************************************************************************************
 ** Function name: _setup_gpio()

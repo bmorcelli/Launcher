@@ -5,9 +5,7 @@
 #include <algorithm>
 
 bool launcherPrepareInstallDataPartitions(
-    LauncherPartitionTable &table,
-    std::vector<LauncherInstallDataPartition> &dataPartitions,
-    String &error
+    LauncherPartitionTable &table, std::vector<LauncherInstallDataPartition> &dataPartitions, String &error
 ) {
     for (auto &dp : dataPartitions) {
         dp.entry = LauncherPartitionEntry();
@@ -27,7 +25,9 @@ bool launcherPrepareInstallDataPartitions(
             }
             dp.entry = *existing;
         } else {
-            if (!launcherPartitionFindOrCreateData(table, stype, dp.label.c_str(), dp.partitionSize, dp.entry, error))
+            if (!launcherPartitionFindOrCreateData(
+                    table, stype, dp.label.c_str(), dp.partitionSize, dp.entry, error
+                ))
                 return false;
         }
         dp.hasEntry = true;
@@ -72,8 +72,7 @@ bool launcherPrepareInstallDataPartitions(
 
 bool launcherSelectInstallLayout(
     LauncherPartitionTable &table, size_t updateSize, const String &defaultLabel,
-    std::vector<LauncherInstallDataPartition> &dataPartitions,
-    LauncherPartitionEntry &appEntry, String &error
+    std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
 ) {
     const uint32_t requiredAppPartitionSize =
         launcherAlignUp(static_cast<uint32_t>(updateSize), LAUNCHER_APP_PARTITION_ALIGNMENT);
@@ -153,12 +152,7 @@ bool launcherSelectInstallLayout(
         choiceLabels.push_back(label);
         choices.push_back(
             {label,
-             [&table,
-              &appEntry,
-              &dataPartitions,
-              candidate,
-              candidateApp,
-              candidatePartitions]() mutable {
+             [&table, &appEntry, &dataPartitions, candidate, candidateApp, candidatePartitions]() mutable {
                  table = candidate;
                  appEntry = candidateApp;
                  dataPartitions = candidatePartitions;
@@ -194,10 +188,7 @@ bool launcherSelectInstallLayout(
         if (launcherPrepareInstallDataPartitions(candidate, candidatePartitions, error) &&
             launcherPartitionValidate(candidate, &error)) {
             addChoice(
-                String("Use ") + entry.label + " partition",
-                candidate,
-                candidateApp,
-                candidatePartitions
+                String("Use ") + entry.label + " partition", candidate, candidateApp, candidatePartitions
             );
         }
     }

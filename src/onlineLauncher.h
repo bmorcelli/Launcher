@@ -18,7 +18,10 @@ bool ensureWifiConnected(const String &ssid = "", int encryptation = 0, bool isA
 
 void ota_function();
 
-void downloadFirmware(const String &fid, String file, String fileName, String folder = "/downloads/", const String &version = "", bool autoAdvance = false);
+void downloadFirmware(
+    const String &fid, String file, String fileName, String folder = "/downloads/",
+    const String &version = "", bool autoAdvance = false
+);
 void saveDownloadedFirmware(const String &folder, const String &fid, const String &version);
 bool checkForUpdates();
 

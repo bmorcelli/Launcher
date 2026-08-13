@@ -181,6 +181,10 @@ extern int prog_handler; // 0 - Flash, 1 - SPIFFS, 2 - Download
 
 extern bool sdcardMounted;
 
+extern String device_name;
+
+extern String ota_tag;
+
 extern String ssid;
 
 extern String pwd;

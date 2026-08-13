@@ -137,8 +137,8 @@ int getBattery() {
     // Cubic fit over LiPo discharge samples taken from this device. It beats a
     // straight voltage-to-percent ramp badly in the flat middle of the curve,
     // which is where a reader spends most of its life.
-    double percent = -144.9390 * volts * volts * volts + 1655.8629 * volts * volts -
-                     6158.8520 * volts + 7501.3202;
+    double percent =
+        -144.9390 * volts * volts * volts + 1655.8629 * volts * volts - 6158.8520 * volts + 7501.3202;
 
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
@@ -229,9 +229,7 @@ void checkReboot() {
                     lastCountDown = countDown;
                     tft->setTextSize(1);
                     tft->setTextColor(FGCOLOR, BGCOLOR);
-                    tft->drawCentreString(
-                        "PWR OFF IN " + String(countDown) + "/2", tftWidth / 2, 12, 1
-                    );
+                    tft->drawCentreString("PWR OFF IN " + String(countDown) + "/2", tftWidth / 2, 12, 1);
                     tft->display();
                 }
             } else {

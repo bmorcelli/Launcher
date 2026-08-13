@@ -9,9 +9,9 @@ struct BackupPartitionInfo {
 };
 
 struct BackupInstallInfo {
-    String appNum;         // 8-char hash: "a1b2c3d4"
-    String sdFilepath;     // SD path of .bin: "/downloads/fw.bin"
-    String appName;        // Display name
+    String appNum;     // 8-char hash: "a1b2c3d4"
+    String sdFilepath; // SD path of .bin: "/downloads/fw.bin"
+    String appName;    // Display name
     std::vector<BackupPartitionInfo> partitions;
 };
 
@@ -57,4 +57,6 @@ bool restorePartitionFromBackup(const char *partitionLabel, const char *backupFi
 
 // Restore directly to a known flash offset/size (use when partition table was just written
 // and the IDF runtime cache hasn't been refreshed yet)
-bool restorePartitionFromBackupDirect(const char *partitionLabel, const char *backupFilePath, uint32_t flashOffset, uint32_t flashSize);
+bool restorePartitionFromBackupDirect(
+    const char *partitionLabel, const char *backupFilePath, uint32_t flashOffset, uint32_t flashSize
+);

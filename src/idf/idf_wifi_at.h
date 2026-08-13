@@ -18,16 +18,15 @@ enum class LauncherC6Firmware : uint8_t { kNoResponse, kEspAt, kOther };
 // and identifies what firmware answers on it, then tears the bus back down. Safe to
 // call before deciding which backend (Hosted vs AT) to actually use; leaves the C6
 // freshly reset either way so whichever backend runs next gets a clean slave.
-LauncherC6Firmware launcherWifiAtProbe(
-    int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3
-);
+LauncherC6Firmware launcherWifiAtProbe(int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3);
 
 // Brings the AT bus up for real use and leaves it attached (unlike the probe above).
 // Waits for the firmware's boot "ready" banner, disables command echo, and puts the
 // co-processor in station mode. Returns false if it never answers.
 bool launcherWifiAtInit(int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3);
 
-LauncherWifiConnectState launcherWifiAtConnectStatus(const char *ssid, const char *password, uint32_t timeout_ms);
+LauncherWifiConnectState
+launcherWifiAtConnectStatus(const char *ssid, const char *password, uint32_t timeout_ms);
 bool launcherWifiAtConnect(const char *ssid, const char *password, uint32_t timeout_ms);
 bool launcherWifiAtDisconnect();
 int launcherWifiAtScan(std::vector<LauncherWifiAp> &out);
