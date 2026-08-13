@@ -602,6 +602,7 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
 
     pauseInputHandlerTask();
     resetTftDisplay();
+    tft->setTextSize(_fm);
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
     tft->drawCentreString("Getting info from", tftWidth / 2, tftHeight / 3, 1);
     tft->drawCentreString("LauncherHub", tftWidth / 2, tftHeight / 3 + _fm * 9, 1);

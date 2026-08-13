@@ -249,6 +249,7 @@ String generalKeyboard(
     char keys[KeyboardHeight][KeyboardWidth][2]
 ) {
     resetTftDisplay();
+    tft->setTextSize(_fm);
     touchPoint.Clear();
 #ifdef USE_CARDKB2
     KeyStroke.Clear();      // drop keys queued while navigating menus
@@ -290,9 +291,9 @@ String generalKeyboard(
     //      bigger screens)
     //      x=item number, y=Sum of characters of previous items;
     //      n=number of characters of this item
-    // btns_layout[0][0] = x*PAD + y*LW*FM;
-    // btns_layout[0][1] = n*LW*FM; //
-    // btns_layout[0][3] = x*PAD + y*LW*FM + LW*FM/2;
+    // btns_layout[0][0] = x*PAD + y*LW*_fm;
+    // btns_layout[0][1] = n*LW*_fm; //
+    // btns_layout[0][3] = x*PAD + y*LW*_fm + LW*_fm/2;
     //
     // for (size_t i = 0; i < buttons_number; i++) {
     //     // start of previous btn + width of that btn + 2px padding between the buttons
@@ -969,6 +970,7 @@ String generalKeyboard(
     // Resets screen when finished writing
     tft->fillScreen(BGCOLOR);
     resetTftDisplay();
+    tft->setTextSize(_fm);
 #ifdef USE_CARDKB2
     CardKB2TextMode = false;
 #endif
