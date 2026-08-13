@@ -106,7 +106,12 @@ int getBattery() {
 ** location: settings.cpp
 ** set brightness value
 **********************************************************************/
-void _setBrightness(uint8_t brightval) { tft->_outputDriver.setBrightness(brightval * 254 / 100); }
+void _setBrightness(uint8_t brightval) {
+    // The AMOLED has no backlight rail; brightness is a CO5300 register.
+    // outputDriver() is the panel behind the canvas — see DisplayDrivers.
+    auto *panel = static_cast<Arduino_CO5300 *>(tft->outputDriver());
+    if (panel) panel->setBrightness(brightval * 254 / 100);
+}
 
 struct LTouchPointPro {
     int16_t x;

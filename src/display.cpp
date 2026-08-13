@@ -14,80 +14,10 @@
 #include <globals.h>
 #include <vector>
 
-#if defined(HEADLESS)
-SerialDisplayClass *tft = new SerialDisplayClass();
-#elif defined(USE_EPD_PAINTER) || defined(USE_EPDIY) || defined(USE_TFT_ESPI) || defined(USE_LOVYANGFX) ||   \
-    defined(USE_GXEPD2) || defined(USE_M5GFX)
-Ard_eSPI *tft = new Ard_eSPI();
-#else
-#ifdef TFT_PARALLEL_8_BIT
-#ifdef TFT_PARALLEL_8_BIT_MIXED_GPIO
-Arduino_DataBus *bus = new Arduino_ESP32PAR8(
-    TFT_DC, TFT_CS, TFT_WR, TFT_RD, TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7
-);
-#else
-Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
-    TFT_DC, TFT_CS, TFT_WR, TFT_RD, TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7
-);
-#endif
-#elif RGB_PANEL // 16-par connections
-Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
-#if defined(DISPLAY_ST7262_PAR)
-    ST7262_PANEL_CONFIG_DE_GPIO_NUM /* DE */, ST7262_PANEL_CONFIG_VSYNC_GPIO_NUM /* VSYNC */,
-    ST7262_PANEL_CONFIG_HSYNC_GPIO_NUM /* HSYNC */, ST7262_PANEL_CONFIG_PCLK_GPIO_NUM /* PCLK */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_B0 /* R0 */, // for ST7262 panels (SUNTON boards) R and B are changed
-    ST7262_PANEL_CONFIG_DATA_GPIO_B1 /* R1 */, ST7262_PANEL_CONFIG_DATA_GPIO_B2 /* R2 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_B3 /* R3 */, ST7262_PANEL_CONFIG_DATA_GPIO_B4 /* R4 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_G0 /* G0 */, ST7262_PANEL_CONFIG_DATA_GPIO_G1 /* G1 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_G2 /* G2 */, ST7262_PANEL_CONFIG_DATA_GPIO_G3 /* G3 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_G4 /* G4 */, ST7262_PANEL_CONFIG_DATA_GPIO_G5 /* G5 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_R0 /* B0 */, ST7262_PANEL_CONFIG_DATA_GPIO_R1 /* B1 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_R2 /* B2 */, ST7262_PANEL_CONFIG_DATA_GPIO_R3 /* B3 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_R4 /* B4 */, 0 /* hsync_polarity */,
-    ST7262_PANEL_CONFIG_TIMINGS_HSYNC_FRONT_PORCH /* hsync_front_porch */,
-    ST7262_PANEL_CONFIG_TIMINGS_HSYNC_PULSE_WIDTH /* hsync_pulse_width */,
-    ST7262_PANEL_CONFIG_TIMINGS_HSYNC_BACK_PORCH /* hsync_back_porch */, 0 /* vsync_polarity */,
-    ST7262_PANEL_CONFIG_TIMINGS_VSYNC_FRONT_PORCH /* vsync_front_porch */,
-    ST7262_PANEL_CONFIG_TIMINGS_VSYNC_PULSE_WIDTH /* vsync_pulse_width */,
-    ST7262_PANEL_CONFIG_TIMINGS_VSYNC_BACK_PORCH /* vsync_back_porch */,
-    ST7262_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG /* pclk_active_neg */, 16000000 /* prefer_speed */
-#elif defined(DISPLAY_ST7701_PAR)
-    ST7701_PANEL_CONFIG_DE_GPIO_NUM /* DE */, ST7701_PANEL_CONFIG_VSYNC_GPIO_NUM /* VSYNC */,
-    ST7701_PANEL_CONFIG_HSYNC_GPIO_NUM /* HSYNC */, ST7701_PANEL_CONFIG_PCLK_GPIO_NUM /* PCLK */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_R0 /* R0 */, ST7701_PANEL_CONFIG_DATA_GPIO_R1 /* R1 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_R2 /* R2 */, ST7701_PANEL_CONFIG_DATA_GPIO_R3 /* R3 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_R4 /* R4 */, ST7701_PANEL_CONFIG_DATA_GPIO_G0 /* G0 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_G1 /* G1 */, ST7701_PANEL_CONFIG_DATA_GPIO_G2 /* G2 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_G3 /* G3 */, ST7701_PANEL_CONFIG_DATA_GPIO_G4 /* G4 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_G5 /* G5 */, ST7701_PANEL_CONFIG_DATA_GPIO_B0 /* B0 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_B1 /* B1 */, ST7701_PANEL_CONFIG_DATA_GPIO_B2 /* B2 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_B3 /* B3 */, ST7701_PANEL_CONFIG_DATA_GPIO_B4 /* B4 */,
-    1 /* hsync_polarity */, ST7701_PANEL_CONFIG_TIMINGS_HSYNC_FRONT_PORCH /* hsync_front_porch */,
-    ST7701_PANEL_CONFIG_TIMINGS_HSYNC_PULSE_WIDTH /* hsync_pulse_width */,
-    ST7701_PANEL_CONFIG_TIMINGS_HSYNC_BACK_PORCH /* hsync_back_porch */, 1 /* vsync_polarity */,
-    ST7701_PANEL_CONFIG_TIMINGS_VSYNC_FRONT_PORCH /* vsync_front_porch */,
-    ST7701_PANEL_CONFIG_TIMINGS_VSYNC_PULSE_WIDTH /* vsync_pulse_width */,
-    ST7701_PANEL_CONFIG_TIMINGS_VSYNC_BACK_PORCH /* vsync_back_porch */,
-    ST7701_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG /* pclk_active_neg */
-#endif
-);
-#elif defined(TFT_QSPI)
-Arduino_DataBus *bus = new Arduino_ESP32QSPI(TFT_CS, TFT_SCLK, TFT_D0, TFT_D1, TFT_D2, TFT_D3);
-#elif defined(TFT_DSI_PANEL)
-Arduino_ESP32DSIPanel *bus = new Arduino_ESP32DSIPanel(
-    TFT_HSYNC_PULSE_WIDTH /* hsync_pulse_width */, TFT_HSYNC_BACK_PORCH /* hsync_back_porch */,
-    TFT_HSYNC_FRONT_PORCH /* hsync_front_porch */, TFT_VSYNC_PULSE_WIDTH /* vsync_pulse_width */,
-    TFT_VSYNC_BACK_PORCH /*vsync_back_porch  */, TFT_VSYNC_FRONT_PORCH /* vsync_front_porch */,
-    TFT_PREF_SPEED /* prefer_speed */
-);
-#else // SPI Data Bus shared with SDCard and other SPIClass devices
-Arduino_DataBus *bus = new Arduino_HWSPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, TFT_MISO, &SPI);
-#endif
-Ard_eSPI *tft = new Ard_eSPI(
-    bus, TFT_RST, ROTATION, TFT_IPS, TFT_WIDTH, TFT_HEIGHT, TFT_COL_OFS1, TFT_ROW_OFS1, TFT_COL_OFS2,
-    TFT_ROW_OFS2
-);
-#endif
+// The panel, its data bus and every pin come from the TFT_* / USE_* build flags
+// in boards/<board>/platformio.ini — DisplayDrivers builds the whole chain from
+// them. See the library's README for the flag vocabulary.
+tft_display *tft = new tft_display();
 
 /***************************************************************************************
 ** Function name: displayScrollingText
@@ -114,7 +44,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
         String scrollingPart =
             displayText.substring(i, i + (coord.size - 1)); // Display charLimit characters at a time
         tft->fillRect(
-            coord.x, coord.y, (coord.size - 1) * LW * tft->getTextsize(), LH * tft->getTextsize(), BGCOLOR
+            coord.x, coord.y, (coord.size - 1) * LW * tft->getTextSize(), LH * tft->getTextSize(), BGCOLOR
         ); // Clear display area
         tft->setCursor(coord.x, coord.y);
         tft->setCursor(coord.x, coord.y);
@@ -125,6 +55,18 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
         if (i == 1) _lastmillis = launcherMillis() + 1000;
         tft->display(false);
     }
+}
+
+/***************************************************************************************
+** Function name: drawCharAt
+** Description:   one character in explicit colours, current text colours kept
+***************************************************************************************/
+void drawCharAt(int32_t x, int32_t y, char c, uint16_t fg, uint16_t bg) {
+    const uint16_t oldFg = tft->getTextColor();
+    const uint16_t oldBg = tft->getTextBgColor();
+    tft->setTextColor(fg, bg);
+    tft->drawString(String(c), x, y);
+    tft->setTextColor(oldFg, oldBg);
 }
 
 static inline void drawOptionsErase(const Opt_Coord &coord) {
@@ -349,8 +291,8 @@ void displayCurrentVersion(
 
     if (versions.size() > 1) {
         tft->setTextColor(ALCOLOR);
-        tft->drawChar2(10, tftHeight - (10 + FM * 9), '<', FGCOLOR, BGCOLOR);
-        tft->drawChar2(tftWidth - (10 + FM * 6), tftHeight - (10 + FM * 9), '>', FGCOLOR, BGCOLOR);
+        drawCharAt(10, tftHeight - (10 + FM * 9), '<', FGCOLOR, BGCOLOR);
+        drawCharAt(tftWidth - (10 + FM * 6), tftHeight - (10 + FM * 9), '>', FGCOLOR, BGCOLOR);
         tft->setTextColor(~BGCOLOR);
     }
 
@@ -378,11 +320,11 @@ void displayCurrentVersion(
 ***************************************************************************************/
 void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bool keepAwake) {
     // save tft settings before showing the stripe
-    int _size = tft->getTextsize();
+    int _size = tft->getTextSize();
     int _x = tft->getCursorX();
     int _y = tft->getCursorY();
-    uint16_t _color = tft->getTextcolor();
-    uint16_t _bgcolor = tft->getTextbgcolor();
+    uint16_t _color = tft->getTextColor();
+    uint16_t _bgcolor = tft->getTextBgColor();
     Serial.println(String("Display Red Stripe: ") + text);
     // A stripe is put up to be read, so it restarts the idle clock. Long stages —
     // an HTTP connect, an erase, a retry backoff — otherwise pass without a single
@@ -715,7 +657,7 @@ Opt_Coord drawOptions(
 
     int lineWidth = contentWidth - paddingSide * 2;
     if (lineWidth < 0) lineWidth = contentWidth;
-    int charWidth = LW * tft->getTextsize();
+    int charWidth = LW * tft->getTextSize();
     if (charWidth <= 0) charWidth = 1;
     int indicatorWidth = charWidth;
     if (indicatorWidth > lineWidth) indicatorWidth = lineWidth;
@@ -1179,7 +1121,8 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
                         15,
                         0,
                         360 * (launcherMillis() - (LongPressTmp + 200)) / 500,
-                        FGCOLOR - 0x1111
+                        FGCOLOR - 0x1111,
+                        BGCOLOR
                     );
                 if (launcherMillis() - LongPressTmp > 700) { // longpress detected to exit
                     LongPress = false;
@@ -1309,7 +1252,8 @@ void loopVersions(const String &_fid) {
                         15,
                         0,
                         360 * (launcherMillis() - (LongPressTmp + 200)) / 500,
-                        FGCOLOR - 0x1111
+                        FGCOLOR - 0x1111,
+                        BGCOLOR
                     );
                 if (launcherMillis() - LongPressTmp > 700) { // longpress detected to exit
                     returnToMenu = true;
@@ -1483,14 +1427,14 @@ RESTART:
 void tftprintln(const String &txt, int margin, int numlines) {
     String rem = txt; // working copy: consumed line by line below
     int size = rem.length();
-    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextsize() * 8);
-    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextSize() * 8);
+    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
     int x = tft->getCursorX();
     int start = 0;
     while (size > 0 && numlines > 0) {
         if (tft->getCursorX() < margin) tft->setCursor(margin, tft->getCursorY());
         nchars = (tftWidth - tft->getCursorX() - margin) /
-                 (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+                 (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
         tft->println(rem.substring(0, nchars));
         rem = rem.substring(nchars);
         size -= nchars;
@@ -1504,8 +1448,8 @@ void tftprintln(const String &txt, int margin, int numlines) {
 void tftprint(const String &txt, int margin, int numlines) {
     String rem = txt; // working copy: consumed line by line below
     int size = rem.length();
-    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextsize() * 8);
-    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextSize() * 8);
+    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
     int x = tft->getCursorX();
     int start = 0;
     bool prim = true;
@@ -1513,7 +1457,7 @@ void tftprint(const String &txt, int margin, int numlines) {
         if (!prim) { tft->println(); }
         if (tft->getCursorX() < margin) tft->setCursor(margin, tft->getCursorY());
         nchars = (tftWidth - tft->getCursorX() - margin) /
-                 (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+                 (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
         tft->print(rem.substring(0, nchars));
         rem = rem.substring(nchars);
         size -= nchars;

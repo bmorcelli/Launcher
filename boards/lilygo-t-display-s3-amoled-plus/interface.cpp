@@ -74,10 +74,10 @@ int getBattery() {
 ** set brightness value
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
-    extern Arduino_DataBus *bus;
-    bus->beginWrite();
-    bus->writeC8D8(0x51, (brightval * 255) / 100);
-    bus->endWrite();
+    // The AMOLED has no backlight rail; brightness is the RM67162's 0x51
+    // register, which the driver writes for us.
+    auto *panel = static_cast<Arduino_RM67162 *>(tft->outputDriver());
+    if (panel) panel->setBrightness((brightval * 255) / 100);
 }
 
 struct LTouchPointPro {

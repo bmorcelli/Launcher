@@ -41,6 +41,10 @@
     compile_sketch:
       name: Build ${{ matrix.board.env }}
       runs-on: ubuntu-latest
+      env:
+        PLATFORMIO_CORE_DIR: ${{ github.workspace }}/.pio/core
+        PIP_DEFAULT_TIMEOUT: "120"
+        PIP_DISABLE_PIP_VERSION_CHECK: "1"
       strategy:
         fail-fast: false
         matrix:
@@ -161,7 +165,8 @@
 
           - name: Install dependencies
             run: |
-              pip install requests esptool platformio
+              python -m pip install --upgrade pip
+              python -m pip install --retries 5 --timeout 120 requests esptool platformio
 
               if [[ "${{ github.ref_type }}" == "tag" ]]; then
                 version=${{ github.ref_name }}
@@ -204,7 +209,36 @@
 
           - name: Run Compile
             run: |
-              platformio run -e ${{ matrix.board.env }}
+              env_name="${{ matrix.board.env }}"
+              max_attempts=3
+
+              for attempt in $(seq 1 "$max_attempts"); do
+                log_file="$(mktemp)"
+                echo "PlatformIO build attempt ${attempt}/${max_attempts} for ${env_name}"
+
+                set +e
+                platformio run -e "$env_name" 2>&1 | tee "$log_file"
+                status=${PIPESTATUS[0]}
+                set -e
+
+                if [ "$status" -eq 0 ]; then
+                  exit 0
+                fi
+
+                if ! grep -Eiq "(unrecognized status code '5[0-9][0-9]'|RemoteDisconnected|ConnectionError|Connection aborted|Read timed out|ConnectTimeout|Temporary failure in name resolution|Please read https://bit.ly/package-manager-ioerror)" "$log_file"; then
+                  echo "Build failed with a non-transient error; not retrying."
+                  exit "$status"
+                fi
+
+                if [ "$attempt" -eq "$max_attempts" ]; then
+                  echo "Build failed after ${max_attempts} attempts."
+                  exit "$status"
+                fi
+
+                echo "Transient PlatformIO download/network error detected; clearing partial downloads and retrying."
+                rm -rf "$PLATFORMIO_CORE_DIR"/packages/_tmp "$PLATFORMIO_CORE_DIR"/.cache/tmp .pio/build/"$env_name"
+                sleep $((attempt * 30))
+              done
 
           - name: Upload Artifacts
             uses: actions/upload-artifact@v6

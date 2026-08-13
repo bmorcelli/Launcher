@@ -125,6 +125,11 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
+    // Driving this parallel EPD is bit-banged and timing sensitive, so the
+    // input task has to stay out of the way while the panel is being painted.
+    // A pointer, because xHandle is cleared at runtime when the task goes away.
+    tft->setPaintGuard(&xHandle);
+
     // CS pins of SPI devices to HIGH
     launcherGpioOutput(46); // LORA module
     launcherGpioWrite(46, HIGH);

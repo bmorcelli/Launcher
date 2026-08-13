@@ -27,9 +27,12 @@ def generate_build_flags(board_config):
     flags.append("-DHAS_TOUCH=1")
 
     # Verifica os drivers de video habilitados na board
+    # TFT_DATABUS_N / TFT_DISPLAY_DRIVER_N are DisplayDrivers' way of naming the
+    # data bus and the panel controller. See the library README for the tables.
     extra_flags = board_config.get("build", {}).get("extra_flags", [])
     if any("DISPLAY_ILI9341_SPI" in flag for flag in extra_flags):
-        flags.append("-DILI9341_DRIVER=1")
+        flags.append("-DTFT_DATABUS_N=0")        # Arduino_HWSPI
+        flags.append("-DTFT_DISPLAY_DRIVER_N=4") # Arduino_ILI9341
         flags.append("-DTFT_MISO=ILI9341_SPI_BUS_MISO_IO_NUM")
         flags.append("-DTFT_MOSI=ILI9341_SPI_BUS_MOSI_IO_NUM")
         flags.append("-DTFT_SCLK=ILI9341_SPI_BUS_SCLK_IO_NUM")
@@ -47,7 +50,8 @@ def generate_build_flags(board_config):
         flags.append("-DROTATION=0")
 
     elif any("DISPLAY_ST7796_SPI" in flag for flag in extra_flags):
-        flags.append("-DST7796_DRIVER=1")
+        flags.append("-DTFT_DATABUS_N=0")        # Arduino_HWSPI
+        flags.append("-DTFT_DISPLAY_DRIVER_N=2") # Arduino_ST7796
         flags.append("-DTFT_MISO=ST7796_SPI_BUS_MISO_IO_NUM")
         flags.append("-DTFT_MOSI=ST7796_SPI_BUS_MOSI_IO_NUM")
         flags.append("-DTFT_SCLK=ST7796_SPI_BUS_SCLK_IO_NUM")
@@ -65,7 +69,8 @@ def generate_build_flags(board_config):
         flags.append("-DROTATION=0")
 
     elif any("DISPLAY_ST7789_SPI" in flag for flag in extra_flags):
-        flags.append("-DST7789_DRIVER=1")
+        flags.append("-DTFT_DATABUS_N=0")        # Arduino_HWSPI
+        flags.append("-DTFT_DISPLAY_DRIVER_N=1") # Arduino_ST7789
         flags.append("-DTFT_MISO=ST7789_SPI_BUS_MISO_IO_NUM")
         flags.append("-DTFT_MOSI=ST7789_SPI_BUS_MOSI_IO_NUM")
         flags.append("-DTFT_SCLK=ST7789_SPI_BUS_SCLK_IO_NUM")
@@ -83,8 +88,8 @@ def generate_build_flags(board_config):
         flags.append("-DROTATION=0")
 
     elif any("DISPLAY_AXS15231B_QSPI" in flag for flag in extra_flags):
-        flags.append("-DAXS15231B_QSPI=1")
-        flags.append("-DTFT_QSPI=1")
+        flags.append("-DTFT_DATABUS_N=1")         # Arduino_ESP32QSPI
+        flags.append("-DTFT_DISPLAY_DRIVER_N=22") # Arduino_AXS15231B
         flags.append("-DTFT_MISO=-1")
         flags.append("-DTFT_MOSI=-1")
         flags.append("-DTFT_D0=AXS15231B_SPI_BUS_DATA0")
@@ -107,10 +112,11 @@ def generate_build_flags(board_config):
 
 
     elif any("DISPLAY_ST7789_I80" in flag for flag in extra_flags):
-        flags.append("-DST7789_DRIVER=1")
+        # D0-D7 are spread over both GPIO banks here, so it is the generic
+        # 8-bit writer (bus 5) and not the faster same-bank PAR8Q (bus 2).
+        flags.append("-DTFT_DATABUS_N=5")        # Arduino_ESP32PAR8
+        flags.append("-DTFT_DISPLAY_DRIVER_N=1") # Arduino_ST7789
         flags.append("-DTFT_INVERSION_OFF")
-        flags.append("-DTFT_PARALLEL_8_BIT")
-        flags.append("-DTFT_PARALLEL_8_BIT_MIXED_GPIO")
         flags.append("-DTFT_WIDTH=DISPLAY_WIDTH")
         flags.append("-DTFT_HEIGHT=DISPLAY_HEIGHT")
         flags.append("-DTFT_CS=ST7789_IO_I80_CONFIG_CS_GPIO_NUM")
@@ -138,14 +144,77 @@ def generate_build_flags(board_config):
         flags.append("-DROTATION=0")
 
     elif any("DISPLAY_ST7262_PAR" in flag for flag in extra_flags):
-        flags.append("-DRGB_PANEL=1")
+        flags.append("-DTFT_DATABUS_N=3")         # Arduino_ESP32RGBPanel
+        flags.append("-DTFT_DISPLAY_DRIVER_N=49") # Arduino_RGB_Display
+        flags.append("-DTFT_DE=ST7262_PANEL_CONFIG_DE_GPIO_NUM")
+        flags.append("-DTFT_VSYNC=ST7262_PANEL_CONFIG_VSYNC_GPIO_NUM")
+        flags.append("-DTFT_HSYNC=ST7262_PANEL_CONFIG_HSYNC_GPIO_NUM")
+        flags.append("-DTFT_PCLK=ST7262_PANEL_CONFIG_PCLK_GPIO_NUM")
+        # This panel wires R and B the other way round.
+        flags.append("-DTFT_R0=ST7262_PANEL_CONFIG_DATA_GPIO_B0")
+        flags.append("-DTFT_R1=ST7262_PANEL_CONFIG_DATA_GPIO_B1")
+        flags.append("-DTFT_R2=ST7262_PANEL_CONFIG_DATA_GPIO_B2")
+        flags.append("-DTFT_R3=ST7262_PANEL_CONFIG_DATA_GPIO_B3")
+        flags.append("-DTFT_R4=ST7262_PANEL_CONFIG_DATA_GPIO_B4")
+        flags.append("-DTFT_G0=ST7262_PANEL_CONFIG_DATA_GPIO_G0")
+        flags.append("-DTFT_G1=ST7262_PANEL_CONFIG_DATA_GPIO_G1")
+        flags.append("-DTFT_G2=ST7262_PANEL_CONFIG_DATA_GPIO_G2")
+        flags.append("-DTFT_G3=ST7262_PANEL_CONFIG_DATA_GPIO_G3")
+        flags.append("-DTFT_G4=ST7262_PANEL_CONFIG_DATA_GPIO_G4")
+        flags.append("-DTFT_G5=ST7262_PANEL_CONFIG_DATA_GPIO_G5")
+        flags.append("-DTFT_B0=ST7262_PANEL_CONFIG_DATA_GPIO_R0")
+        flags.append("-DTFT_B1=ST7262_PANEL_CONFIG_DATA_GPIO_R1")
+        flags.append("-DTFT_B2=ST7262_PANEL_CONFIG_DATA_GPIO_R2")
+        flags.append("-DTFT_B3=ST7262_PANEL_CONFIG_DATA_GPIO_R3")
+        flags.append("-DTFT_B4=ST7262_PANEL_CONFIG_DATA_GPIO_R4")
+        flags.append("-DTFT_HSYNC_POL=0")
+        flags.append("-DTFT_VSYNC_POL=0")
+        flags.append("-DTFT_HSYNC_FRONT_PORCH=ST7262_PANEL_CONFIG_TIMINGS_HSYNC_FRONT_PORCH")
+        flags.append("-DTFT_HSYNC_PULSE_WIDTH=ST7262_PANEL_CONFIG_TIMINGS_HSYNC_PULSE_WIDTH")
+        flags.append("-DTFT_HSYNC_BACK_PORCH=ST7262_PANEL_CONFIG_TIMINGS_HSYNC_BACK_PORCH")
+        flags.append("-DTFT_VSYNC_FRONT_PORCH=ST7262_PANEL_CONFIG_TIMINGS_VSYNC_FRONT_PORCH")
+        flags.append("-DTFT_VSYNC_PULSE_WIDTH=ST7262_PANEL_CONFIG_TIMINGS_VSYNC_PULSE_WIDTH")
+        flags.append("-DTFT_VSYNC_BACK_PORCH=ST7262_PANEL_CONFIG_TIMINGS_VSYNC_BACK_PORCH")
+        flags.append("-DTFT_PCLK_ACTIVE_NEG=ST7262_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG")
+        flags.append("-DTFT_PREF_SPEED=16000000")
         flags.append("-DTFT_BL=GPIO_BCKL")
         flags.append("-DTFT_WIDTH=DISPLAY_WIDTH")
         flags.append("-DTFT_HEIGHT=DISPLAY_HEIGHT")
         flags.append("-DROTATION=0")
 
     elif any("DISPLAY_ST7701_PAR" in flag for flag in extra_flags):
-        flags.append("-DRGB_PANEL=1")
+        flags.append("-DTFT_DATABUS_N=3")         # Arduino_ESP32RGBPanel
+        flags.append("-DTFT_DISPLAY_DRIVER_N=49") # Arduino_RGB_Display
+        flags.append("-DTFT_DE=ST7701_PANEL_CONFIG_DE_GPIO_NUM")
+        flags.append("-DTFT_VSYNC=ST7701_PANEL_CONFIG_VSYNC_GPIO_NUM")
+        flags.append("-DTFT_HSYNC=ST7701_PANEL_CONFIG_HSYNC_GPIO_NUM")
+        flags.append("-DTFT_PCLK=ST7701_PANEL_CONFIG_PCLK_GPIO_NUM")
+        flags.append("-DTFT_R0=ST7701_PANEL_CONFIG_DATA_GPIO_R0")
+        flags.append("-DTFT_R1=ST7701_PANEL_CONFIG_DATA_GPIO_R1")
+        flags.append("-DTFT_R2=ST7701_PANEL_CONFIG_DATA_GPIO_R2")
+        flags.append("-DTFT_R3=ST7701_PANEL_CONFIG_DATA_GPIO_R3")
+        flags.append("-DTFT_R4=ST7701_PANEL_CONFIG_DATA_GPIO_R4")
+        flags.append("-DTFT_G0=ST7701_PANEL_CONFIG_DATA_GPIO_G0")
+        flags.append("-DTFT_G1=ST7701_PANEL_CONFIG_DATA_GPIO_G1")
+        flags.append("-DTFT_G2=ST7701_PANEL_CONFIG_DATA_GPIO_G2")
+        flags.append("-DTFT_G3=ST7701_PANEL_CONFIG_DATA_GPIO_G3")
+        flags.append("-DTFT_G4=ST7701_PANEL_CONFIG_DATA_GPIO_G4")
+        flags.append("-DTFT_G5=ST7701_PANEL_CONFIG_DATA_GPIO_G5")
+        flags.append("-DTFT_B0=ST7701_PANEL_CONFIG_DATA_GPIO_B0")
+        flags.append("-DTFT_B1=ST7701_PANEL_CONFIG_DATA_GPIO_B1")
+        flags.append("-DTFT_B2=ST7701_PANEL_CONFIG_DATA_GPIO_B2")
+        flags.append("-DTFT_B3=ST7701_PANEL_CONFIG_DATA_GPIO_B3")
+        flags.append("-DTFT_B4=ST7701_PANEL_CONFIG_DATA_GPIO_B4")
+        flags.append("-DTFT_HSYNC_POL=1")
+        flags.append("-DTFT_VSYNC_POL=1")
+        flags.append("-DTFT_HSYNC_FRONT_PORCH=ST7701_PANEL_CONFIG_TIMINGS_HSYNC_FRONT_PORCH")
+        flags.append("-DTFT_HSYNC_PULSE_WIDTH=ST7701_PANEL_CONFIG_TIMINGS_HSYNC_PULSE_WIDTH")
+        flags.append("-DTFT_HSYNC_BACK_PORCH=ST7701_PANEL_CONFIG_TIMINGS_HSYNC_BACK_PORCH")
+        flags.append("-DTFT_VSYNC_FRONT_PORCH=ST7701_PANEL_CONFIG_TIMINGS_VSYNC_FRONT_PORCH")
+        flags.append("-DTFT_VSYNC_PULSE_WIDTH=ST7701_PANEL_CONFIG_TIMINGS_VSYNC_PULSE_WIDTH")
+        flags.append("-DTFT_VSYNC_BACK_PORCH=ST7701_PANEL_CONFIG_TIMINGS_VSYNC_BACK_PORCH")
+        flags.append("-DTFT_PCLK_ACTIVE_NEG=ST7701_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG")
+        flags.append("-DTFT_PREF_SPEED=GFX_NOT_DEFINED")
         flags.append("-DTFT_BL=GPIO_BCKL")
         flags.append("-DTFT_WIDTH=DISPLAY_WIDTH")
         flags.append("-DTFT_HEIGHT=DISPLAY_HEIGHT")
@@ -153,7 +222,8 @@ def generate_build_flags(board_config):
 
 
     else:
-        flags.append("-DILI9341_DRIVER=1")
+        flags.append("-DTFT_DATABUS_N=0")        # Arduino_HWSPI
+        flags.append("-DTFT_DISPLAY_DRIVER_N=4") # Arduino_ILI9341
         flags.append("-DTFT_MISO=12")
         flags.append("-DTFT_MOSI=13")
         flags.append("-DTFT_SCLK=14")

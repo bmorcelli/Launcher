@@ -1167,7 +1167,7 @@ bool attachPartition(const String &_from, String _to) {
         target.seek(offset);
         while (target.position() < target.size()) {
             int angle = (360 * (target.position() - offset)) / (target.size() - offset);
-            tft->drawArc(tftWidth / 2, tftHeight / 2, 50, 45, 0, angle, FGCOLOR);
+            tft->drawArc(tftWidth / 2, tftHeight / 2, 50, 45, 0, angle, FGCOLOR, BGCOLOR);
             target.write(0xFF);
         }
     } else if (target.size() < offset) {
@@ -1179,7 +1179,7 @@ bool attachPartition(const String &_from, String _to) {
         memset(buf, 0xFF, chunk);
         while (fillLen > 0) {
             int angle = (360 * (offset - fillLen)) / offset;
-            tft->drawArc(tftWidth / 2, tftHeight / 2, 40, 35, 0, angle, FGCOLOR);
+            tft->drawArc(tftWidth / 2, tftHeight / 2, 40, 35, 0, angle, FGCOLOR, BGCOLOR);
             size_t w = min(chunk, fillLen);
             target.write(buf, w);
             fillLen -= w;
@@ -1197,7 +1197,7 @@ bool attachPartition(const String &_from, String _to) {
     target.seek(offset);
     while (true) {
         int angle = (360 * (target.position() - offset)) / from.size();
-        tft->drawArc(tftWidth / 2, tftHeight / 2, 35, 30, 0, angle, ALCOLOR);
+        tft->drawArc(tftWidth / 2, tftHeight / 2, 35, 30, 0, angle, ALCOLOR, BGCOLOR);
         size_t bytesRead = from.read(buff, sizeof(buff));
         if (!bytesRead) break;
         target.write(buff, bytesRead);

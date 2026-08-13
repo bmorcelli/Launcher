@@ -698,10 +698,10 @@ void _setBrightness(uint8_t brightval) {
         analogWrite(TFT_BL, value);
     }
 #else
-    extern Arduino_ESP32DSIPanel *bus;
-    if (bus == nullptr) return;
+    Arduino_ESP32DSIPanel *dsi = tft->dataBus();
+    if (dsi == nullptr) return;
     const uint8_t level = (uint8_t)((brightval * 255) / 100);
-    bus->writeCommand(0x51, &level, 1);
+    dsi->writeCommand(0x51, &level, 1);
 #endif
     if (kbReady) { analogWrite(KB_BL_PIN, (brightval * 255) / 100); }
 }

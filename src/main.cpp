@@ -1,10 +1,6 @@
 #include <globals.h>
 
-#if defined(HEADLESS)
-#include <VectorDisplay.h>
-#else
-#include <tft.h>
-#endif
+#include "display.h"
 #include "esp_ota_ops.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
@@ -140,7 +136,6 @@ JsonDocument settings;
 std::vector<Option> options;
 
 #include "app_registry.h"
-#include "display.h"
 #include "massStorage.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"

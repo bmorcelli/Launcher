@@ -87,6 +87,11 @@
     #define OTA_TAG "third party"
 #endif
 
+#ifndef DEVICE_NAME
+    #define DEVICE_NAME "Unknown device"
+    #warning "You probably forgot to name your device on boards/<env>/platformio.ini"
+#endif
+
 #ifndef ROUND_EDGE_SIZE
     #define ROUND_EDGE_SIZE 0
 #endif

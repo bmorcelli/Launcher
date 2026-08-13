@@ -533,7 +533,7 @@ String generalKeyboard(
 
                     // Print the letters
                     if (!caps)
-                        tft->drawChar2(
+                        drawCharAt(
                             key_x + text_offset_x,
                             key_y + 2 + text_offset_y,
                             keys[i][j][0],
@@ -541,7 +541,7 @@ String generalKeyboard(
                             x == j && y == i ? ~BGCOLOR : BGCOLOR
                         );
                     else
-                        tft->drawChar2(
+                        drawCharAt(
                             key_x + text_offset_x,
                             key_y + 2 + text_offset_y,
                             keys[i][j][1],
@@ -870,7 +870,7 @@ String generalKeyboard(
                     break;
                 }
                 resetGlobals();
-                int _of = tft->getTextsize();
+                int _of = tft->getTextSize();
                 tft->setTextSize(FP);
                 String chars_counter = String(current_text.length()) + "/" + String(max_size);
                 tft->drawString(

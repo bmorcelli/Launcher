@@ -192,7 +192,9 @@ bool pasteFile(const String &path) {
         } else {
             prog += bytesRead;
             float rad = (tot > 0) ? (360.0f * prog / tot) : 0.0f;
-            tft->drawArc(tftWidth / 2, tftHeight / 2, tftHeight / 4, tftHeight / 5, 0, int(rad), ALCOLOR);
+            tft->drawArc(
+                tftWidth / 2, tftHeight / 2, tftHeight / 4, tftHeight / 5, 0, int(rad), ALCOLOR, BGCOLOR
+            );
             // tft->fillRect(7,tftHeight-10, (tftWidth-14)*prog/tot, 5, FGCOLOR);
         }
     }
