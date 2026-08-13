@@ -13,15 +13,42 @@
 #define SEL_BTN 35
 IoExpanderXL9555 io;
 GaugeBQ27220 gauge;
-// The TFT build carries an HI8561 (touch integrated with the display driver,
-// reports native panel coordinates); the AMOLED build carries a GT9895 (separate
-// controller with its own 1060x2400 grid). Both derive from TouchDrvInterface,
-// so only the construction and configuration differ - the read path is shared.
-#if defined(TOUCH_GT9895)
-TouchDrvGT9895 touch;
-#else
-TouchDrvHI8561 touch;
-#endif
+// ---------------------------------------------------------------------------
+// Panel variant
+//
+// The T-Display P4 ships with two different screens behind the same case, and
+// one binary drives both. They differ in three things and nothing else:
+//
+//                 IPS (540x1168)          AMOLED (568x1232)
+//   panel         hi8561                  rm69a10
+//   touch         HI8561 @ 0x68           GT9895 @ 0x5D, 1060x2400 grid
+//   brightness    backlight PWM on 51     panel register 0x51 over DSI
+//
+// The panel is a runtime choice now (see displayConfig.initOps), so all three
+// follow from one probe at boot. The touch controller is what we probe: the
+// GT9895 is a separate chip and answers on I2C as soon as the 3V3 rail is up,
+// while the HI8561 shares silicon with the display driver and stays quiet
+// until the panel is initialized. So an ACK at 0x5D means AMOLED; anything
+// else means IPS, which is also the safe default because its numbers are the
+// ones the build flags seeded.
+// ---------------------------------------------------------------------------
+enum P4Panel : uint8_t { P4_PANEL_IPS = 0, P4_PANEL_AMOLED = 1 };
+static P4Panel p4Panel = P4_PANEL_IPS;
+
+// Backlight GPIO of the IPS variant. Not a build flag: on the AMOLED unit this
+// pin drives nothing, and brightness goes to the panel instead.
+#define P4_IPS_BL_PIN 51
+
+// GT9895 digitizer grid, bigger than the panel it sits on.
+#define P4_GT9895_RAW_WIDTH 1060
+#define P4_GT9895_RAW_HEIGHT 2400
+
+// Both controllers are constructed; only the one the probe picked is begun.
+// Everything the launcher calls on them is virtual on TouchDrvInterface, so
+// the read path below never has to know which it got.
+static TouchDrvGT9895 touchGt9895;
+static TouchDrvHI8561 touchHi8561;
+static TouchDrvInterface *touch = &touchHi8561;
 static bool touchOk = false;
 static bool ioOk = false;
 static bool gaugeOk = false;
@@ -562,6 +589,41 @@ static void _powerSdCardIoLdo() {
         Serial.println("SD card IO LDO: failed to set 3.3V");
     }
 }
+static bool _i2cAcks(uint8_t addr) {
+    Wire.beginTransmission(addr);
+    return Wire.endTransmission() == 0;
+}
+
+// Decide which screen this unit has, and point displayConfig at it. Runs from
+// _setup_gpio(), which main.cpp calls before tft->begin() -- the window where
+// the struct is still writable and nothing has been built from it yet.
+//
+// Only the AMOLED case writes anything: the build flags already seeded the IPS
+// panel, so an undetected board comes up as the more common variant rather
+// than as nothing at all.
+static void _detect_panel() {
+    p4Panel = _i2cAcks(GT9895_SLAVE_ADDRESS_L) ? P4_PANEL_AMOLED : P4_PANEL_IPS;
+
+    if (p4Panel == P4_PANEL_AMOLED) {
+        TFT_SET_DSI_INIT(rm69a10_amoled_init_operations);
+        displayConfig.width = 568;
+        displayConfig.height = 1232;
+        displayConfig.hsyncPulseWidth = 50;
+        displayConfig.hsyncBackPorch = 150;
+        displayConfig.hsyncFrontPorch = 50;
+        displayConfig.vsyncPulseWidth = 40;
+        displayConfig.vsyncBackPorch = 120;
+        displayConfig.vsyncFrontPorch = 80;
+    }
+
+    launcherConsolePrintf(
+        "Panel: %s (%dx%d)\n",
+        p4Panel == P4_PANEL_AMOLED ? "rm69a10 AMOLED" : "hi8561 IPS",
+        displayConfig.width,
+        displayConfig.height
+    );
+}
+
 // extern "C" void launcherWifiResetSdioCoprocessor() {
 //     if (!ioOk) return;
 //     io.digitalWrite(XL_ESP32C6_EN, LOW);
@@ -603,6 +665,10 @@ void _setup_gpio() {
             (port >> XL_TOUCH_RST) & 1
         );
     }
+    launcherDelayMs(50); // time to start Touch driver
+    // After _config_xl9535(): the probe needs the 3V3 rail up and the touch
+    // controller out of reset, and it has to happen before tft->begin().
+    _detect_panel();
 
     // BQ27220 fuel gauge, same I2C bus as the expander.
     gaugeOk = gauge.begin(Wire, IIC_1_SDA, IIC_1_SCL);
@@ -643,35 +709,41 @@ void _post_setup_gpio() {
     // controller shares silicon with the display driver and does not answer on
     // I2C until the display side is initialized. main.cpp calls tft->begin()
     // before _post_setup_gpio(), which is exactly the window we need.
-    touch.setGpioCallback(_touchPinMode, _touchDigitalWrite, _touchDigitalRead);
+    // Which controller this is was settled back in _setup_gpio(), by the same
+    // probe that chose the panel -- they come as a pair.
+    touch = (p4Panel == P4_PANEL_AMOLED) ? static_cast<TouchDrvInterface *>(&touchGt9895)
+                                         : static_cast<TouchDrvInterface *>(&touchHi8561);
+    touch->setGpioCallback(_touchPinMode, _touchDigitalWrite, _touchDigitalRead);
 
-#if defined(TOUCH_GT9895)
-    // The GT9895 needs no reset line driven by us: the reference driver builds
-    // it with rst = -1 and relies on the XL9535 sequence that already pulses
-    // kTouchRst in _config_xl9535(). Only the interrupt is wired up here.
-    touch.setPins(-1, EXP_PIN(XL_TOUCH_INT));
-    touchOk = touch.begin(Wire, GT9895_SLAVE_ADDRESS_L, IIC_1_SDA, IIC_1_SCL);
-#else
-    touch.setPins(EXP_PIN(XL_TOUCH_RST), EXP_PIN(XL_TOUCH_INT));
-    touchOk = touch.begin(Wire, HI8561_SLAVE_ADDRESS, IIC_1_SDA, IIC_1_SCL);
-#endif
+    if (p4Panel == P4_PANEL_AMOLED) {
+        // The GT9895 needs no reset line driven by us: the reference driver
+        // builds it with rst = -1 and relies on the XL9535 sequence that
+        // already pulses kTouchRst in _config_xl9535(). Only the interrupt is
+        // wired up here.
+        touch->setPins(-1, EXP_PIN(XL_TOUCH_INT));
+        touchOk = touch->begin(Wire, GT9895_SLAVE_ADDRESS_L, IIC_1_SDA, IIC_1_SCL);
+    } else {
+        touch->setPins(EXP_PIN(XL_TOUCH_RST), EXP_PIN(XL_TOUCH_INT));
+        touchOk = touch->begin(Wire, HI8561_SLAVE_ADDRESS, IIC_1_SDA, IIC_1_SCL);
+    }
     if (!touchOk) {
         Serial.println("Touch controller not found");
         return;
     }
 
-#if defined(TOUCH_GT9895)
-    // The GT9895 digitizer grid is bigger than the panel, so the raw readings
-    // have to be scaled instead of just clamped. Declaring the raw size first
-    // lets setTargetResolution() work out the factors (the vendor driver hands
-    // the same ratio to Gt9895 as kXScaleFactor / kYScaleFactor).
-    touch.setResolution(TOUCH_RAW_WIDTH, TOUCH_RAW_HEIGHT);
-    touch.setTargetResolution(TFT_WIDTH, TFT_HEIGHT);
-#else
-    // HI8561 already reports in panel coordinates - this only sets the clamp.
-    touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-#endif
-    launcherConsolePrintf("Touch started: %s (chip ID 0x%X)\n", touch.getModelName(), touch.getChipID());
+    if (p4Panel == P4_PANEL_AMOLED) {
+        // The GT9895 digitizer grid is bigger than the panel, so the raw
+        // readings have to be scaled instead of just clamped. Declaring the raw
+        // size first lets setTargetResolution() work out the factors (the
+        // vendor driver hands the same ratio to Gt9895 as kXScaleFactor /
+        // kYScaleFactor).
+        touch->setResolution(P4_GT9895_RAW_WIDTH, P4_GT9895_RAW_HEIGHT);
+        touch->setTargetResolution(displayConfig.width, displayConfig.height);
+    } else {
+        // HI8561 already reports in panel coordinates - this only sets the clamp.
+        touch->setMaxCoordinates(displayConfig.width, displayConfig.height);
+    }
+    launcherConsolePrintf("Touch started: %s (chip ID 0x%X)\n", touch->getModelName(), touch->getChipID());
 
     if (gaugeOk && gauge.refresh()) {
         launcherConsolePrintf(
@@ -687,22 +759,25 @@ void _post_setup_gpio() {
 
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
-#if defined(TFT_BL)
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
+    if (p4Panel == P4_PANEL_IPS) {
+        if (brightval == 0) {
+            analogWrite(P4_IPS_BL_PIN, brightval);
+        } else {
+            const uint8_t PWM_MIN = 85;
+            const uint8_t PWM_MAX = 255;
+            float linear = (float)brightval / 100.0;
+            uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
+            analogWrite(P4_IPS_BL_PIN, value);
+        }
     } else {
-        const uint8_t PWM_MIN = 85;
-        const uint8_t PWM_MAX = 255;
-        float linear = (float)brightval / 100.0;
-        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-        analogWrite(TFT_BL, value);
+        // No backlight rail on the AMOLED: brightness is the panel's own 0x51
+        // register, written over the DSI link.
+        Arduino_ESP32DSIPanel *dsi = tft->dataBus();
+        if (dsi) {
+            const uint8_t level = (uint8_t)((brightval * 255) / 100);
+            dsi->writeCommand(0x51, &level, 1);
+        }
     }
-#else
-    Arduino_ESP32DSIPanel *dsi = tft->dataBus();
-    if (dsi == nullptr) return;
-    const uint8_t level = (uint8_t)((brightval * 255) / 100);
-    dsi->writeCommand(0x51, &level, 1);
-#endif
     if (kbReady) { analogWrite(KB_BL_PIN, (brightval * 255) / 100); }
 }
 
@@ -721,7 +796,7 @@ void InputHandler(void) {
     if (launcherMillis() - lastRead <= 200 && !LongPress) return;
     lastRead = launcherMillis();
 
-    const TouchPoints &points = touch.getTouchPoints();
+    const TouchPoints &points = touch->getTouchPoints();
     if (!points.hasPoints()) {
         touchPoint.pressed = false;
         return;
@@ -732,20 +807,25 @@ void InputHandler(void) {
     if (wakeUpScreen()) return;
     AnyKeyPress = true;
 
-    const uint16_t nx = p.x; // native, 0..TFT_WIDTH-1
-    const uint16_t ny = p.y; // native, 0..TFT_HEIGHT-1
+    // Native panel size, not the TFT_* macros: those describe the IPS variant
+    // only, and this binary also runs on the taller AMOLED one.
+    const uint16_t panelW = displayConfig.width;
+    const uint16_t panelH = displayConfig.height;
+
+    const uint16_t nx = p.x; // native, 0..panelW-1
+    const uint16_t ny = p.y; // native, 0..panelH-1
     uint16_t sx, sy;
     switch (rotation) {
         case 1:
             sx = ny;
-            sy = (TFT_WIDTH - 1) - nx;
+            sy = (panelW - 1) - nx;
             break;
         case 2:
-            sx = (TFT_WIDTH - 1) - nx;
-            sy = (TFT_HEIGHT - 1) - ny;
+            sx = (panelW - 1) - nx;
+            sy = (panelH - 1) - ny;
             break;
         case 3:
-            sx = (TFT_HEIGHT - 1) - ny;
+            sx = (panelH - 1) - ny;
             sy = nx;
             break;
         default: // rotation 0 - native orientation, confirmed working on hardware
@@ -808,9 +888,7 @@ int getBattery() { return gaugePercent; }
 static void _peripherals_power_down() {
     SD_MMC.end();
     if (kbReady) analogWrite(KB_BL_PIN, 0);
-#if defined(TFT_BL)
-    analogWrite(TFT_BL, 0);
-#endif
+    if (p4Panel == P4_PANEL_IPS) analogWrite(P4_IPS_BL_PIN, 0);
     if (!ioOk) return;
     // io.digitalWrite(XL_SCREEN_RST, LOW);
     io.digitalWrite(XL_TOUCH_RST, LOW);
@@ -826,11 +904,11 @@ static void _peripherals_power_down() {
 
 void powerOff() {
     _setBrightness(0);
-#if defined(TFT_BL)
-    ledcDetach(TFT_BL);
-    pinMode(TFT_BL, OUTPUT);
-    digitalWrite(TFT_BL, LOW);
-#endif
+    if (p4Panel == P4_PANEL_IPS) {
+        ledcDetach(P4_IPS_BL_PIN);
+        pinMode(P4_IPS_BL_PIN, OUTPUT);
+        digitalWrite(P4_IPS_BL_PIN, LOW);
+    }
     _peripherals_power_down();
 
     delay(200);
