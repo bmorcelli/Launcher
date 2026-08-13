@@ -44,12 +44,13 @@ uint16_t BGCOLOR = BLACK;
 #endif
 uint16_t odd_color = 0x30c5;
 uint16_t even_color = 0x32e5;
-
 int8_t _miso = SDCARD_MISO;
 int8_t _mosi = SDCARD_MOSI;
 int8_t _sck = SDCARD_SCK;
 int8_t _cs = SDCARD_CS;
-
+uint8_t _fp = FP;
+uint8_t _fm = FM;
+uint8_t _fg = FG;
 // Navigation Variables
 long LongPressTmp = 0;
 volatile bool LongPress = false;
@@ -64,7 +65,7 @@ LTouchPoint touchPoint;
 keyStroke KeyStroke;
 
 #if defined(HAS_TOUCH)
-volatile uint16_t tftHeight = TFT_WIDTH - (FM * LH + 4);
+volatile uint16_t tftHeight = TFT_WIDTH - (_fm * LH + 4);
 #else
 volatile uint16_t tftHeight = TFT_WIDTH;
 #endif
@@ -237,14 +238,14 @@ void setup() {
     tft->setTextColor(FGCOLOR, BGCOLOR);
     if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
-        tftHeight = TFT_WIDTH - (FM * LH + 4);
+        tftHeight = TFT_WIDTH - (_fm * LH + 4);
 #else
         tftHeight = TFT_WIDTH;
 #endif
         tftWidth = TFT_HEIGHT;
     } else {
 #if defined(HAS_TOUCH)
-        tftHeight = TFT_HEIGHT - (FM * LH + 4);
+        tftHeight = TFT_HEIGHT - (_fm * LH + 4);
 #else
         tftHeight = TFT_HEIGHT;
 #endif

@@ -242,4 +242,13 @@ extern int8_t _mosi;
 extern int8_t _sck;
 extern int8_t _cs;
 
+// Small font Size (Fonte Pequena)
+extern uint8_t _fp;
+
+// Medium font Size (Fonte Media)
+extern uint8_t _fm;
+
+// Large font Size (Fonte Grande)
+extern uint8_t _fg;
+
 #endif

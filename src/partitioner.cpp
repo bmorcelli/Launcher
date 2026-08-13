@@ -135,7 +135,7 @@ void drawRangeSlider(
     int moveStart
 ) {
     tft->fillScreen(BGCOLOR);
-    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, _fp, BGCOLOR, BGCOLOR);
     tftprintln(title, 8);
     tftprintln(String(moveStart >= 0 ? (moveStart ? "Moving: Start" : "Moving: End") : "Moving: ----"), 8);
     tftprintln(String("Range: ") + hex32(start) + " - " + hex32(end), 8);
@@ -162,7 +162,7 @@ void drawRangeSlider(
 
     // Spread the three hints into left/centre/right columns so they
     // line up cleanly across the width (matches the touch footer layout).
-    const int hintY = tftHeight - (LH * FP + 8);
+    const int hintY = tftHeight - (LH * _fp + 8);
     tft->drawString("[Prev/Next move]", 8, hintY);
     tft->drawCentreString("[Sel ok]", tftWidth / 2, hintY, 1);
     tft->drawRightString("[Esc cancel]", tftWidth - 8, hintY, 1);
@@ -327,7 +327,7 @@ void waitForSelectRelease() {
 
 void showPartitionDetails(const LauncherPartitionEntry &entry) {
     tft->fillScreen(BGCOLOR);
-    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, _fp, BGCOLOR, BGCOLOR);
     tftprintln("Partition", 8);
     tftprintln(String("Label: ") + entry.label, 8);
     tftprintln(String("Type: ") + partitionTypeName(entry), 8);
@@ -354,7 +354,7 @@ void showPartitionDetails(const LauncherPartitionEntry &entry) {
 
 void showFreeRangeDetails(const LauncherPartitionRange &range) {
     tft->fillScreen(BGCOLOR);
-    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, _fp, BGCOLOR, BGCOLOR);
     tftprintln("Free Range", 8);
     tftprintln(String("Offset: ") + hex32(range.offset), 8);
     tftprintln(String("Size: ") + hex32(range.size) + " (" + sizeText(range.size) + ")", 8);

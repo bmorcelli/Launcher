@@ -14,7 +14,7 @@
 #undef HAS_1_BUTTON    // make sure it is 1 when defined
 #define HAS_1_BUTTON 1 // make sure it is 1 when defined
 #endif
-int max_FM_size = (tftWidth - RES) / (LW * FM) - 1;
+int max_FM_size = (tftWidth - RES) / (LW * _fm) - 1;
 int max_FP_size = (tftWidth - RES) / (LW)-2;
 
 // QWERTY KEYSET
@@ -111,7 +111,7 @@ struct box_t {
         for (int i = 0; i < ie; ++i) {
             tft->drawRect(x, y, w, h, color);
             tft->setTextColor(color);
-            tft->drawString(String(key), x + w / 2 - FM * LW / 2, y + h / 2 - FM * LH / 2);
+            tft->drawString(String(key), x + w / 2 - _fm * LW / 2, y + h / 2 - _fm * LH / 2);
         }
     }
     bool contain(int x, int y) {
@@ -159,11 +159,11 @@ bool handleDelete(String &current_text, int &cursor_x, int &cursor_y) {
     // remove from string
     current_text.remove(current_text.length() - 1);
     // delete from screen:
-    int fontSize = FM;
+    int fontSize = _fm;
     if (current_text.length() > max_FP_size) {
-        tft->setTextSize(FP);
-        fontSize = FP;
-    } else tft->setTextSize(FM);
+        tft->setTextSize(_fp);
+        fontSize = _fp;
+    } else tft->setTextSize(_fm);
     tft->setCursor((cursor_x - fontSize * LW), cursor_y);
     tft->setTextColor(FGCOLOR, BGCOLOR);
     tft->print(" ");
@@ -273,7 +273,7 @@ String generalKeyboard(
     //       on keyboard screen
 
     /*====================Initial Setup====================*/
-    const int counter_height = (TFT_WIDTH > 90) && (TFT_HEIGHT > 90) ? LH * FP : 0;
+    const int counter_height = (TFT_WIDTH > 90) && (TFT_HEIGHT > 90) ? LH * _fp : 0;
     bool direction = true; // for auto navigation, true is forward, false is backward, usend on HAS_1_BUTTON
     bool last_dir = true;  // to keep track of the last direction when auto navigating, used for better
                            // handling of direction changes on HAS_1_BUTTON
@@ -286,7 +286,7 @@ String generalKeyboard(
     // where:
     //      LW = Letter Width of font 1 (Ususally 6px)
     //      PAD = padding between buttons (2px usually)
-    //      FM = Font Size for medium size (2 for the most of devices, 1 for smaller screens, and bigger for
+    //      _fm = Font Size for medium size (2 for the most of devices, 1 for smaller screens, and bigger for
     //      bigger screens)
     //      x=item number, y=Sum of characters of previous items;
     //      n=number of characters of this item
@@ -311,26 +311,28 @@ String generalKeyboard(
     /*---------------------------------------------------------------------------------------*/
 
 #define PAD 2
-#define KBLH (6 + LH * FM) // Keyboard Buttons Line Height
+#define KBLH (6 + LH * _fm) // Keyboard Buttons Line Height
     // { x coord of btn border, btn width, x coord of the inside text }
     // 12 px = 10 px + 2 of padding between the letters -> refer to the section above to better understand
     // ((12px * n_letters) - 2px ) + 9*2px = width
+    // clang-format off
     const int btns_layout[][3] = {
-        {1 * PAD + 0 * LW * FM + RES,  3 * LW * FM, 1 * PAD + RES + 0 * LW * FM + LW * FM / 2 }, // OK
-        {2 * PAD + 3 * LW * FM + RES,  3 * LW * FM, 2 * PAD + RES + 3 * LW * FM + LW * FM / 2 }, // ab (Caps)
-        {3 * PAD + 6 * LW * FM + RES,  3 * LW * FM, 3 * PAD + RES + 6 * LW * FM + LW * FM / 2 }, // <- (DEL)
-        {4 * PAD + 9 * LW * FM + RES,  3 * LW * FM, 4 * PAD + RES + 10 * LW * FM              }, // _ (SPACE)
-        {5 * PAD + 12 * LW * FM + RES, 3 * LW * FM, 5 * PAD + RES + 12 * LW * FM + LW * FM / 2}, // Ex
+        {1 * PAD + 0 * LW * _fm + RES,  3 * LW * _fm, 1 * PAD + RES + 0 * LW * _fm + LW * _fm / 2 }, // OK
+        {2 * PAD + 3 * LW * _fm + RES,  3 * LW * _fm, 2 * PAD + RES + 3 * LW * _fm + LW * _fm / 2 }, // ab (Caps)
+        {3 * PAD + 6 * LW * _fm + RES,  3 * LW * _fm, 3 * PAD + RES + 6 * LW * _fm + LW * _fm / 2 }, // <- (DEL)
+        {4 * PAD + 9 * LW * _fm + RES,  3 * LW * _fm, 4 * PAD + RES + 10 * LW * _fm               }, // _ (SPACE)
+        {5 * PAD + 12 * LW * _fm + RES, 3 * LW * _fm, 5 * PAD + RES + 12 * LW * _fm + LW * _fm / 2}, // Ex
 #if HAS_1_BUTTON
-        {6 * PAD + 15 * LW * FM + RES, 4 * LW * FM, 6 * PAD + RES + 15 * LW * FM + LW * FM / 2}, // R/D or L/U
+        {6 * PAD + 15 * LW * _fm + RES, 4 * LW * _fm, 6 * PAD + RES + 15 * LW * _fm + LW * _fm / 2}, // R/D or L/U
 #endif
     };
+    // clang-format on
 
     const int key_width = tftWidth / KeyboardWidth;
-    const int key_height = (tftHeight - (2 * KBLH + LH * FM)) / KeyboardHeight;
+    const int key_height = (tftHeight - (2 * KBLH + LH * _fm)) / KeyboardHeight;
     // characters are px high and 10px wide
-    const int text_offset_x = key_width / 2 - LW * FM / 2;
-    const int text_offset_y = key_height / 2 - LH * FP / 2; // Centralize the characters in the key box
+    const int text_offset_x = key_width / 2 - LW * _fm / 2;
+    const int text_offset_y = key_height / 2 - LH * _fp / 2; // Centralize the characters in the key box
 
 #if defined(HAS_TOUCH) // filling touch box list
     // Calculate actual box count
@@ -347,7 +349,7 @@ String generalKeyboard(
             box_list[k].key_sh = keys[j][i][1];
             box_list[k].color = ~BGCOLOR;
             box_list[k].x = i * key_width;
-            box_list[k].y = j * key_height + 2 * KBLH + LH * FM;
+            box_list[k].y = j * key_height + 2 * KBLH + LH * _fm;
             box_list[k].w = key_width;
             box_list[k].h = key_height;
             k++;
@@ -383,7 +385,7 @@ String generalKeyboard(
             // setup
             tft->setCursor(0, 0);
             tft->setTextColor(getComplementaryColor(BGCOLOR), BGCOLOR);
-            tft->setTextSize(FM);
+            tft->setTextSize(_fm);
 
             // Draw the top row buttons_strings
             if (y < 0 || old_y < 0 || direction != last_dir || caps != last_caps) {
@@ -462,18 +464,18 @@ String generalKeyboard(
 
             // Prints the chars counter
             if (counter_height > 0) {
-                tft->setTextSize(FP);
+                tft->setTextSize(_fp);
                 String chars_counter = String(current_text.length()) + "/" + String(max_size);
                 tft->fillRect(
-                    tftWidth - ((chars_counter.length() * LW * FP) + 20) -
+                    tftWidth - ((chars_counter.length() * LW * _fp) + 20) -
                         RES / 2, // 6px per char + 1 padding
                     KBLH + 4,
-                    (chars_counter.length() * LW * FP) + 20,
+                    (chars_counter.length() * LW * _fp) + 20,
                     7,
                     BGCOLOR
                 ); // clear previous text
                 tft->drawString(
-                    chars_counter, tftWidth - ((chars_counter.length() * LW * FP) + 10) - RES / 2, KBLH + 4
+                    chars_counter, tftWidth - ((chars_counter.length() * LW * _fp) + 10) - RES / 2, KBLH + 4
                 );
 
                 tft->drawString(
@@ -483,7 +485,7 @@ String generalKeyboard(
                 );
             }
             // Drawing the textbox and the currently typed string
-            tft->setTextSize(FM);
+            tft->setTextSize(_fm);
             // reset the text box if needed
             if (current_text.length() == (max_FM_size) || current_text.length() == (max_FM_size + 1) ||
                 current_text.length() == (max_FP_size) || current_text.length() == (max_FP_size + 1))
@@ -493,7 +495,7 @@ String generalKeyboard(
             // write the text
             if (current_text.length() >
                 max_FM_size) { // if the text is too long, we try to set the smaller font
-                tft->setTextSize(FP);
+                tft->setTextSize(_fp);
                 if (current_text.length() >
                     max_FP_size) { // if its still too long, we divide it into two lines
                     tft->drawString(
@@ -502,7 +504,7 @@ String generalKeyboard(
                     tft->drawString(
                         current_text.substring(max_FP_size, current_text.length()),
                         5 + RES / 2,
-                        KBLH + LH * FP + counter_height + 6
+                        KBLH + LH * _fp + counter_height + 6
                     );
                 } else {
                     tft->drawString(current_text, 5 + RES / 2, KBLH + counter_height + 6);
@@ -512,7 +514,7 @@ String generalKeyboard(
                 tft->drawString(current_text, 5 + RES / 2, KBLH + counter_height + 6);
             }
 
-            tft->setTextSize(FM);
+            tft->setTextSize(_fm);
             // Draw the actual keyboard
             for (int i = 0; i < KeyboardHeight; i++) {
                 for (int j = 0; j < KeyboardWidth; j++) {
@@ -569,17 +571,17 @@ String generalKeyboard(
 
         // Cursor Handler
         if (current_text.length() > max_FM_size) {
-            tft->setTextSize(FP);
+            tft->setTextSize(_fp);
             if (current_text.length() > (max_FP_size)) {
-                cursor_y = KBLH + LH * FP + counter_height + 6;
-                cursor_x = 5 + RES / 2 + (current_text.length() - max_FP_size) * LW * FP;
+                cursor_y = KBLH + LH * _fp + counter_height + 6;
+                cursor_x = 5 + RES / 2 + (current_text.length() - max_FP_size) * LW * _fp;
             } else {
                 cursor_y = KBLH + counter_height + 6;
-                cursor_x = 5 + RES / 2 + current_text.length() * LW * FP;
+                cursor_x = 5 + RES / 2 + current_text.length() * LW * _fp;
             }
         } else {
             cursor_y = KBLH + counter_height + 6;
-            cursor_x = 5 + RES / 2 + current_text.length() * LW * FM;
+            cursor_x = 5 + RES / 2 + current_text.length() * LW * _fm;
         }
 
 #ifdef USE_CARDKB2
@@ -853,11 +855,11 @@ String generalKeyboard(
                 if (KeyStroke.del && current_text.length() > 0) { // delete 0x08
                     // Handle backspace key
                     current_text.remove(current_text.length() - 1);
-                    int fontSize = FM;
+                    int fontSize = _fm;
                     if (current_text.length() > max_FP_size) {
-                        tft->setTextSize(FP);
-                        fontSize = FP;
-                    } else tft->setTextSize(FM);
+                        tft->setTextSize(_fp);
+                        fontSize = _fp;
+                    } else tft->setTextSize(_fm);
                     cursor_x = cursor_x - fontSize * LW;
                     tft->setCursor(cursor_x, cursor_y);
                     tft->fillRect(cursor_x, cursor_y, fontSize * LW, fontSize * LH, BGCOLOR);
@@ -871,10 +873,10 @@ String generalKeyboard(
                 }
                 resetGlobals();
                 int _of = tft->getTextSize();
-                tft->setTextSize(FP);
+                tft->setTextSize(_fp);
                 String chars_counter = String(current_text.length()) + "/" + String(max_size);
                 tft->drawString(
-                    chars_counter, tftWidth - ((chars_counter.length() * LW * FP) + 10), KBLH + 4
+                    chars_counter, tftWidth - ((chars_counter.length() * LW * _fp) + 10), KBLH + 4
                 );
                 tft->setTextSize(_of);
                 tft->display(false);
@@ -979,7 +981,7 @@ String generalKeyboard(
 /// This calls the QUERTY keyboard. Returns the user typed strings, return the ASCII ESC character
 /// if the operation was cancelled
 String keyboard(String current_text, int max_size, const String &textbox_title) {
-    max_FM_size = tftWidth / (LW * FM) - 1;
+    max_FM_size = tftWidth / (LW * _fm) - 1;
     max_FP_size = tftWidth / (LW)-2;
     return generalKeyboard<qwerty_keyboard_height, qwerty_keyboard_width>(
         current_text, max_size, textbox_title, qwerty_keyset

@@ -2005,21 +2005,21 @@ void startWebUiLoopCommon(bool mode_ap) {
 #ifndef HEADLESS
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, ALCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
-    setTftDisplay(7, 7, ALCOLOR, FP, BGCOLOR);
+    setTftDisplay(7, 7, ALCOLOR, _fp, BGCOLOR);
     tft->drawCentreString("-= Launcher WebUI =-", tftWidth / 2, 0, 8);
 #if TFT_HEIGHT < 200
     tft->drawCentreString("http://launcher.local", tftWidth / 2, 17, 1);
-    setTftDisplay(7, 26, ~BGCOLOR, FP, BGCOLOR);
+    setTftDisplay(7, 26, ~BGCOLOR, _fp, BGCOLOR);
 #else
     tft->drawCentreString("http://launcher.local", tftWidth / 2, 22, 1);
-    setTftDisplay(7, 47, ~BGCOLOR, FP, BGCOLOR);
+    setTftDisplay(7, 47, ~BGCOLOR, _fp, BGCOLOR);
 #endif
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
     tft->print("IP ");
     tftprintln(txt, 10, 1);
     tftprintln("Usr: " + String(wui_usr), 10, 1);
     tftprintln("Pwd: " + String(wui_pwd), 10, 1);
-    setTftDisplay(7, tftHeight - 39, ALCOLOR, FP);
+    setTftDisplay(7, tftHeight - 39, ALCOLOR, _fp);
     tft->drawCentreString("press Sel to stop", tftWidth / 2, tftHeight - 15, 1);
     tft->display(false);
 

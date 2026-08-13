@@ -69,7 +69,7 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
             }
         }
 
-        resetTftDisplay(10, 10, FGCOLOR, FP);
+        resetTftDisplay(10, 10, FGCOLOR, _fp);
         tft->fillScreen(BGCOLOR);
         tftprint("Connecting to: " + ssid + ".", 10);
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
@@ -604,9 +604,9 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
     resetTftDisplay();
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
     tft->drawCentreString("Getting info from", tftWidth / 2, tftHeight / 3, 1);
-    tft->drawCentreString("LauncherHub", tftWidth / 2, tftHeight / 3 + FM * 9, 1);
+    tft->drawCentreString("LauncherHub", tftWidth / 2, tftHeight / 3 + _fm * 9, 1);
     tft->display(false);
-    tft->setCursor(18, tftHeight / 3 + FM * 9 * 2);
+    tft->setCursor(18, tftHeight / 3 + _fm * 9 * 2);
     const uint8_t maxAttempts = 5;
     for (uint8_t attempt = 0; attempt < maxAttempts; ++attempt) {
         String payload;

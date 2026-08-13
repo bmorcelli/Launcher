@@ -14,10 +14,10 @@ void touchHeatMap(struct LTouchPoint t) {
     int third_y = tftHeight / 3;
 
 #if 1 // defined(DONT_USE_INPUT_TASK)
-    if (t.x > third_x * 0 && t.x < third_x * 1 && t.y > tftHeight - LH * FM * 2) PrevPress = true;
-    if (t.x > third_x * 1 && t.x < third_x * 2 && t.y > tftHeight - LH * FM * 2) SelPress = true;
-    if (t.x > third_x * 2 && t.x < third_x * 3 && t.y > tftHeight - LH * FM * 2) NextPress = true;
-    if (t.x > third_x * 0 && t.x < third_x * 1 && t.y < LH * FM * 4) EscPress = true;
+    if (t.x > third_x * 0 && t.x < third_x * 1 && t.y > tftHeight - LH * _fm * 2) PrevPress = true;
+    if (t.x > third_x * 1 && t.x < third_x * 2 && t.y > tftHeight - LH * _fm * 2) SelPress = true;
+    if (t.x > third_x * 2 && t.x < third_x * 3 && t.y > tftHeight - LH * _fm * 2) NextPress = true;
+    if (t.x > third_x * 0 && t.x < third_x * 1 && t.y < LH * _fm * 4) EscPress = true;
 
     /*
                         Touch area Map

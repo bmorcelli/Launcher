@@ -494,14 +494,14 @@ int gsetRotation(bool set) {
 
         if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
-            tftHeight = TFT_WIDTH - (FM * LH + 4);
+            tftHeight = TFT_WIDTH - (_fm * LH + 4);
 #else
             tftHeight = TFT_WIDTH;
 #endif
             tftWidth = TFT_HEIGHT;
         } else {
 #if defined(HAS_TOUCH)
-            tftHeight = TFT_HEIGHT - (FM * LH + 4);
+            tftHeight = TFT_HEIGHT - (_fm * LH + 4);
 #else
             tftHeight = TFT_HEIGHT;
 #endif
@@ -1349,7 +1349,7 @@ void calibrateTouch() {
     auto drawCenteredLine = [&](const char *text, int16_t y) { tft->drawCentreString(text, _w / 2, y, 1); };
 
     tft->setTextColor(FGCOLOR, BGCOLOR);
-    tft->setTextSize(FP);
+    tft->setTextSize(_fp);
     const int16_t lineHeight = LH;
     int16_t y = (_h - lineHeight * 4) / 2;
     drawCenteredLine("Launcher Touch Calibration", y);

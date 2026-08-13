@@ -104,9 +104,9 @@ void setTftDisplay(int x, int y, uint16_t fc, int size, uint16_t bg) {
 ***************************************************************************************/
 void TouchFooter(uint16_t color) {
 #if defined(HAS_TOUCH)
-    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (FM * LH + 4), 5, color);
+    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (_fm * LH + 4), 5, color);
     tft->setTextColor(color);
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
     tft->drawString("<<<", 11 + RES, tftHeight + 4);
     tft->drawCentreString("SEL", tftWidth / 2, tftHeight + 4, 1);
     tft->drawRightString(">>>", tftWidth - (RES + 11), tftHeight + 4, 1);
@@ -119,9 +119,9 @@ void TouchFooter(uint16_t color) {
 ***************************************************************************************/
 void TouchFooter2(uint16_t color) {
 #if defined(HAS_TOUCH)
-    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (FM * LH + 4), 5, color);
+    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (_fm * LH + 4), 5, color);
     tft->setTextColor(color);
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
     tft->drawString("<<", 11 + RES, tftHeight + 4);
     tft->drawCentreString("LAUNCHER", tftWidth / 2, tftHeight + 4, 1);
     tft->drawRightString(">>", tftWidth - (RES + 11), tftHeight + 4, 1);
@@ -161,7 +161,7 @@ void initDisplay(bool doAll) {
     if (!bootAppShortcuts.empty()) matrixTopMargin = drawBootAppShortcuts(bootAppShortcuts) + 2;
 #endif
 
-    tft->setTextSize(FP);
+    tft->setTextSize(_fp);
     tft->setCursor(10, matrixTopMargin);
     cor = 0;
     show = launcherRandom(0, 40);
@@ -170,7 +170,7 @@ void initDisplay(bool doAll) {
 
     while (tft->getCursorY() < (tftHeight - (LH + 4))) {
         cor = launcherRandom(0, 11);
-        tft->setTextSize(FP);
+        tft->setTextSize(_fp);
         show = launcherRandom(0, 40);
         if (show == 0 || doAll) {
             if (cor == 10) {
@@ -183,52 +183,52 @@ void initDisplay(bool doAll) {
                 txt = String(cor);
             }
 
-            if (_x >= (tftWidth - (LW * FP + 4))) {
+            if (_x >= (tftWidth - (LW * _fp + 4))) {
                 _x = 10;
-                _y += LH * FP;
+                _y += LH * _fp;
             } else if (_x < 10) {
                 _x = 10;
             }
-            if (_y >= (tftHeight - (LH * FP + LH * FP / 2))) break;
+            if (_y >= (tftHeight - (LH * _fp + LH * _fp / 2))) break;
             tft->setCursor(_x, _y);
-            if (_y > (tftHeight - (LH * FM + LH * FP / 2)) &&
-                _x >= (tftWidth - ((LW * FP + 4) + LW * FP * name.length()))) {
+            if (_y > (tftHeight - (LH * _fm + LH * _fp / 2)) &&
+                _x >= (tftWidth - ((LW * _fp + 4) + LW * _fp * name.length()))) {
                 tft->setTextColor(FGCOLOR);
                 tft->print(name);
-                _x += LW * FP * name.length();
+                _x += LW * _fp * name.length();
             } else {
                 tft->print(txt);
-                _x += LW * FP;
+                _x += LW * _fp;
             }
         } else {
-            if (_y > (tftHeight - (LH * FM + LH * FP / 2)) &&
-                _x >= (tftWidth - ((LW * FP + 4) + LW * FP * name.length())))
-                _x += LW * FP * name.length();
-            else _x += LW * FP;
+            if (_y > (tftHeight - (LH * _fm + LH * _fp / 2)) &&
+                _x >= (tftWidth - ((LW * _fp + 4) + LW * _fp * name.length())))
+                _x += LW * _fp * name.length();
+            else _x += LW * _fp;
 
-            if (_x >= (tftWidth - (LW * FP + 4))) {
+            if (_x >= (tftWidth - (LW * _fp + 4))) {
                 _x = 10;
-                _y += LH * FP;
+                _y += LH * _fp;
             }
         }
         tft->setCursor(_x, _y);
     }
-    tft->setTextSize(FG);
+    tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
 #if TFT_HEIGHT > 200
     tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
 #else
     tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
 #endif
-    tft->setTextSize(FG);
+    tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
 
     String selectedAppName = launcherSelectedBootAppName();
     if (!selectedAppName.isEmpty()) {
-        selectedAppName = selectedAppName.substring(0, tftWidth / (FM * LW) - 4);
-        tft->setTextSize(FM);
+        selectedAppName = selectedAppName.substring(0, tftWidth / (_fm * LW) - 4);
+        tft->setTextSize(_fm);
         tft->setTextColor(FGCOLOR, BGCOLOR);
-        int appTextY = tftHeight - (1.5 * (FM * LH) + 10);
+        int appTextY = tftHeight - (1.5 * (_fm * LH) + 10);
         tft->drawCentreString(" " + selectedAppName + " ", tftWidth / 2, appTextY, 1);
     }
 
@@ -267,11 +267,11 @@ void displayCurrentVersion(
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
 
-    setTftDisplay(10, 10, ~BGCOLOR, FM, BGCOLOR);
+    setTftDisplay(10, 10, ~BGCOLOR, _fm, BGCOLOR);
     String name2 = String(name);
     tftprintln(name2, 10, 2);
 #if TFT_HEIGHT > 200
-    setTftDisplay(10, 50, ALCOLOR, FM);
+    setTftDisplay(10, 50, ALCOLOR, _fm);
 #endif
     tft->print("by: ");
     tft->setTextColor(~BGCOLOR);
@@ -291,15 +291,15 @@ void displayCurrentVersion(
 
     if (versions.size() > 1) {
         tft->setTextColor(ALCOLOR);
-        drawCharAt(10, tftHeight - (10 + FM * 9), '<', FGCOLOR, BGCOLOR);
-        drawCharAt(tftWidth - (10 + FM * 6), tftHeight - (10 + FM * 9), '>', FGCOLOR, BGCOLOR);
+        drawCharAt(10, tftHeight - (10 + _fm * 9), '<', FGCOLOR, BGCOLOR);
+        drawCharAt(tftWidth - (10 + _fm * 6), tftHeight - (10 + _fm * 9), '>', FGCOLOR, BGCOLOR);
         tft->setTextColor(~BGCOLOR);
     }
 
-    setTftDisplay(-1, -1, ALCOLOR, FM, BGCOLOR);
-    tft->drawCentreString("Options", tftWidth / 2, tftHeight - (10 + FM * 9), 1);
+    setTftDisplay(-1, -1, ALCOLOR, _fm, BGCOLOR);
+    tft->drawCentreString("Options", tftWidth / 2, tftHeight - (10 + _fm * 9), 1);
     tft->drawRoundRect(
-        tftWidth / 2 - 3 * FM * 11, tftHeight - (12 + FM * 9), FM * 6 * 11, FM * 8 + 3, 3, ALCOLOR
+        tftWidth / 2 - 3 * _fm * 11, tftHeight - (12 + _fm * 9), _fm * 6 * 11, _fm * 8 + 3, 3, ALCOLOR
     );
 
     int div = versions.size();
@@ -340,7 +340,7 @@ void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bo
 #endif
 
     // stripe drawing
-    int size = text.length() * LW * FM < (tft->width() - 2 * FM * LW) ? FM : FP;
+    int size = text.length() * LW * _fm < (tft->width() - 2 * _fm * LW) ? _fm : _fp;
     int paddingX = 8;
     int paddingY = 5;
     int rectX = 10;
@@ -452,7 +452,7 @@ void progressHandler(size_t progress, size_t total) {
     if (progress == 0) {
         lastProgressDraw = launcherMillis();
         lastProgressBarWidth = 0;
-        tft->setTextSize(FM);
+        tft->setTextSize(_fm);
         tft->setTextColor(ALCOLOR);
         tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
 #if TFT_HEIGHT > 200
@@ -532,7 +532,7 @@ Opt_Coord drawOptions(
     if (index < 0) index = 0;
     if (index >= arraySize) index = arraySize - 1;
 
-    int lineHeight = FM * LH;
+    int lineHeight = _fm * LH;
     const int rowSpacing = 4;
     const int paddingTop = 4;
     const int paddingBottom = 4;
@@ -645,7 +645,7 @@ Opt_Coord drawOptions(
     coord.boxH = contentHeight;
 
     bool firstItemSelected = (optionCount > 0 && index == start);
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
 
     if (border) {
         if (firstItemSelected) tft->fillRoundRect(boxX, boxY, contentWidth, contentHeight, 5, bgcolor);
@@ -695,7 +695,7 @@ Opt_Coord drawOptions(
 #endif
 #ifdef HAS_TOUCH
         if (RES && !border) {
-            if (i < (RES / (LH * FM) + 1)) cursorX += RES - i * LW * FM;
+            if (i < (RES / (LH * _fm) + 1)) cursorX += RES - i * LW * _fm;
         }
 #endif
 
@@ -734,8 +734,8 @@ Opt_Coord drawOptions(
         }
 #endif
         if (RES && !border) {
-            if (i < (RES / (LH * FM) + 1)) { labelWidth -= RES / (i + 1); }
-            if (i >= (optionCount - (RES / (LH * FM) + 1))) { labelWidth -= RES / (optionCount - i); }
+            if (i < (RES / (LH * _fm) + 1)) { labelWidth -= RES / (i + 1); }
+            if (i >= (optionCount - (RES / (LH * _fm) + 1))) { labelWidth -= RES / (optionCount - i); }
         }
         if (labelWidth < 0) labelWidth = 0;
         int labelCharLimit = labelWidth / charWidth;
@@ -794,11 +794,11 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     bool compactOneLine = tftHeight <= 90;
     int cols = compactOneLine ? 5 : 3; // Number of columns based on height
     int visibleItems = compactOneLine && size > cols ? cols : size;
-    int rows = compactOneLine ? 1 : (size + cols - 1) / cols;           // Calculate rows needed
-    int w = (tftWidth - 16) / cols;                                     // Width of each icon
-    int h = (tftHeight - ((6 + 6 + FP * LH + 6) + LH * FP + 6)) / rows; // Height of each icon
+    int rows = compactOneLine ? 1 : (size + cols - 1) / cols;             // Calculate rows needed
+    int w = (tftWidth - 16) / cols;                                       // Width of each icon
+    int h = (tftHeight - ((6 + 6 + _fp * LH + 6) + LH * _fp + 6)) / rows; // Height of each icon
 
-    int maxIconTextSize = tftHeight <= 135 ? FM : FG;
+    int maxIconTextSize = tftHeight <= 135 ? _fm : _fg;
 
     for (int i = 0; i < size; ++i) opt[i].resetCoords();
 
@@ -811,7 +811,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
 
         int col = slot % cols;
         int row = compactOneLine ? 0 : slot / cols;
-        int y = (6 + 6 + FP * LH + 8) + row * h;
+        int y = (6 + 6 + _fp * LH + 8) + row * h;
         int xOffset = 0;
 
         // Última linha incompleta: centralizar
@@ -835,12 +835,12 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
         int f_size = maxIconTextSize;
         const int textLimit = w - 10;
         tft->setTextSize(f_size);
-        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > FM) {
-            f_size = FM;
+        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > _fm) {
+            f_size = _fm;
             tft->setTextSize(f_size);
         }
-        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > FP) {
-            f_size = FP;
+        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > _fp) {
+            f_size = _fp;
             tft->setTextSize(f_size);
         }
 
@@ -882,11 +882,11 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
         // tft->drawRect(opt[i].x,opt[i].y,opt[i].w,opt[i].h,BLUE); // debug purpose
     }
 
-    tft->setTextSize(FP);
+    tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
     // Draw the description of the selected item
-    tft->fillRect(10, tftHeight - (6 + LH * FP), tftWidth - 20, LH * FP, BGCOLOR);
-    tft->drawCentreString(opt[index].text, tftWidth / 2, tftHeight - (6 + LH * FP), 1);
+    tft->fillRect(10, tftHeight - (6 + LH * _fp), tftWidth - 20, LH * _fp, BGCOLOR);
+    tft->drawCentreString(opt[index].text, tftWidth / 2, tftHeight - (6 + LH * _fp), 1);
     // Draw Launcher version and battery value
 #if TFT_HEIGHT < 200
     tft->drawString("Launcher", 12 + RES, 12);
@@ -937,7 +937,7 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
     if (!CardKB2Installed) return 0;
 #endif
 
-    int boxH = LH * FM + 8;
+    int boxH = LH * _fm + 8;
     int minBoxW = boxH * 2; // keep the card proportional to its (now taller) height
     int maxCols = (tftWidth - 8) / minBoxW;
     if (maxCols < 1) maxCols = 1;
@@ -947,7 +947,7 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
 
     // Only as many characters as actually fit the card, so names never overlap
     // when several apps are installed and the cards get narrow.
-    int maxNameChars = (boxW - 6) / (LW * FM);
+    int maxNameChars = (boxW - 6) / (LW * _fm);
     if (maxNameChars < 1) maxNameChars = 1;
 
     for (int i = 0; i < size; ++i) {
@@ -962,13 +962,13 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
 
         String name = opt[i].name;
         if (static_cast<int>(name.length()) > maxNameChars) name = name.substring(0, maxNameChars);
-        tft->setTextSize(FM);
+        tft->setTextSize(_fm);
         tft->setTextColor(FGCOLOR, BGCOLOR);
-        tft->drawCentreString(name, x + (boxW - 2) / 2, by + boxH / 2 - (LH * FM) / 2, 1);
+        tft->drawCentreString(name, x + (boxW - 2) / 2, by + boxH / 2 - (LH * _fm) / 2, 1);
 
         if (i < 10) { // Only the first 10 apps have a keyboard digit shortcut (1..9,0)
             String shortcutLabel = (i == 9) ? "0" : String(i + 1);
-            tft->setTextSize(FP);
+            tft->setTextSize(_fp);
             tft->setTextColor(ALCOLOR, BGCOLOR);
             tft->drawString(shortcutLabel, x + 2, by + 1);
         }
@@ -979,17 +979,17 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
 }
 void drawDeviceBorder() {
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
-    tft->drawLine(5, (6 + 6 + FP * LH + 5), tftWidth - 6, (6 + 6 + FP * LH + 5), FGCOLOR);
+    tft->drawLine(5, (6 + 6 + _fp * LH + 5), tftWidth - 6, (6 + 6 + _fp * LH + 5), FGCOLOR);
 }
 
 void drawWifiStatus(bool hasBattery) {
-    const int size = LH * FP;
+    const int size = LH * _fp;
     int u = size / 4;
     if (u < 1) u = 1;
     const int gap = 4;
-    int batteryLeft = tftWidth - 5 - (LW * FP * 4 * hasBattery + 40) - RES;
+    int batteryLeft = tftWidth - 5 - (LW * _fp * 4 * hasBattery + 40) - RES;
     int cx = batteryLeft - gap - 3 * u;
-    int by = 7 + (FP * LH + 9) / 2 + u;
+    int by = 7 + (_fp * LH + 9) / 2 + u;
     int dot = u < 2 ? 2 : u;
     if (!launcherWifiIsConnected()) return;
     tft->fillRect(cx - 3 * u - 1, 6, 6 * u + 3, 4 * u + dot + 2, BGCOLOR);
@@ -1008,16 +1008,16 @@ void drawWifiStatus(bool hasBattery) {
 }
 
 void drawBatteryStatus(uint8_t bat) {
-    tft->drawRoundRect(tftWidth - 42 - RES, 7, 34, FP * LH + 9, 2, FGCOLOR);
-    tft->setTextSize(FP);
+    tft->drawRoundRect(tftWidth - 42 - RES, 7, 34, _fp * LH + 9, 2, FGCOLOR);
+    tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
 #if TFT_HEIGHT > 140 // Excludes Marauder Mini
     tft->drawRightString("  " + String(bat) + "%", tftWidth - 45 - RES, 12, 1);
 #endif
-    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30, FP * LH + 5, 2, BGCOLOR);
-    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30 * bat / 100, FP * LH + 5, 2, FGCOLOR);
-    tft->drawLine(tftWidth - 30 - RES, 9, tftWidth - 30 - RES, 9 + FP * LH + 6, BGCOLOR);
-    tft->drawLine(tftWidth - 20 - RES, 9, tftWidth - 20 - RES, 9 + FP * LH + 6, BGCOLOR);
+    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30, _fp * LH + 5, 2, BGCOLOR);
+    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30 * bat / 100, _fp * LH + 5, 2, FGCOLOR);
+    tft->drawLine(tftWidth - 30 - RES, 9, tftWidth - 30 - RES, 9 + _fp * LH + 6, BGCOLOR);
+    tft->drawLine(tftWidth - 20 - RES, 9, tftWidth - 20 - RES, 9 + _fp * LH + 6, BGCOLOR);
 }
 
 /*********************************************************************
