@@ -91,7 +91,8 @@
             "id": "m5stack-paper-s3"
         },
         {
-            "display": false,
+            "display": true,
+            "released_at": "2.8.1",
             "name": "Paper",
             "description": "",
             "link": "https://shop.m5stack.com/products/m5paper-esp32-development-kit-v1-1-960x540-4-7-eink-display-235-ppi?ref=Pirata",
@@ -363,19 +364,11 @@
         },
         {
             "display": true,
-            "name": "T-Display P4 (TFT)",
-            "description": "",
+            "name": "T-Display P4",
+            "description": "(TFT and AMOLED)",
             "link": "https://www.lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO",
             "family": "ESP32-P4",
             "id": "lilygo-t-display-p4"
-        },
-        {
-            "display": true,
-            "name": "T-Display P4 (AMOLED)",
-            "description": "",
-            "link": "https://www.lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO",
-            "family": "ESP32-P4",
-            "id": "lilygo-t-display-p4-amoled"
         },
         {
             "display": true,
@@ -643,6 +636,32 @@
             "link": "https://www.waveshare.com/wiki/ESP32-S3-LCD-1.47",
             "family": "ESP32-S3",
             "id": "waveshare-esp32-s3-lcd-147"
+        }
+    ],
+    "xteink": [
+        {
+            "display": false,
+            "name": "xteink x3",
+            "description": "",
+            "link": "https://www.xteink.com/products/xteink-x3",
+            "family": "ESP32-C3",
+            "id": "xteink-x3"
+        },
+        {
+            "display": false,
+            "name": "xteink x4",
+            "description": "",
+            "link": "https://www.xteink.com/products/xteink-x4",
+            "family": "ESP32-C3",
+            "id": "xteink-x4"
+        },
+        {
+            "display": false,
+            "name": "xteink x4 Pro",
+            "description": "",
+            "link": "https://www.xteink.com/products/xteink-x4-pro-pocket-ereader",
+            "family": "ESP32-S3",
+            "id": "xteink-x4pro"
         }
     ]
 }
