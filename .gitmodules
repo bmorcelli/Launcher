@@ -10,3 +10,6 @@
 [submodule "XPowersLib"]
 	path = lib/XPowersLib
 	url = https://github.com/lewisxhe/XPowersLib.git
+[submodule "DisplayDrivers"]
+	path = lib/DisplayDrivers
+	url = https://github.com/bmorcelli/DisplayDrivers.git
