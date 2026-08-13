@@ -121,7 +121,10 @@
             - { env: "elecrow-35B"                }
             - { env: "elecrow-35Bv2_2"            }
             - { env: "waveshare-esp32-s3-lcd-147" }
-            - { env: "xueersi-xiaomiao" }
+            - { env: "xteink-x3"                  }
+            - { env: "xteink-x4"                  }
+            - { env: "xteink-x4pro"               }
+            - { env: "xueersi-xiaomiao"           }
 
       steps:
           - uses: actions/checkout@v5

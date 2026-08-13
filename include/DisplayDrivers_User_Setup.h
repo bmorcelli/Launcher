@@ -26,4 +26,13 @@
 #define TFT_ROTATION ROTATION
 #endif
 
+// GXEPD2_PANEL has to name a class the library's own translation units can
+// see, and GxEPD2_BW.h only pulls in the panels that ship with GxEPD2. The
+// Xteink X3's is not one of them, so its board folder carries the class and
+// this is the only place early enough to introduce it. The env sets both the
+// flag and -I boards/xteink; no other board is affected.
+#if defined(DISPLAY_XTEINK_X3)
+#include "GxEPD2_X3_792x528.h"
+#endif
+
 #endif // _LAUNCHER_DISPLAYDRIVERS_USER_SETUP_H
