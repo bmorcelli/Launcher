@@ -20,6 +20,14 @@
         },
         {
             "display": true,
+            "name": "StickC & Plus",
+            "description": "Common to StickC and StickCPlus",
+            "link": "https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit?ref=Pirata",
+            "family": "ESP32",
+            "id": "m5stack-cplus"
+        },
+        {
+            "display": true,
             "released_at": "2.0.0",
             "name": "StickCPlus",
             "description": "",
@@ -372,6 +380,14 @@
         },
         {
             "display": true,
+            "name": "T-Embed All Models",
+            "description": "",
+            "link": "https://www.lilygo.cc/products/t-embed-cc1101-plus?bg_ref=sDI8Bh4HmO",
+            "family": "ESP32-S3",
+            "id": "lilygo-t-embed-all"
+        },
+        {
+            "display": true,
             "released_at": "2.3.0",
             "name": "T-Embed",
             "description": "",
@@ -382,7 +398,7 @@
         {
             "display": true,
             "released_at": "2.3.0",
-            "name": "T-Embed_CC1101",
+            "name": "T-Embed CC1101",
             "description": "",
             "link": "https://www.lilygo.cc/products/t-embed-cc1101-plus?bg_ref=sDI8Bh4HmO",
             "family": "ESP32-S3",
