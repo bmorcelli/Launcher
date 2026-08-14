@@ -657,19 +657,11 @@
     "xteink": [
         {
             "display": false,
-            "name": "xteink x3",
+            "name": "xteink x4 and x4",
             "description": "",
             "link": "https://www.xteink.com/products/xteink-x3",
             "family": "ESP32-C3",
-            "id": "xteink-x3"
-        },
-        {
-            "display": false,
-            "name": "xteink x4",
-            "description": "",
-            "link": "https://www.xteink.com/products/xteink-x4",
-            "family": "ESP32-C3",
-            "id": "xteink-x4"
+            "id": "xteink-x3-x4"
         },
         {
             "display": false,

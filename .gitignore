@@ -17,3 +17,5 @@ build/
 webUi
 include
 .claude
+test/
+platformio.ini
