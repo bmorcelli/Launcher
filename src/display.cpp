@@ -215,11 +215,8 @@ void initDisplay(bool doAll) {
     }
     tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
-#if TFT_HEIGHT > 200
+    // Both arms of the old #if TFT_HEIGHT > 200 here were the same line.
     tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
-#else
-    tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
-#endif
     tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
 
@@ -270,9 +267,8 @@ void displayCurrentVersion(
     setTftDisplay(10, 10, ~BGCOLOR, _fm, BGCOLOR);
     String name2 = String(name);
     tftprintln(name2, 10, 2);
-#if TFT_HEIGHT > 200
-    setTftDisplay(10, 50, ALCOLOR, _fm);
-#endif
+    // Tall panels have room to put the author on its own line.
+    if (panelHeight() > 200) setTftDisplay(10, 50, ALCOLOR, _fm);
     tft->print("by: ");
     tft->setTextColor(~BGCOLOR);
     tft->println(String(author).substring(0, 14));
@@ -455,11 +451,7 @@ void progressHandler(size_t progress, size_t total) {
         tft->setTextSize(_fm);
         tft->setTextColor(ALCOLOR);
         tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
-#if TFT_HEIGHT > 200
-        tft->drawCentreString("-=Launcher=-", tftWidth / 2, 20, 1);
-#else
-        tft->drawCentreString("-=Launcher=-", tftWidth / 2, 10, 1);
-#endif
+        tft->drawCentreString("-=Launcher=-", tftWidth / 2, panelHeight() > 200 ? 20 : 10, 1);
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
         if (prog_handler == 1) {
             tft->drawRect(18, tftHeight - 28, tftWidth - 36, 17, ALCOLOR);
@@ -888,11 +880,9 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     tft->fillRect(10, tftHeight - (6 + LH * _fp), tftWidth - 20, LH * _fp, BGCOLOR);
     tft->drawCentreString(opt[index].text, tftWidth / 2, tftHeight - (6 + LH * _fp), 1);
     // Draw Launcher version and battery value
-#if TFT_HEIGHT < 200
-    tft->drawString("Launcher", 12 + RES, 12);
-#else
-    tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
-#endif
+    // Short panels have no room for the version next to the battery gauge.
+    if (panelHeight() < 200) tft->drawString("Launcher", 12 + RES, 12);
+    else tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
     tft->setTextSize(maxIconTextSize);
     drawDeviceBorder();
     int bat = getBattery();
@@ -1011,9 +1001,9 @@ void drawBatteryStatus(uint8_t bat) {
     tft->drawRoundRect(tftWidth - 42 - RES, 7, 34, _fp * LH + 9, 2, FGCOLOR);
     tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
-#if TFT_HEIGHT > 140 // Excludes Marauder Mini
-    tft->drawRightString("  " + String(bat) + "%", tftWidth - 45 - RES, 12, 1);
-#endif
+    // Excludes the Marauder Mini and anything else that short: no room for a
+    // percentage beside the gauge.
+    if (panelHeight() > 140) tft->drawRightString("  " + String(bat) + "%", tftWidth - 45 - RES, 12, 1);
     tft->fillRoundRect(tftWidth - 40 - RES, 9, 30, _fp * LH + 5, 2, BGCOLOR);
     tft->fillRoundRect(tftWidth - 40 - RES, 9, 30 * bat / 100, _fp * LH + 5, 2, FGCOLOR);
     tft->drawLine(tftWidth - 30 - RES, 9, tftWidth - 30 - RES, 9 + _fp * LH + 6, BGCOLOR);

@@ -236,20 +236,21 @@ void setup() {
 #endif
     tft->setRotation(rotation);
     tft->setTextColor(FGCOLOR, BGCOLOR);
+
     if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
-        tftHeight = TFT_WIDTH - (_fm * LH + 4);
+        tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
-        tftHeight = TFT_WIDTH;
+        tftHeight = displayConfig.width;
 #endif
-        tftWidth = TFT_HEIGHT;
+        tftWidth = displayConfig.height;
     } else {
 #if defined(HAS_TOUCH)
-        tftHeight = TFT_HEIGHT - (_fm * LH + 4);
+        tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
-        tftHeight = TFT_HEIGHT;
+        tftHeight = displayConfig.height;
 #endif
-        tftWidth = TFT_WIDTH;
+        tftWidth = displayConfig.width;
     }
     tft->fillScreen(BGCOLOR);
     setBrightness(bright, false);
@@ -431,66 +432,32 @@ void loop() {
     getBrightness();
     launcherConsolePrintln("Type 'help' for Serial commands.");
     if (!sdcardMounted) index = 1; // if SD card is not present, paint SD square grey and auto select OTA
+
+    const bool tiny = (panelHeight() < 135) || (panelWidth() < 135);
     std::vector<MenuOptions> menuItems = {
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "SD", "Launch from SDCard",
-#else
-            "SD",
-            "Launch from or mng SDCard",
-#endif
+        {"SD",
+         tiny ? "Launch from SDCard" : "Launch from or mng SDCard",
          [=]() { loopSD(false); },
-         sdcardMounted
-        },
+         sdcardMounted},
 #ifndef DISABLE_OTA
         {"OTA", "Online Installer", [=]() { ota_function(); }},
 #endif
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "WUI", "Start WebUI",
-#else
-            "WUI",
-            "Start Web User Interface",
-#endif
-         [=]() { loopOptionsWebUi(); }
-        },
+        {"WUI", tiny ? "Start WebUI" : "Start Web User Interface", [=]() { loopOptionsWebUi(); }},
 #if defined(SOC_USB_OTG_SUPPORTED)
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "USB", "SD->USB",
-#else
-            "USB",
-            "SD->USB Interface",
-#endif
+        {"USB",
+         tiny ? "SD->USB" : "SD->USB Interface",
          [=]() {
-                if (setupSdCard()) {
-                    MassStorage();
-                    tft->drawPixel(0, 0, 0);
-                    tft->fillScreen(BGCOLOR);
-                } else {
-                    displayError("Insert SD Card");
-                }
-            }, sdcardMounted
-        },
+             if (setupSdCard()) {
+                 MassStorage();
+                 tft->drawPixel(0, 0, 0);
+                 tft->fillScreen(BGCOLOR);
+             } else {
+                 displayError("Insert SD Card");
+             }
+         }, sdcardMounted},
 #endif
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "PM"
-#else
-            "PMan"
-#endif
-            ,
-         "Partition Manager.", [=]() { partList(); }
-        },
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "CFG", "Change Settings.",
-#else
-            "CFG",
-            "Change Launcher Settings.",
-#endif
-         [=]() { settings_menu(); }
-        }
+        {tiny ? "PM" : "PMan", "Partition Manager.", [=]() { partList(); }},
+        {"CFG", tiny ? "Change Settings." : "Change Launcher Settings.", [=]() { settings_menu(); }}
     };
     if (first_loop) RAM_LOG("first-mainMenu-built");
 

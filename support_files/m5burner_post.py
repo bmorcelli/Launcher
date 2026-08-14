@@ -36,8 +36,10 @@ from pathlib import Path
 # Internal firmware mapping: fid -> binary filename
 FIRMWARE_MAP = {
     "a9e853ff6386480a3a99ff390832a442": "Launcher-m5stack-cplus2.bin",
-    "f033e5024b10cd8a7f10ddfb43c0479c": "Launcher-m5stack-cplus1_1.bin",
-    "cb0e3f37a54eee95752076dd2d532acf": "Launcher-m5stack-c.bin",
+    # StickC and StickC Plus are one binary now, but both keep their own
+    # M5Burner listing, so both fids point at the same file.
+    "f033e5024b10cd8a7f10ddfb43c0479c": "Launcher-m5stack-plus.bin",
+    "cb0e3f37a54eee95752076dd2d532acf": "Launcher-m5stack-plus.bin",
     "967e0377b9889c7b82f059fb8a30adda": "Launcher-m5stack-cardputer.bin",
     "731e504d1a02296dd206785cf47a9582": "Launcher-m5stack-core.bin",
     "cbf409503727620eac2066351f9962ff": "Launcher-m5stack-core2.bin",

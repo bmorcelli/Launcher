@@ -52,8 +52,7 @@
             - { env: "arduino-nesso-n1"           }
             - { env: "m5stack-cardputer"          }
             - { env: "m5stack-cplus2"             }
-            - { env: "m5stack-cplus1_1"           }
-            - { env: "m5stack-c"                  }
+            - { env: "m5stack-plus"               }
             - { env: "m5stack-core2"              }
             - { env: "m5stack-core"               }
             - { env: "m5stack-core-4Mb"           }
@@ -91,8 +90,7 @@
             - { env: "lilygo-t-display-S3-pro"    }
             - { env: "lilygo-t-display-p4"        }
             - { env: "lilygo-t-display-c5"        }
-            - { env: "lilygo-t-embed"             }
-            - { env: "lilygo-t-embed-cc1101"      }
+            - { env: "lilygo-t-embed-all"         }
             - { env: "lilygo-t-lora-pager"        }
             - { env: "lilygo-t-deck-plus"         }
             - { env: "lilygo-t-deck"              }

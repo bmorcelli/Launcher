@@ -274,7 +274,7 @@ String generalKeyboard(
     //       on keyboard screen
 
     /*====================Initial Setup====================*/
-    const int counter_height = (TFT_WIDTH > 90) && (TFT_HEIGHT > 90) ? LH * _fp : 0;
+    const int counter_height = (panelWidth() > 90) && (panelHeight() > 90) ? LH * _fp : 0;
     bool direction = true; // for auto navigation, true is forward, false is backward, usend on HAS_1_BUTTON
     bool last_dir = true;  // to keep track of the last direction when auto navigating, used for better
                            // handling of direction changes on HAS_1_BUTTON

@@ -33,6 +33,9 @@
 #define PINK TFT_PINK
 #define PALERED 0xF9A0
 
+inline int16_t panelWidth() { return displayConfig.width; }
+inline int16_t panelHeight() { return displayConfig.height; }
+
 // Declaração dos objetos TFT
 extern tft_display *tft;
 
@@ -49,7 +52,7 @@ void initDisplayLoop();
 
 // Funções para economizar linhas nas outras funções
 void resetTftDisplay(
-    int x = 0, int y = 0, uint16_t fc = FGCOLOR, int size = FM, uint16_t bg = BGCOLOR,
+    int x = 0, int y = 0, uint16_t fc = FGCOLOR, int size = _fm, uint16_t bg = BGCOLOR,
     uint16_t screen = BGCOLOR
 );
 void setTftDisplay(

@@ -470,42 +470,48 @@ void getBrightness() {
 **********************************************************************/
 #define DRV 1
 int gsetRotation(bool set) {
-    int result = ROTATION;
+
+    const int mountRotation = displayConfig.rotation;
+    int result = mountRotation;
 
     if (rotation > 3) {
         set = true;
-        result = ROTATION;
+        result = mountRotation;
     } else result = rotation;
 
     if (set) {
+        const bool offerPortrait = panelWidth() >= 200 && panelHeight() >= 200;
         options = {
-            {"Default",                                              [&]() { result = ROTATION; }          },
-#if TFT_WIDTH >= 200 && TFT_HEIGHT >= 200
-            {String("Portrait " + String(DRV == 1 ? 0 : 1)).c_str(), [&]() { result = (DRV == 1 ? 0 : 1); }},
-#endif
-            {String("Landscape " + String(DRV)).c_str(),             [&]() { result = DRV; }               },
-#if TFT_WIDTH >= 200 && TFT_HEIGHT >= 200
-            {String("Portrait " + String(DRV == 1 ? 2 : 3)).c_str(), [&]() { result = (DRV == 1 ? 2 : 3); }},
-#endif
-            {String("Landscape " + String(DRV + 2)).c_str(),         [&]() { result = DRV + 2; }           }
+            {"Default", [&]() { result = mountRotation; }}
         };
+        if (offerPortrait)
+            options.push_back({"Portrait " + String(DRV == 1 ? 0 : 1), [&]() {
+                                   result = (DRV == 1 ? 0 : 1);
+                               }});
+        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }});
+        if (offerPortrait)
+            options.push_back({"Portrait " + String(DRV == 1 ? 2 : 3), [&]() {
+                                   result = (DRV == 1 ? 2 : 3);
+                               }});
+        options.push_back({"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }});
         loopOptions(options);
         rotation = result;
 
+        // See the same block in main.cpp: the panel size is runtime state now.
         if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
-            tftHeight = TFT_WIDTH - (_fm * LH + 4);
+            tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
-            tftHeight = TFT_WIDTH;
+            tftHeight = displayConfig.width;
 #endif
-            tftWidth = TFT_HEIGHT;
+            tftWidth = displayConfig.height;
         } else {
 #if defined(HAS_TOUCH)
-            tftHeight = TFT_HEIGHT - (_fm * LH + 4);
+            tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
-            tftHeight = TFT_HEIGHT;
+            tftHeight = displayConfig.height;
 #endif
-            tftWidth = TFT_WIDTH;
+            tftWidth = displayConfig.width;
         }
 
         tft->setRotation(result);
