@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <esp_sleep.h>
 #include <interface.h>
+#include <xteink_panel_probe.h>
 
 // Xteink X4 Pro — ESP32-S3, 800x480 e-paper, GT911 touch, dual frontlight.
 //
@@ -183,6 +184,46 @@ static void cw2017EnsureProfile() {
 }
 
 /***************************************************************************************
+** Function name: _detect_panel()
+** Description:   which controller is behind the glass
+**
+** The 800x480 glass is the same across batches, the silicon behind it is not.
+** Index order matches GXEPD2_PANEL / _ALTn in platformio.ini; the probe itself
+** is described in lib/xteink_panel/xteink_panel_probe.h. Runs before tft->begin(),
+** which is what brings the SPI bus up on this board (GXEPD2_BEGIN_SPI).
+***************************************************************************************/
+enum X4ProPanel : uint8_t { PANEL_SSD1677 = 0, PANEL_UC8179 = 1, PANEL_UC8279 = 2 };
+
+static void _detect_panel() {
+    const XteinkPanelPins pins = {TFT_CS, TFT_DC, TFT_RST, TFT_BUSY, TFT_SCLK, TFT_MOSI};
+    uint8_t ver[5];
+    const XteinkSilicon silicon = xteinkProbeSilicon(pins, ver);
+
+    uint8_t panel;
+    switch (silicon) {
+        case XTEINK_SILICON_SSD1677: panel = PANEL_SSD1677; break;
+        case XTEINK_SILICON_UC8279: panel = PANEL_UC8279; break;
+        default: panel = PANEL_UC8179; break;
+    }
+    displayConfig.driver = panel;
+
+    // Printed on every boot on purpose: only the SSD1677 test is solid, so when
+    // a unit comes up dark these five bytes are what turns the report into a fix.
+    launcherConsolePrintf(
+        "Panel: %s, index %u (VER %02X %02X %02X %02X %02X)\n",
+        silicon == XTEINK_SILICON_SSD1677  ? "SSD1677"
+        : silicon == XTEINK_SILICON_UC8279 ? "UC8279"
+                                           : "UltraChip",
+        panel,
+        ver[0],
+        ver[1],
+        ver[2],
+        ver[3],
+        ver[4]
+    );
+}
+
+/***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
 ** Description:   initial setup for the device
@@ -203,6 +244,8 @@ void _setup_gpio() {
     Wire.begin(I2C_SDA, I2C_SCL, I2C_FREQ);
     launcherDelayMs(10);
     cw2017EnsureProfile();
+
+    _detect_panel();
 }
 
 /***************************************************************************************
