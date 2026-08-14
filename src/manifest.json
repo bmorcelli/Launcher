@@ -24,7 +24,7 @@
             "description": "Common to StickC and StickCPlus",
             "link": "https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit?ref=Pirata",
             "family": "ESP32",
-            "id": "m5stack-cplus"
+            "id": "m5stack-plus"
         },
         {
             "display": true,
