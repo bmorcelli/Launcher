@@ -30,11 +30,7 @@ void launcherSaveInstalledAppMetadata(
     }
 
     String installedLabel = String(appEntry.label);
-    for (const LauncherAppMetadata &registeredApp : launcherLoadAppRegistry()) {
-        if (!launcherPartitionFindByLabel(table, registeredApp.label.c_str())) {
-            launcherRemoveAppMetadata(registeredApp.label.c_str());
-        }
-    }
+    launcherPruneAppRegistry(table);
 
     LauncherAppMetadata metadata;
     metadata.name = launcherInstallAppDisplayName(sourceName, preferredName);

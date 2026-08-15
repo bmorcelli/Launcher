@@ -5,6 +5,7 @@
 #include "mykeyboard.h"
 #include "settings.h"
 #include "utils.h"
+#include <cstring>
 #include <esp_flash.h>
 #include <esp_image_format.h>
 #include <esp_ota_ops.h>
@@ -214,6 +215,95 @@ bool launcherClearAppRegistry() {
     if (err == ESP_OK) err = handle->commit();
     if (err != ESP_OK) { launcherConsolePrintf("App registry: erase_all failed err=%d\n", err); }
     return err == ESP_OK;
+}
+
+bool launcherPruneAppRegistry(const LauncherPartitionTable &table) {
+    esp_err_t openErr = ESP_OK;
+    auto handle = openNamespace(kNamespace, NVS_READWRITE, openErr);
+    if (!handle) return false;
+
+    nvs_iterator_t it = nullptr;
+    esp_err_t err = nvs_entry_find("nvs", kNamespace, NVS_TYPE_ANY, &it);
+    if (err == ESP_ERR_NVS_NOT_FOUND) return true;
+    if (err != ESP_OK) return false;
+
+    bool changed = false;
+    while (err == ESP_OK && it != nullptr) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        char key[16] = {0};
+        strncpy(key, info.key, sizeof(key) - 1);
+        err = nvs_entry_next(&it);
+
+        bool remove = false;
+        const bool linkedKey = key[1] == '_' && (key[0] == 'f' || key[0] == 's' || key[0] == 'n');
+        if (linkedKey) {
+            remove = true;
+            for (const LauncherPartitionEntry &entry : table.entries) {
+                if (!entry.isOtaApp()) continue;
+                char expected[16] = {key[0], '_', 0};
+                strncpy(expected + 2, entry.label, sizeof(expected) - 3);
+                if (strcmp(expected, key) == 0) {
+                    remove = false;
+                    break;
+                }
+            }
+
+            if (!remove && key[0] != 'n') {
+                char value[64] = {0};
+                esp_err_t itemErr = handle->get_string(key, value, key[0] == 's' ? 17 : sizeof(value));
+                if (itemErr == ESP_ERR_NVS_NOT_FOUND) continue;
+                if (itemErr != ESP_OK) {
+                    if (it) nvs_release_iterator(it);
+                    return false;
+                }
+
+                const char *labelStart = value;
+                do {
+                    char label[16] = {0};
+                    const char *labelEnd = strchr(labelStart, ',');
+                    size_t len = labelEnd ? static_cast<size_t>(labelEnd - labelStart) : strlen(labelStart);
+                    if (len >= sizeof(label)) len = sizeof(label) - 1;
+                    memcpy(label, labelStart, len);
+
+                    bool dataExists = false;
+                    for (const LauncherPartitionEntry &entry : table.entries) {
+                        if (entry.isData() && strcmp(entry.label, label) == 0) {
+                            dataExists = true;
+                            break;
+                        }
+                    }
+                    if (!dataExists) remove = true;
+                    labelStart = labelEnd ? labelEnd + 1 : nullptr;
+                } while (!remove && key[0] == 'f' && labelStart && *labelStart);
+            }
+        } else {
+            remove = true;
+            for (const LauncherPartitionEntry &entry : table.entries) {
+                if (entry.isOtaApp() && strcmp(entry.label, key) == 0) {
+                    remove = false;
+                    break;
+                }
+            }
+        }
+
+        if (remove) {
+            esp_err_t itemErr = handle->erase_item(key);
+            if (itemErr != ESP_OK && itemErr != ESP_ERR_NVS_NOT_FOUND) {
+                if (it) nvs_release_iterator(it);
+                return false;
+            }
+            changed = true;
+        }
+    }
+    if (it) nvs_release_iterator(it);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+
+    if (changed) {
+        err = handle->commit();
+        if (err != ESP_OK) return false;
+    }
+    return true;
 }
 
 bool launcherSaveAppMetadata(const LauncherAppMetadata &app) {

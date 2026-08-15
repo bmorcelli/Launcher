@@ -108,7 +108,7 @@ bool ensureU8Key(nvs::NVSHandle &handle, const char *key, uint8_t value) {
     return err == ESP_OK;
 }
 
-bool eraseNamespace(const char *ns) {
+bool eraseNamespaceInternal(const char *ns) {
     esp_err_t err = ESP_OK;
     auto handle = openNamespace(ns, NVS_READWRITE, err);
     if (!handle) return false;
@@ -134,8 +134,8 @@ void factoryReset() {
     };
     loopOptions(options);
     if (!confirmed) return;
-    eraseNamespace("l_wifi");
-    eraseNamespace("launcher");
+    eraseNamespaceInternal("l_wifi");
+    eraseNamespaceInternal("launcher");
     backupConfigFileIfPresent();
     favorite = JsonArray();
     settings.clear();
@@ -144,6 +144,8 @@ void factoryReset() {
     saveConfigs();
 }
 } // namespace
+
+bool eraseNamespace(const char *ns) { return eraseNamespaceInternal(ns); }
 
 JsonObject ensureSettingsRoot() {
     JsonArray settingsArray = settings.as<JsonArray>();
@@ -1148,7 +1150,7 @@ void saveConfigs() {
         JsonObject wifiObj = wifiList.add<JsonObject>();
         if (!wifiObj.isNull()) {
             wifiObj["ssid"] = ssid.length() == 0 ? "myNetSSID" : ssid;
-            wifiObj["pwd"] = pwd.length() == 0 ? "myNetPassword" : pwd;
+            wifiObj["pwd"] = pwd.length() == 0 ? "myNetPwd" : pwd;
         }
     }
 

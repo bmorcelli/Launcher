@@ -17,6 +17,7 @@ std::vector<LauncherAppMetadata> launcherLoadAppRegistry();
 std::vector<LauncherAppMetadata> launcherListInstalledApps();
 bool launcherSaveAppMetadata(const LauncherAppMetadata &app);
 bool launcherRemoveAppMetadata(const char *label);
+bool launcherPruneAppRegistry(const LauncherPartitionTable &table);
 std::vector<String> launcherAppFatLabelsForLabel(const char *label);
 String launcherAppSpiffsLabelForLabel(const char *label);
 void launcherShowAppLauncher();

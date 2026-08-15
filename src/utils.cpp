@@ -1,6 +1,7 @@
 #include "utils.h"
 #include "display.h"
 #include "esp_wifi.h"
+#include "settings.h"
 #include <SD.h>
 #include <SD_MMC.h>
 #include <esp_heap_caps.h>
@@ -110,6 +111,7 @@ bool releaseHeapObjectsAndReboot(void) {
 
     if (xHandle != nullptr) vTaskSuspend(xHandle);
     esp_wifi_stop();
+    eraseNamespace("nvs.net80211");
 
     doc.clear();
     doc.shrinkToFit();
