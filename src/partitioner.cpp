@@ -14,6 +14,7 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
+#include <nvs_flash.h>
 
 // Define o tamanho da partição
 #define PARTITION_SIZE 4096
@@ -621,6 +622,36 @@ bool wipeFlashMemory() {
     return releaseHeapObjectsAndReboot();
 }
 
+bool formatNvsPartition() {
+    if (!confirmAction("Format NVS partition?")) return false;
+    const esp_partition_t *partition =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs");
+    if (!partition) {
+        partition =
+            esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, nullptr);
+    }
+    if (!partition) {
+        displayError("NVS not found");
+        return false;
+    }
+
+    displayRedStripe("Formatting NVS");
+    esp_err_t err = nvs_flash_deinit();
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_INITIALIZED) {
+        launcherConsolePrintf("NVS deinit failed: %s\n", esp_err_to_name(err));
+    }
+
+    if (!launcherUpdateErasePartition(partition)) {
+        displayError(launcherUpdateLastErrorName());
+        return false;
+    }
+
+    displayRedStripe("Restart needed");
+    waitForSelectRelease();
+
+    return releaseHeapObjectsAndReboot();
+}
+
 bool applyPartitionChanges(const LauncherPartitionTable &table) {
     LauncherPartitionTable target = table;
     if (!compactOrShow(target)) return false;
@@ -818,6 +849,13 @@ void partList() {
                 {"Wipe Flash memory",
                  [&]() {
                      if (wipeFlashMemory()) returnToMenu = true;
+                 },
+                 ALCOLOR}
+            );
+            partitionOptions.push_back(
+                {"Format NVS Partition",
+                 [&]() {
+                     if (formatNvsPartition()) returnToMenu = true;
                  },
                  ALCOLOR}
             );
