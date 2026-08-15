@@ -1,13 +1,6 @@
 {
   "build": {
     "core": "esp32",
-    "extra_flags": [
-        "-DESP32C5_DEVKITC_1",
-        "-DESP32C5",
-        "-DBOARD_HAS_PSRAM",
-        "-DARDUINO_USB_MODE=1",
-        "-DARDUINO_USB_CDC_ON_BOOT=1"
-      ],
     "f_cpu": "240000000L",
     "f_flash": "80000000L",
     "flash_mode": "qio",
@@ -25,7 +18,7 @@
     "arduino",
     "espidf"
   ],
-  "name": "Espressif ESP32-C5-DevKitC-1 8MB no PSRAM",
+  "name": "Espressif ESP32-C5 (generic)",
   "upload": {
     "flash_size": "8MB",
     "maximum_ram_size": 327680,

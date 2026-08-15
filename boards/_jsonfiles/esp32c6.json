@@ -5,10 +5,7 @@
     "f_flash": "80000000L",
     "flash_mode": "qio",
     "mcu": "esp32c6",
-    "variant": "pinouts",
-    "extra_flags": [
-        "-DARDUINO_NESSO_N1"
-    ]
+    "variant": "pinouts"
   },
   "connectivity": [
     "bluetooth",
@@ -21,7 +18,7 @@
     "arduino",
     "espidf"
   ],
-  "name": "Arduino Nesso-N1",
+  "name": "Espressif ESP32-C6 (generic)",
   "upload": {
     "flash_size": "16MB",
     "maximum_ram_size": 327680,
@@ -29,6 +26,6 @@
     "require_upload_port": true,
     "speed": 460800
   },
-  "url": "https://store.arduino.cc/products/nesso-n1",
-  "vendor": "Arduino"
+  "url": "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/user_guide.html",
+  "vendor": "Espressif"
 }

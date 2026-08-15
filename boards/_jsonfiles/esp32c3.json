@@ -1,30 +1,24 @@
 {
   "build": {
-    "arduino": {
-      "ldscript": "esp32_out.ld"
-    },
     "core": "esp32",
-    "extra_flags": [
-      "-DARDUINO_M5STACK_CORE",
-      "-DM5STACK"
-    ],
-    "f_cpu": "240000000L",
+    "f_cpu": "160000000L",
     "f_flash": "80000000L",
     "flash_mode": "qio",
-    "mcu": "esp32",
+    "mcu": "esp32c3",
     "variant": "pinouts"
   },
   "connectivity": [
     "wifi",
-    "bluetooth",
-    "ethernet",
-    "can"
+    "bluetooth"
   ],
+  "debug": {
+    "openocd_target": "esp32c3.cfg"
+  },
   "frameworks": [
     "arduino",
     "espidf"
   ],
-  "name": "M5Stack Core ESP32",
+  "name": "Espressif ESP32-C3 (generic)",
   "upload": {
     "flash_size": "4MB",
     "maximum_ram_size": 327680,
@@ -32,6 +26,6 @@
     "require_upload_port": true,
     "speed": 460800
   },
-  "url": "http://www.m5stack.com",
-  "vendor": "M5Stack"
+  "url": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/hw-reference/esp32c3/user-guide-devkitm-1.html",
+  "vendor": "Espressif"
 }

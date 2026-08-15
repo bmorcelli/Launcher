@@ -5,8 +5,6 @@
     },
     "core": "esp32",
     "extra_flags": [
-      "-DXUEERSI_XIAOMIAO=1",
-      "-DARDUINO_ESP32_DEV",
       "-DARDUINO_RUNNING_CORE=1",
       "-DARDUINO_EVENT_RUNNING_CORE=1"
     ],
@@ -29,7 +27,7 @@
     "arduino",
     "espidf"
   ],
-  "name": "Xueersi XiaoMiao ESP32",
+  "name": "Espressif ESP32 (generic)",
   "upload": {
     "flash_size": "4MB",
     "maximum_ram_size": 327680,
@@ -37,6 +35,6 @@
     "require_upload_port": true,
     "speed": 460800
   },
-  "url": "https://github.com",
-  "vendor": "Xueersi"
+  "url": "https://en.wikipedia.org/wiki/ESP32",
+  "vendor": "Espressif"
 }

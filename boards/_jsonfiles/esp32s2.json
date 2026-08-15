@@ -1,52 +1,47 @@
 {
   "build": {
     "arduino": {
-      "partitions": "default_16MB.csv",
-      "memory_type": "qio_opi"
+      "ldscript": "esp32s2_out.ld"
     },
     "core": "esp32",
     "extra_flags": [
-      "-DARDUINO_ESP32S3_DEV",
       "-DARDUINO_RUNNING_CORE=1",
-      "-DARDUINO_EVENT_RUNNING_CORE=1",
-      "-DBOARD_HAS_PSRAM"
+      "-DARDUINO_EVENT_RUNNING_CORE=1"
     ],
     "f_cpu": "240000000L",
     "f_flash": "80000000L",
     "flash_mode": "qio",
-    "psram_type": "opi",
     "hwids": [
       [
         "0x303A",
-        "0x1001"
+        "0x0002"
       ]
     ],
-    "mcu": "esp32s3",
+    "mcu": "esp32s2",
     "variant": "pinouts"
   },
   "connectivity": [
-    "wifi",
-    "bluetooth"
+    "wifi"
   ],
   "debug": {
     "default_tool": "esp-builtin",
     "onboard_tools": [
       "esp-builtin"
     ],
-    "openocd_target": "esp32s3.cfg"
+    "openocd_target": "esp32s2.cfg"
   },
   "frameworks": [
     "arduino",
     "espidf"
   ],
-  "name": "Xteink X4 Pro (ESP32-S3, 16 MB Flash, 8 MB PSRAM Octal)",
+  "name": "Espressif ESP32-S2 (generic)",
   "upload": {
-    "flash_size": "16MB",
+    "flash_size": "4MB",
     "maximum_ram_size": 327680,
-    "maximum_size": 16777216,
+    "maximum_size": 4194304,
     "require_upload_port": true,
-    "speed": 921600
+    "speed": 460800
   },
-  "url": "https://github.com/Free-Ink/freeink-sdk/blob/main/docs/xteink-x4pro-support.md",
-  "vendor": "Xteink"
+  "url": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html",
+  "vendor": "Espressif"
 }

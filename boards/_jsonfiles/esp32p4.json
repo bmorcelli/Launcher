@@ -2,11 +2,8 @@
   "build": {
     "core": "esp32",
     "extra_flags": [
-      "-DM5STACK",
-      "-DBOARD_HAS_PSRAM",
-      "-DARDUINO_M5STACK_TAB5=1",
-      "-DARDUINO_USB_MODE=1",
-      "-DARDUINO_USB_CDC_ON_BOOT=1"
+      "-DARDUINO_RUNNING_CORE=1",
+      "-DARDUINO_EVENT_RUNNING_CORE=1"
     ],
     "f_cpu": "360000000L",
     "f_flash": "40000000L",
@@ -14,11 +11,8 @@
     "psram_mode": "oct",
     "flash_mode": "qio",
     "mcu": "esp32p4",
-    "chip_variant": "esp32p4_es",
+    "chip_variant": "esp32p4",
     "variant": "pinouts"
-  },
-  "arduino": {
-    "partitions": "default_16MB.csv"
   },
   "connectivity": [
     "bluetooth",
@@ -31,14 +25,14 @@
     "arduino",
     "espidf"
   ],
-  "name": "M5STACK Tab5 esp32-p4 Board (ES pre rev.300)",
+  "name": "Espressif ESP32-P4 (generic, rev.300 and newer)",
   "upload": {
     "flash_size": "16MB",
     "maximum_ram_size": 512000,
     "maximum_size": 16777216,
     "require_upload_port": true,
-    "speed": 1500000
+    "speed": 921600
   },
-  "url": "https://docs.m5stack.com/en/core/Tab5",
-  "vendor": "M5STACK"
+  "url": "https://docs.espressif.com",
+  "vendor": "Espressif"
 }

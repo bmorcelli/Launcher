@@ -3,16 +3,12 @@
     "arduino": {
       "ldscript": "esp32s3_out.ld",
       "partitions": "default_16MB.csv",
-      "memory_type": "qio_qspi"
+      "memory_type": "qio_opi"
     },
     "core": "esp32",
     "extra_flags": [
-      "-DT_LORA_PAGER",
-      "-DBOARD_HAS_PSRAM",
       "-DARDUINO_RUNNING_CORE=1",
-      "-DARDUINO_EVENT_RUNNING_CORE=1",
-      "-DARDUINO_USB_MODE=1",
-      "-DARDUINO_USB_CDC_ON_BOOT"
+      "-DARDUINO_EVENT_RUNNING_CORE=1"
     ],
     "f_cpu": "240000000L",
     "f_flash": "80000000L",
@@ -20,7 +16,27 @@
     "hwids": [
       [
         "0x303A",
+        "0x1001"
+      ],
+      [
+        "0x239A",
+        "0x811B"
+      ],
+      [
+        "0x239A",
+        "0x011B"
+      ],
+      [
+        "0x239A",
+        "0x811C"
+      ],
+      [
+        "0x303A",
         "0x82D4"
+      ],
+      [
+        "0x303A",
+        "0x8119"
       ]
     ],
     "mcu": "esp32s3",
@@ -28,8 +44,7 @@
   },
   "connectivity": [
     "bluetooth",
-    "wifi",
-    "lora"
+    "wifi"
   ],
   "debug": {
     "default_tool": "esp-builtin",
@@ -42,7 +57,7 @@
     "arduino",
     "espidf"
   ],
-  "name": "LilyGo T-LoRa-Pager (16M Flash 8M QSPI PSRAM)",
+  "name": "Espressif ESP32-S3 (generic, 16M Flash 8M OPI PSRAM)",
   "upload": {
     "flash_size": "16MB",
     "maximum_ram_size": 327680,
@@ -50,6 +65,6 @@
     "require_upload_port": true,
     "speed": 460800
   },
-  "url": "https://www.lilygo.cc",
-  "vendor": "LilyGo"
+  "url": "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide.html",
+  "vendor": "Espressif"
 }

@@ -179,6 +179,15 @@ static void tab5KbPoll() {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
+    /*
+    Can't be set in build_flags
+    -D FP=3
+    -D FM=6
+    -D FG=9
+    */
+    _fp = 3;
+    _fm = 6;
+    _fg = 9;
 
     M5.begin();
     M5.Power.setExtOutput(true);
