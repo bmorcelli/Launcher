@@ -13,3 +13,6 @@
 [submodule "DisplayDrivers"]
 	path = lib/DisplayDrivers
 	url = https://github.com/bmorcelli/DisplayDrivers.git
+[submodule "platformio-espressif32-sunton"]
+	path = boards/CYD-2432S028/source/platformio-espressif32-sunton
+	url = https://github.com/rzeldent/platformio-espressif32-sunton
