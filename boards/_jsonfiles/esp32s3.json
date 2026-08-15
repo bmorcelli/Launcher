@@ -40,7 +40,7 @@
       ]
     ],
     "mcu": "esp32s3",
-    "variant": "pinouts"
+    "variant": "_jsonfiles"
   },
   "connectivity": [
     "bluetooth",

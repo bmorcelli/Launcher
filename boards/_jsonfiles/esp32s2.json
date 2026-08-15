@@ -18,7 +18,7 @@
       ]
     ],
     "mcu": "esp32s2",
-    "variant": "pinouts"
+    "variant": "_jsonfiles"
   },
   "connectivity": [
     "wifi"

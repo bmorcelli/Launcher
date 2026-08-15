@@ -12,7 +12,7 @@
     "flash_mode": "qio",
     "mcu": "esp32p4",
     "chip_variant": "esp32p4",
-    "variant": "pinouts"
+    "variant": "_jsonfiles"
   },
   "connectivity": [
     "bluetooth",

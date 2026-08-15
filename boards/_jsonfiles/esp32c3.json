@@ -5,7 +5,7 @@
     "f_flash": "80000000L",
     "flash_mode": "qio",
     "mcu": "esp32c3",
-    "variant": "pinouts"
+    "variant": "_jsonfiles"
   },
   "connectivity": [
     "wifi",

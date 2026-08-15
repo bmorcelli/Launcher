@@ -12,7 +12,7 @@
     "f_flash": "40000000L",
     "flash_mode": "dio",
     "mcu": "esp32",
-    "variant": "pinouts"
+    "variant": "_jsonfiles"
   },
   "connectivity": [
     "wifi",

@@ -101,6 +101,8 @@ Things that need to be done in future updates
 ## Latest Changelog
 * 2.8.1:
      * [x] Removed `phy_init` partition and increased NVS to 0x5000
+     * [x] Moved display drivers handling to [DisplayDrivers](https://github.com/bmorcelli/DisplayDrivers) lib, using its superclass to handle all display drivers used by Launcher.
+     * [x] Reorganized boards files to make porting easier. it now needs only 2 files and add it to CI/CD.
      * [x] Port to [T-Display P4](https://lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO)
      * [x] Port to [T-Display C5](https://lilygo.cc/products/t-display-c5?bg_ref=sDI8Bh4HmO)
 
