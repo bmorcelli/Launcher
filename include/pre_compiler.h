@@ -1,6 +1,13 @@
 #ifndef _PRE_COMPILER
 #define _PRE_COMPILER
 // clang-format off
+#ifdef HAS_2_BUTTONS
+    #define HAS_1_BUTTON 1
+#endif
+
+#ifdef HAS_6_BUTTONS
+    #define HAS_5_BUTTON 1
+#endif
 
 #ifndef LAUNCHER_DEFAULT_SPIFFS_THRESHOLD
 #define LAUNCHER_DEFAULT_SPIFFS_THRESHOLD 0xC00000 // 12Mb
