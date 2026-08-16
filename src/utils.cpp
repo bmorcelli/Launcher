@@ -14,22 +14,23 @@ void touchHeatMap(struct LTouchPoint t) {
     int third_x = tftWidth / 3;
     int third_y = tftHeight / 3;
 
-#if 1 // defined(DONT_USE_INPUT_TASK)
+#if 1
     if (t.x > third_x * 0 && t.x < third_x * 1 && t.y > tftHeight - LH * _fm * 2) PrevPress = true;
     if (t.x > third_x * 1 && t.x < third_x * 2 && t.y > tftHeight - LH * _fm * 2) SelPress = true;
-    if (t.x > third_x * 2 && t.x < third_x * 3 && t.y > tftHeight - LH * _fm * 2) NextPress = true;
-    if (t.x > third_x * 0 && t.x < third_x * 1 && t.y < LH * _fm * 4) EscPress = true;
+    if (t.x > third_x * 2 && t.y > tftHeight - LH * _fm * 2) NextPress = true;
+    // if (t.x > third_x * 0 && t.x < third_x * 1 && t.y < LH * _fm * 4) EscPress = true;
+    if (t.x > (tftWidth - LW * _fm * 6) && t.y < LH * _fm * 3) EscPress = true;
 
     /*
                         Touch area Map
                 ________________________________ 0
-                |_Esc_|_______________________|
+                |______________________|_Esc__| Top Right corner, 3 lines height, 6 characters width
+                |______________________|_Esc__|
                 |_____________________________|
                 |_____________________________|
                 |_____________________________|
                 |_____________________________|
-                |_____________________________|
-                |__Prev___|___Sel___|__Next___| 30 pixel touch area where the touchFooter is drawn
+                |__Prev___|___Sel___|__Next___| 2 Characters height area where the touchFooter is drawn
                 0         L third_x |         |
                                     Lthird_x*2|
                                               Lthird_x*3
@@ -112,6 +113,7 @@ bool releaseHeapObjectsAndReboot(void) {
     if (xHandle != nullptr) vTaskSuspend(xHandle);
     esp_wifi_stop();
     eraseNamespace("nvs.net80211");
+    eraseNamespace("phy");
 
     doc.clear();
     doc.shrinkToFit();

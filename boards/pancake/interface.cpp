@@ -189,16 +189,6 @@ void InputHandler(void) {
         if (_ft6336_get_point(&t)) {
             tm = launcherMillis();
 
-            // Reset all press flags to prevent ghost clicks
-            NextPress = false;
-            PrevPress = false;
-            UpPress = false;
-            DownPress = false;
-            SelPress = false;
-            EscPress = false;
-            AnyKeyPress = false;
-            touchPoint.pressed = false;
-
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 

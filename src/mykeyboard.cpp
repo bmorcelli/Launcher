@@ -138,6 +138,16 @@ void launcherInputUnlock() {
     if (inputLock != nullptr) xSemaphoreGiveRecursive(inputLock);
 }
 
+bool launcherSelectHeld() {
+    launcherInputLock();
+    bool held = SelPress;
+#if defined(HAS_TOUCH)
+    held = held || touchPoint.pressed;
+#endif
+    launcherInputUnlock();
+    return held;
+}
+
 keyStroke _getKeyPress() {
     // Waiting on the mutex instead of suspending the input task: the writer finishes its
     // update and releases, so neither side is ever frozen mid-allocation. See mykeyboard.h.
@@ -612,9 +622,6 @@ String generalKeyboard(
             // waits at least 250ms before accepting another input, to prevent rapid involuntary repeats
 
 #if defined(HAS_TOUCH) // CYD, Core2, CoreS3
-#if defined(DONT_USE_INPUT_TASK)
-            check(AnyKeyPress);
-#endif
             if (touchPoint.pressed) {
                 // If using touchscreen and buttons_strings, reset the navigation states to avoid inconsistent
                 // behavior, and reset the navigation coords to the OK button.

@@ -87,11 +87,9 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
             // freeze this task inside the allocator and deadlock loopTask - see mykeyboard.h.
             launcherInputLock();
             resetGlobals();
-#ifndef DONT_USE_INPUT_TASK
             InputHandler();
 #ifdef USE_CARDKB2
             cardkb2_poll();
-#endif
 #endif
             launcherInputUnlock();
             timer = launcherMillis();
@@ -272,12 +270,7 @@ void setup() {
     RAM_LOG("after-getConfigs");
     TouchFooter2();
 
-    // Some boards need input polling to stay on the main loop thread because
-    // display/touch drivers are not safe to service from a helper task.
-    // Must exist before either side can take it; setup() is still single threaded here.
-    // Created unconditionally: _getKeyPress() is reachable even in DONT_USE_INPUT_TASK builds.
     launcherInputLockInit();
-#ifndef DONT_USE_INPUT_TASK
     xTaskCreate(
         taskInputHandler, // Task function
         "InputHandler",   // Task Name
@@ -286,9 +279,6 @@ void setup() {
         2,                // Task priority (0 to 3), loopTask has priority 2.
         &xHandle          // Task handle (not used)
     );
-#else
-    xHandle = nullptr;
-#endif
 
     // Command interface over the Serial Monitor (nav/reboot/partitions/flash), always
     // on so a host script can steer the Launcher before it auto-boots a queued OTA app.

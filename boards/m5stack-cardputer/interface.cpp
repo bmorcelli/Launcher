@@ -167,6 +167,8 @@ void InputHandler(void) {
     static bool up = false;
     static bool down = false;
     static bool esc = false;
+    static bool selReported = false;
+    static bool escReported = false;
 
     if (!UseTCA8418 && launcherMillis() - tm < 200 && !LongPress) return;
 
@@ -337,10 +339,6 @@ void InputHandler(void) {
             downRepeatTime = now + TCA8418_REPEAT_MS;
         }
 
-        if (!keyEventHandled && !nextPulse && !prevPulse && !upPulse && !downPulse && !LongPress) {
-            sel = false; // avoid multiple selections
-            esc = false; // avoid multiple escapes
-        }
         if (delPulse) {
             pendingKey.del = true;
             pendingKey.exit_key = true;
@@ -358,8 +356,10 @@ void InputHandler(void) {
         PrevPress = prevPulse;
         UpPress = upPulse;
         DownPress = downPulse;
-        SelPress = sel | SelPress; // in case G0 is pressed
-        EscPress = esc;
+        if (sel && (!selReported || LongPress)) SelPress = true; // `| SelPress`: keeps GPIO0 above
+        if (esc && (!escReported || LongPress)) EscPress = true;
+        selReported = sel;
+        escReported = esc;
         tm = now;
         return;
     } else {

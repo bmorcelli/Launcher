@@ -56,14 +56,6 @@ bool setupSdCard() {
     sdcardSPI.begin(_sck, _miso, _mosi, _cs); // start SPI communications
     vTaskDelay(pdTICKS_TO_MS(10));
     if (!SDM.begin(_cs, sdcardSPI))
-#elif defined(DONT_USE_INPUT_TASK)
-#if (TFT_MOSI != SDCARD_MOSI)
-    sdcardSPI.begin(_sck, _miso, _mosi, _cs); // start SPI communications
-    if (!SDM.begin(_cs, sdcardSPI))
-#else
-    if (!SDM.begin(_cs))
-#endif
-
 #else
     sdcardSPI.begin(_sck, _miso, _mosi, _cs); // start SPI communications
     vTaskDelay(pdTICKS_TO_MS(10));
@@ -372,54 +364,29 @@ RESTART:
 
     // Long Press Detection
     LongPressDetected = false;
-#if defined(HAS_TOUCH) && defined(DONT_USE_INPUT_TASK) && !defined(E_PAPER_DISPLAY)
-    // Touch build with inline input polling (pancake, Marauder V8/V4OG, CYD,
-    // NM-CYD-C5, elecrow, nesso...): the button-style "is SelPress still held"
-    // test below does not work here. The touch layer emits presses but no
-    // reliable "released" event, so a quick tap leaves SelPress asserted and is
-    // mis-read as a long press (opening the folder's options menu instead of the
-    // folder itself). Instead poll the panel directly: clearing touchPoint.pressed
-    // and re-running InputHandler sets it back to true only while a finger is
-    // physically on the panel. Finger held past the threshold = long press
-    // (options); a quick tap that releases first = short press (open the folder).
-    // Boards that drive input from a background task (and thus manage LongPress
-    // themselves) are intentionally excluded — they keep the button path below.
+
+#if !defined(E_PAPER_DISPLAY)
     {
-        const uint32_t holdThreshold = 400; // ms the finger must stay down
-        const uint32_t t0 = launcherMillis();
-        LongPress = true; // force InputHandler to poll on every call (skip debounce)
-        while (launcherMillis() - t0 < holdThreshold) {
-            touchPoint.pressed = false;
-            InputHandler();
-            if (!touchPoint.pressed) break; // finger lifted → short press
-            vTaskDelay(15 / portTICK_PERIOD_MS);
+        const uint32_t holdThreshold = 300; // ms the select input must stay engaged
+        LongPress = true;                   // tells InputHandler to report the held state
+        LongPressTmp = launcherMillis();
+        // Seed it as held: loopOptions consumed the press to get here, so nothing has
+        // re-asserted the flag yet. From here on the input side owns the value -- it clears
+        // every cycle and only comes back while the input is genuinely still engaged.
+        launcherInputLock();
+        SelPress = true;
+        launcherInputUnlock();
+
+        bool stillHeld = true;
+        while (stillHeld && launcherMillis() - LongPressTmp < holdThreshold) {
+            check(AnyKeyPress); // keeps the input task on its fast polling cadence
+            vTaskDelay(20 / portTICK_PERIOD_MS);
+            stillHeld = launcherSelectHeld();
         }
-        if (launcherMillis() - t0 >= holdThreshold) LongPressDetected = true;
-        // On a long press the finger is usually still down; wait for release so
-        // the lingering touch doesn't immediately activate an item in the menu.
-        if (LongPressDetected) {
-            const uint32_t rel = launcherMillis();
-            while (launcherMillis() - rel < 1500) {
-                touchPoint.pressed = false;
-                InputHandler();
-                if (!touchPoint.pressed) break;
-                vTaskDelay(15 / portTICK_PERIOD_MS);
-            }
-        }
+        LongPressDetected = stillHeld;
         LongPress = false;
-        resetGlobals(); // drop any flags / heat-map side effects from polling
+        resetGlobals(); // drop the seeded flag and anything the polling raised
     }
-#elif !defined(E_PAPER_DISPLAY)
-    LongPress = true;
-    SelPress = true; // it was just pressed
-    LongPressTmp = launcherMillis();
-    while (launcherMillis() - LongPressTmp < 300 && SelPress) {
-        check(AnyKeyPress);
-        vTaskDelay(20 / portTICK_PERIOD_MS);
-    }
-    if (check(SelPress)) LongPressDetected = true;
-    LongPress = false;
-    SelPress = false;
 #else
     // Always behave as if it was long pressed
     // But shows Option to enter on folders

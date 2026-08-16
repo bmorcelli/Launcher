@@ -145,23 +145,10 @@ extern volatile uint16_t tftWidth;
 
 extern TaskHandle_t xHandle;
 extern inline bool check(volatile bool &btn) {
-#ifndef DONT_USE_INPUT_TASK
     if (!btn) return false;
     btn = false;
     AnyKeyPress = false;
     return true;
-#else
-    static uint8_t count = 0;
-    if (count > 5) {
-        InputHandler();
-        count = 0;
-    }
-    count++;
-    if (!btn) return false;
-    btn = false;
-    AnyKeyPress = false;
-    return true;
-#endif
 }
 
 #define U_FAT_vfs 300
