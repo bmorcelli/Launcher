@@ -32,9 +32,7 @@ static inline void resumeSdInstallInput() {
 
 bool setupSdCard() {
 #if defined(ARDUINO_M5STACK_PAPER)
-    // M5GFX and the SD slot share VSPI on the original M5Paper. Use Arduino's
-    // canonical VSPI instance so both libraries coordinate the same hardware
-    // bus instead of creating a second SPIClass owner for it.
+   
     if (!SDM.begin(_cs, SPI))
 #elif !defined(SDM_SD)
     if (sdcardMounted) return true;
@@ -48,9 +46,7 @@ bool setupSdCard() {
 #endif
     vTaskDelay(pdTICKS_TO_MS(10));
 
-    // TEMP DIAGNOSTIC: force the IDF sdmmc driver's own ESP_LOGx calls to
-    // print (requires CORE_DEBUG_LEVEL=5, see platformio.ini). This gives
-    // the actual low-level failure reason instead of just "false".
+
     esp_log_level_set("sdmmc_cmd", ESP_LOG_VERBOSE);
     esp_log_level_set("sdmmc_common", ESP_LOG_VERBOSE);
     esp_log_level_set("sdmmc_init", ESP_LOG_VERBOSE);
@@ -58,12 +54,6 @@ bool setupSdCard() {
     esp_log_level_set("sdmmc_sd", ESP_LOG_VERBOSE);
     esp_log_level_set("SD_MMC", ESP_LOG_VERBOSE);
 
-    // Some SDIO cards/boards don't reliably enumerate at the driver's
-    // default clock on the very first attempt (marginal signal integrity,
-    // slow card power-up, etc). Retry a few times at a conservative 10MHz
-    // before giving up, and if 4-bit mode never comes up, fall back to
-    // 1-bit (fewer simultaneous data lines = more tolerant of a marginal
-    // bus) rather than failing outright.
     bool sdOk = false;
     for (uint8_t attempt = 0; attempt < 3 && !sdOk; attempt++) {
         if (attempt > 0) vTaskDelay(pdTICKS_TO_MS(250));
@@ -82,21 +72,21 @@ bool setupSdCard() {
 #else
     bool sdOk = false;
 #endif
-    if (!sdOk) // One bit mode, don't auto-format
+    if (!sdOk) 
 #elif (TFT_MOSI == SDCARD_MOSI)
-    if (!SDM.begin(_cs)) // https://github.com/Bodmer/TFT_eSPI/discussions/2420
+    if (!SDM.begin(_cs)) 
 #elif defined(HEADLESS)
     if (_sck == 0 && _miso == 0 && _mosi == 0 && _cs == 0) {
         launcherConsolePrintln("SdCard pins not set");
         return false;
     }
 
-    sdcardSPI.begin(_sck, _miso, _mosi, _cs); // start SPI communications
+    sdcardSPI.begin(_sck, _miso, _mosi, _cs); 
     vTaskDelay(pdTICKS_TO_MS(10));
     if (!SDM.begin(_cs, sdcardSPI))
 #elif defined(DONT_USE_INPUT_TASK)
 #if (TFT_MOSI != SDCARD_MOSI)
-    sdcardSPI.begin(_sck, _miso, _mosi, _cs); // start SPI communications
+    sdcardSPI.begin(_sck, _miso, _mosi, _cs); 
     if (!SDM.begin(_cs, sdcardSPI))
 #else
     if (!SDM.begin(_cs))
@@ -119,10 +109,7 @@ bool setupSdCard() {
     }
 }
 
-/***************************************************************************************
-** Function name: deleteFromSd
-** Description:   delete file or folder
-***************************************************************************************/
+
 bool deleteFromSd(const String &path) {
     File dir = SDM.open(path);
     if (!dir.isDirectory()) { return SDM.remove(path.c_str()); }
