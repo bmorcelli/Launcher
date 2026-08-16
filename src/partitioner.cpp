@@ -1,6 +1,7 @@
 #include "partitioner.h"
 #include "app_registry.h"
 #include "backup_manager.h"
+#include "ble_bonds.h"
 #include "display.h"
 #include "esp_heap_caps.h"
 #include "idf/idf_update.h"
@@ -652,6 +653,26 @@ bool formatNvsPartition() {
     return releaseHeapObjectsAndReboot();
 }
 
+// Last resort for a firmware that still bootloops on a foreign bond record: unlike
+// "Format NVS Partition" this only touches the bond store, leaving WiFi and settings
+// alone. Everything has to be paired again afterwards.
+bool eraseBleBonds() {
+    size_t count = launcherBleBondsCount();
+    if (count == 0) {
+        displayMsg("No BLE bonds stored", true);
+        return false;
+    }
+
+    if (!confirmAction("Erase " + String((unsigned)count) + " BLE bond(s)?")) return false;
+    if (!launcherBleBondsEraseAll()) {
+        displayError("Bond erase failed", true);
+        return false;
+    }
+
+    displayMsg("BLE bonds erased", true);
+    return true;
+}
+
 bool applyPartitionChanges(const LauncherPartitionTable &table) {
     LauncherPartitionTable target = table;
     if (!compactOrShow(target)) return false;
@@ -844,6 +865,7 @@ void partList() {
                  }}
             );
         }
+        partitionOptions.push_back({"Erase BLE Bonds", []() { eraseBleBonds(); }});
         if (dev_mode) {
             partitionOptions.push_back(
                 {"Wipe Flash memory",

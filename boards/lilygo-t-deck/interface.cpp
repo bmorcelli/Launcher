@@ -167,12 +167,39 @@ void InputHandler(void) {
         rot = rotation;
     }
     touched = touch.getPoint(&t.x, &t.y, 1);
-    launcherDelayMs(1);
+    launcherDelayMs(2);
     Wire.requestFrom(LILYGO_KB_SLAVE_ADDRESS, 1);
     while (Wire.available() > 0) {
         keyValue = Wire.read();
         launcherDelayMs(1);
     }
+
+    if (keyValue != (char)0x00) {
+        if (!wakeUpScreen()) {
+            AnyKeyPress = true;
+        } else return;
+        KeyStroke.Clear();
+        KeyStroke.hid_keys.push_back(keyValue);
+        if (keyValue == ' ') KeyStroke.exit_key = true; // key pressed to try to exit
+        if (keyValue == (char)0x08) {
+            KeyStroke.exit_key = true;
+            KeyStroke.del = true;
+        }
+
+        if (keyValue == 'w') UpPress = true;
+        if (keyValue == 's') DownPress = true;
+        if (keyValue == 'a') PrevPress = true;
+        if (keyValue == 'd') NextPress = true;
+
+        if (keyValue == (char)0x0D) KeyStroke.enter = true;
+        if (launcherGpioRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
+        KeyStroke.word.push_back(keyValue);
+        if (KeyStroke.del) EscPress = true;
+        if (KeyStroke.enter) SelPress = true;
+        KeyStroke.pressed = true;
+        tm = launcherMillis();
+    } else KeyStroke.pressed = false;
+
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
     // if the trackball movement has expired, reset it to avoid unwanted movements
@@ -205,32 +232,6 @@ void InputHandler(void) {
             DownPress = true;
         } // Down
     }
-
-    if (keyValue != (char)0x00) {
-        if (!wakeUpScreen()) {
-            AnyKeyPress = true;
-        } else return;
-        KeyStroke.Clear();
-        KeyStroke.hid_keys.push_back(keyValue);
-        if (keyValue == ' ') KeyStroke.exit_key = true; // key pressed to try to exit
-        if (keyValue == (char)0x08) {
-            KeyStroke.exit_key = true;
-            KeyStroke.del = true;
-        }
-
-        if (keyValue == 'w') UpPress = true;
-        if (keyValue == 's') DownPress = true;
-        if (keyValue == 'a') PrevPress = true;
-        if (keyValue == 'd') NextPress = true;
-
-        if (keyValue == (char)0x0D) KeyStroke.enter = true;
-        if (launcherGpioRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
-        KeyStroke.word.push_back(keyValue);
-        if (KeyStroke.del) EscPress = true;
-        if (KeyStroke.enter) SelPress = true;
-        KeyStroke.pressed = true;
-        tm = launcherMillis();
-    } else KeyStroke.pressed = false;
 
     if (launcherGpioRead(SEL_BTN) == BTN_ACT) {
         tm = launcherMillis();

@@ -1,7 +1,7 @@
 function _(e) { return document.getElementById(e); }
 function toggleMenu(){_('menu').classList.toggle('open')}
 function toggleConfigOverlay(){_('configOverlay').classList.toggle('open')}
-function closeConfigOverlay(event){if(event.target.id==='configOverlay')_('configOverlay').classList.remove('open')}
+function closeConfigOverlay(event){if(event.target.id==='configOverlay'||event.target.closest('#configBox .row'))_('configOverlay').classList.remove('open')}
 function closePmanResizeOverlay(event){if(event.target.id==='pmanResizeOverlay')_('pmanResizeOverlay').classList.remove('open')}
 function toggleRow(b){const r=b.closest('tr').nextElementSibling;r.style.display=r.style.display==='none'?'table-row':'none'}
 const editableExts = new Set(['txt','ini','conf','c','cpp','h','hpp','js','css','htm','html','ts']);
@@ -49,8 +49,10 @@ function loadNvs() {
                     h += '<input type="checkbox" id="' + id + '"' + (f.v ? ' checked' : '') + '>';
                 else if (_nvsInts.has(f.t))
                     h += '<input type="number" id="' + id + '" value="' + f.v + '" ' + inp + '>';
-                else
+                else if (f.t === 'str')
                     h += '<input type="text" id="' + id + '" value="' + f.v + '" ' + inps + '>';
+                else
+                    h += '<span style="color:#888">' + (f.t === 'blob' ? f.sz + ' bytes' : 'not editable') + '</span>';
                 h += ' <small style="color:#888">' + f.t + '</small></div>';
             });
         }
@@ -58,12 +60,19 @@ function loadNvs() {
     };
     x.send();
 }
+function eraseBleBonds() {
+    if (!confirm('Erase all BLE bonds? Every device has to be paired again.')) return;
+    const x = new XMLHttpRequest();
+    x.open('POST', '/blebonds');
+    x.onload = () => { _('status').innerHTML = x.responseText; loadNvs(); };
+    x.send();
+}
+
 function saveNvs() {
     const out = {};
     for (const ns in _nvsData) {
-        out[ns] = _nvsData[ns].map(f => {
+        out[ns] = _nvsData[ns].filter(f => document.getElementById(_nvsId(ns, f.k))).map(f => {
             const el = document.getElementById(_nvsId(ns, f.k));
-            if (!el) return f;
             let v = _nvsIsCheckbox(f) ? (el.checked ? 1 : 0) : _nvsInts.has(f.t) ? parseInt(el.value) : el.value;
             return {k: f.k, t: f.t, v};
         });

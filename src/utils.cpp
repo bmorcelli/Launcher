@@ -112,8 +112,6 @@ bool releaseHeapObjectsAndReboot(void) {
 
     if (xHandle != nullptr) vTaskSuspend(xHandle);
     esp_wifi_stop();
-    eraseNamespace("nvs.net80211");
-    eraseNamespace("phy");
 
     doc.clear();
     doc.shrinkToFit();

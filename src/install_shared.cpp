@@ -1,6 +1,7 @@
 #include "install_shared.h"
 #include "app_registry.h"
 #include "backup_manager.h"
+#include "ble_bonds.h"
 #include <globals.h>
 
 const char *launcherInstallDefaultDataLabel(uint8_t subtype) { return subtype == 0x81 ? "vfs" : "spiffs"; }
@@ -31,6 +32,10 @@ void launcherSaveInstalledAppMetadata(
 
     String installedLabel = String(appEntry.label);
     launcherPruneAppRegistry(table);
+    // Installing an app also sets it to boot, so it inherits the live NimBLE bond
+    // store the same way a menu launch does -- and a record left by another firmware
+    // bootloops it. Hand it a store holding only its own records.
+    launcherBleBondsSwitchTo(installedLabel.c_str());
 
     LauncherAppMetadata metadata;
     metadata.name = launcherInstallAppDisplayName(sourceName, preferredName);

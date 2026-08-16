@@ -1,6 +1,7 @@
 #include "webInterface.h"
 #include "app_registry.h"
 #include "backup_manager.h"
+#include "ble_bonds.h"
 #include "display.h"
 #include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
@@ -12,6 +13,7 @@
 #include "littlefs_patch.h"
 #include "mykeyboard.h"
 #include "nvs.h"
+#include "nvs_helpers.h"
 #include "onlineLauncher.h"
 #include "partition_install_layout.h"
 #include "partition_table_model.h"
@@ -1219,107 +1221,44 @@ esp_err_t nvsHandler(httpd_req_t *req) {
         nvs_iterator_t it = nullptr;
         esp_err_t res = nvs_entry_find("nvs", nullptr, NVS_TYPE_ANY, &it);
 
-        nvs_handle_t h = 0;
+        lnvs::Handle handle;
         char curNs[16] = "";
 
         while (res == ESP_OK && it != nullptr) {
             nvs_entry_info_t info;
             nvs_entry_info(it, &info);
 
-            bool skip = (info.type == NVS_TYPE_BLOB) ||
-                        (strcmp(info.namespace_name, "launcher") == 0 && strcmp(info.key, "token") == 0);
-
+            bool skip = strcmp(info.namespace_name, "launcher") == 0 && strcmp(info.key, "token") == 0;
             if (!skip) {
                 if (strcmp(curNs, info.namespace_name) != 0) {
-                    if (h) {
-                        nvs_close(h);
-                        h = 0;
-                    }
-                    nvs_open(info.namespace_name, NVS_READONLY, &h);
+                    handle.open(info.namespace_name, false);
                     strncpy(curNs, info.namespace_name, sizeof(curNs) - 1);
                 }
-                if (h) {
+                if (handle) {
                     if (!doc[info.namespace_name].is<JsonArray>()) doc[info.namespace_name].to<JsonArray>();
                     JsonObject field = doc[info.namespace_name].as<JsonArray>().add<JsonObject>();
                     field["k"] = info.key;
-                    switch (info.type) {
-                        case NVS_TYPE_U8: {
-                            uint8_t v = 0;
-                            nvs_get_u8(h, info.key, &v);
-                            field["t"] = "u8";
-                            field["v"] = v;
-                            break;
-                        }
-                        case NVS_TYPE_I8: {
-                            int8_t v = 0;
-                            nvs_get_i8(h, info.key, &v);
-                            field["t"] = "i8";
-                            field["v"] = v;
-                            break;
-                        }
-                        case NVS_TYPE_U16: {
-                            uint16_t v = 0;
-                            nvs_get_u16(h, info.key, &v);
-                            field["t"] = "u16";
-                            field["v"] = v;
-                            break;
-                        }
-                        case NVS_TYPE_I16: {
-                            int16_t v = 0;
-                            nvs_get_i16(h, info.key, &v);
-                            field["t"] = "i16";
-                            field["v"] = v;
-                            break;
-                        }
-                        case NVS_TYPE_U32: {
-                            uint32_t v = 0;
-                            nvs_get_u32(h, info.key, &v);
-                            field["t"] = "u32";
-                            field["v"] = v;
-                            break;
-                        }
-                        case NVS_TYPE_I32: {
-                            int32_t v = 0;
-                            nvs_get_i32(h, info.key, &v);
-                            field["t"] = "i32";
-                            field["v"] = v;
-                            break;
-                        }
-                        case NVS_TYPE_U64: {
-                            uint64_t v = 0;
-                            nvs_get_u64(h, info.key, &v);
-                            field["t"] = "u64";
-                            field["v"] = (uint32_t)v;
-                            break;
-                        }
-                        case NVS_TYPE_I64: {
-                            int64_t v = 0;
-                            nvs_get_i64(h, info.key, &v);
-                            field["t"] = "i64";
-                            field["v"] = (int32_t)v;
-                            break;
-                        }
-                        case NVS_TYPE_STR: {
-                            size_t len = 0;
-                            if (nvs_get_str(h, info.key, nullptr, &len) == ESP_OK && len > 0) {
-                                char *tmp = static_cast<char *>(malloc(len));
-                                if (tmp) {
-                                    if (nvs_get_str(h, info.key, tmp, &len) == ESP_OK) {
-                                        field["t"] = "str";
-                                        field["v"] = tmp;
-                                    }
-                                    free(tmp);
-                                }
-                            }
-                            break;
-                        }
-                        default: break;
+                    field["t"] = lnvs::typeName(info.type);
+
+                    int64_t scalar = 0;
+                    size_t len = 0;
+                    if (lnvs::getScalar(handle.raw(), info.key, info.type, scalar)) {
+                        field["v"] = scalar;
+                    } else if (info.type == NVS_TYPE_STR) {
+                        field["v"] = lnvs::getString(handle.raw(), info.key);
+                    } else if (
+                        info.type == NVS_TYPE_BLOB &&
+                        nvs_get_blob(handle.raw(), info.key, nullptr, &len) == ESP_OK
+                    ) {
+                        // Size only, never the payload: NimBLE bonds live in blobs and
+                        // carry the LTK/IRK. The size is what matters anyway -- it is
+                        // what differs between firmwares and smashes the stack.
+                        field["sz"] = (uint32_t)len;
                     }
                 }
             }
             res = nvs_entry_next(&it);
         }
-        if (h) nvs_close(h);
         if (it) nvs_release_iterator(it);
 
         String json;
@@ -1339,33 +1278,43 @@ esp_err_t nvsHandler(httpd_req_t *req) {
 
         for (JsonPair ns : doc.as<JsonObject>()) {
             const char *nsName = ns.key().c_str();
-            nvs_handle_t h;
-            if (nvs_open(nsName, NVS_READWRITE, &h) != ESP_OK) continue;
+            lnvs::Handle handle(nsName, true);
+            if (!handle) continue;
             for (JsonObject field : ns.value().as<JsonArray>()) {
                 const char *key = field["k"];
-                const char *t = field["t"];
-                if (!key || !t) continue;
+                if (!key) continue;
                 if (strcmp(nsName, "launcher") == 0 && strcmp(key, "token") == 0) continue;
-                if (strcmp(t, "u8") == 0) nvs_set_u8(h, key, (uint8_t)field["v"].as<unsigned>());
-                else if (strcmp(t, "i8") == 0) nvs_set_i8(h, key, (int8_t)field["v"].as<int>());
-                else if (strcmp(t, "u16") == 0) nvs_set_u16(h, key, (uint16_t)field["v"].as<unsigned>());
-                else if (strcmp(t, "i16") == 0) nvs_set_i16(h, key, (int16_t)field["v"].as<int>());
-                else if (strcmp(t, "u32") == 0) nvs_set_u32(h, key, (uint32_t)field["v"].as<unsigned>());
-                else if (strcmp(t, "i32") == 0) nvs_set_i32(h, key, (int32_t)field["v"].as<int>());
-                else if (strcmp(t, "u64") == 0) nvs_set_u64(h, key, (uint64_t)field["v"].as<unsigned>());
-                else if (strcmp(t, "i64") == 0) nvs_set_i64(h, key, (int64_t)field["v"].as<int>());
-                else if (strcmp(t, "str") == 0) {
-                    const char *s = field["v"].as<const char *>();
-                    if (s) nvs_set_str(h, key, s);
+
+                // Blobs and unknown types have no editor in the UI and are not sent
+                // back, so anything that is not a scalar or a string is ignored here.
+                nvs_type_t type = lnvs::typeFromName(field["t"]);
+                if (type == NVS_TYPE_STR) {
+                    const char *value = field["v"].as<const char *>();
+                    if (value) lnvs::setString(handle.raw(), key, value);
+                } else {
+                    lnvs::setScalar(handle.raw(), key, type, field["v"].as<int64_t>());
                 }
             }
-            nvs_commit(h);
-            nvs_close(h);
+            handle.commit();
         }
         getFromNVS();
         getWifiFromNVS();
         sendText(req, "text/plain", "OK");
     }
+    return ESP_OK;
+}
+
+// Web counterpart to PMan's "Erase BLE Bonds": drops the NimBLE bond store and the
+// per-app snapshots the Launcher keeps for it, without touching WiFi or settings.
+esp_err_t bleBondsHandler(httpd_req_t *req) {
+    if (!checkUserWebAuth(req)) return ESP_OK;
+
+    String count = String((uint32_t)launcherBleBondsCount());
+    if (!launcherBleBondsEraseAll()) {
+        sendText(req, 500, "text/plain", "FAIL erasing BLE bonds");
+        return ESP_OK;
+    }
+    sendText(req, "text/plain", "Erased " + count + " BLE bond record(s)");
     return ESP_OK;
 }
 
@@ -1977,6 +1926,7 @@ void configureWebServer() {
     registerHandler("/editfile", HTTP_POST, editfileHandler);
     registerHandler("/nvs", HTTP_GET, nvsHandler);
     registerHandler("/nvs", HTTP_POST, nvsHandler);
+    registerHandler("/blebonds", HTTP_POST, bleBondsHandler);
     registerHandler("/partitions", HTTP_GET, partitionsHandler);
     registerHandler("/partitions", HTTP_POST, partitionsHandler);
     registerHandler("/sdpins", HTTP_GET, sdPinsHandler);

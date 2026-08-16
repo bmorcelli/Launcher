@@ -5,9 +5,9 @@
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "nvs_flash.h"
-#if ARDUINO_M5STACK_TAB5
+#if BOOT_LOGIC_ON_NVS
 #include "nvs.h"
-#include "nvs_handle.hpp"
+#include "nvs_helpers.h"
 #endif
 #include <SD.h>
 #include <SPIFFS.h>
@@ -183,23 +183,21 @@ void setup() {
     ensureM5StackUiFlowNVSDefaults();
     RAM_LOG("after-nvs-partition-defaults");
 
-#if ARDUINO_M5STACK_TAB5
-    esp_err_t nve;
-    std::unique_ptr<nvs::NVSHandle> nvsHandle = nvs::open_nvs_handle("launcher", NVS_READWRITE, &nve);
+#if BOOT_LOGIC_ON_NVS
+    lnvs::Handle nvsHandle("launcher", true);
     bool init = false;
-    nve = nvsHandle->get_item("init", init);
-    if (nve != ESP_OK) {
-        nvsHandle->set_item("init", false);
-        nvsHandle->commit();
+    if (!lnvs::getBool(nvsHandle.raw(), "init", init)) {
+        lnvs::setBool(nvsHandle.raw(), "init", false);
+        nvsHandle.commit();
         init = false;
     }
-    if (init >= 1) { // restart com eeprom em 1
-        nvsHandle->set_item("init", false);
-        nvsHandle->commit();
+    if (init) { // restart com eeprom em 1
+        lnvs::setBool(nvsHandle.raw(), "init", false);
+        nvsHandle.commit();
         ESP.restart();
     } else {
-        nvsHandle->set_item("init", true);
-        nvsHandle->commit();
+        lnvs::setBool(nvsHandle.raw(), "init", true);
+        nvsHandle.commit();
     }
 #endif
 

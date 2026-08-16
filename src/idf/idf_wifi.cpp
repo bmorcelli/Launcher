@@ -14,7 +14,7 @@
 #include "lwip/ip4_addr.h"
 #include "mdns.h"
 #include "nvs.h"
-#include "nvs_handle.hpp"
+#include "nvs_helpers.h"
 #include <memory>
 #include <stdio.h>
 #include <string.h>
@@ -262,19 +262,17 @@ void hostedInitTask(void *arg) {
 }
 
 uint8_t hostedGuardRead() {
-    esp_err_t err = ESP_OK;
-    auto handle = nvs::open_nvs_handle(kHostedNs, NVS_READONLY, &err);
-    if (err != ESP_OK || !handle) return kHostedUntried;
+    lnvs::Handle handle(kHostedNs, false);
+    if (!handle) return kHostedUntried;
     uint8_t state = kHostedUntried;
-    if (handle->get_item(kHostedKey, state) != ESP_OK) return kHostedUntried;
+    if (nvs_get_u8(handle.raw(), kHostedKey, &state) != ESP_OK) return kHostedUntried;
     return state;
 }
 
 void hostedGuardWrite(uint8_t state) {
-    esp_err_t err = ESP_OK;
-    auto handle = nvs::open_nvs_handle(kHostedNs, NVS_READWRITE, &err);
-    if (err != ESP_OK || !handle) return;
-    if (handle->set_item(kHostedKey, state) == ESP_OK) handle->commit();
+    lnvs::Handle handle(kHostedNs, true);
+    if (!handle) return;
+    if (nvs_set_u8(handle.raw(), kHostedKey, state) == ESP_OK) handle.commit();
 }
 } // namespace
 
