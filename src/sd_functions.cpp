@@ -36,7 +36,7 @@ bool setupSdCard() {
     // canonical VSPI instance so both libraries coordinate the same hardware
     // bus instead of creating a second SPIClass owner for it.
     if (!SDM.begin(_cs, SPI))
-#elif !defined(SDM_SD) 
+#elif !defined(SDM_SD)
     if (sdcardMounted) return true;
     bool OnebitMode = true; // default to one bit mode
 #if defined(USE_SD_MMC) && defined(PIN_SD_CLK) && defined(PIN_SD_CMD) && defined(PIN_SD_D0)
@@ -47,9 +47,42 @@ bool setupSdCard() {
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
 #endif
     vTaskDelay(pdTICKS_TO_MS(10));
-#else
+
+    // TEMP DIAGNOSTIC: force the IDF sdmmc driver's own ESP_LOGx calls to
+    // print (requires CORE_DEBUG_LEVEL=5, see platformio.ini). This gives
+    // the actual low-level failure reason instead of just "false".
+    esp_log_level_set("sdmmc_cmd", ESP_LOG_VERBOSE);
+    esp_log_level_set("sdmmc_common", ESP_LOG_VERBOSE);
+    esp_log_level_set("sdmmc_init", ESP_LOG_VERBOSE);
+    esp_log_level_set("sdmmc_req", ESP_LOG_VERBOSE);
+    esp_log_level_set("sdmmc_sd", ESP_LOG_VERBOSE);
+    esp_log_level_set("SD_MMC", ESP_LOG_VERBOSE);
+
+    // Some SDIO cards/boards don't reliably enumerate at the driver's
+    // default clock on the very first attempt (marginal signal integrity,
+    // slow card power-up, etc). Retry a few times at a conservative 10MHz
+    // before giving up, and if 4-bit mode never comes up, fall back to
+    // 1-bit (fewer simultaneous data lines = more tolerant of a marginal
+    // bus) rather than failing outright.
+    bool sdOk = false;
+    for (uint8_t attempt = 0; attempt < 3 && !sdOk; attempt++) {
+        if (attempt > 0) vTaskDelay(pdTICKS_TO_MS(250));
+        sdOk = SD_MMC.begin("/sdcard", OnebitMode, false, 10000);
+    }
+#if defined(SD_MMC_4BIT) && defined(PIN_SD_D1) && defined(PIN_SD_D2) && defined(PIN_SD_D3)
+    if (!sdOk) {
+        launcherConsolePrintln("SD_MMC 4-bit mount failed, retrying in 1-bit mode");
+        SD_MMC.end();
+        SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
+        OnebitMode = true;
+        vTaskDelay(pdTICKS_TO_MS(10));
+        sdOk = SD_MMC.begin("/sdcard", OnebitMode, false, 10000);
+    }
 #endif
-    if (!SD_MMC.begin("/sdcard", OnebitMode, false)) // One bit mode, don't auto-format
+#else
+    bool sdOk = false;
+#endif
+    if (!sdOk) // One bit mode, don't auto-format
 #elif (TFT_MOSI == SDCARD_MOSI)
     if (!SDM.begin(_cs)) // https://github.com/Bodmer/TFT_eSPI/discussions/2420
 #elif defined(HEADLESS)

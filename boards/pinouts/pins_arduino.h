@@ -14,6 +14,8 @@
 #include "m5stack-cardputer.h"
 #elif defined(PANCAKE)
 #include "pancake.h"
+#elif defined(ES3C28P)
+#include "ES3C28P.h"
 #elif defined(NM_CYD_C5) || defined(CONFIG_IDF_TARGET_ESP32C5)
 #include "nm-cyd-c5.h"
 #elif CYD
