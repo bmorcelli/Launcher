@@ -5,6 +5,10 @@
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <interface.h>
+#define SEL_BTN 0
+#define DW_BTN 28
+#define BTN_ACT LOW
+
 GaugeAXP2602 gauge;
 
 volatile bool nxtPress = false;
@@ -47,7 +51,6 @@ void _setup_gpio() {
                                .active_level = 0,
                                },
     };
-    launcherGpioInputPullup(SEL_BTN);
 
     btn1 = new Button(bt1);
 

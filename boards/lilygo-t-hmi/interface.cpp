@@ -4,6 +4,9 @@
 #include <Arduino.h>
 #include <SD_MMC.h>
 #include <interface.h>
+#define PWR_EN_PIN 10
+#define PWR_ON_PIN 14
+
 CYD28_TouchR touch(320, 240);
 
 /***************************************************************************************
@@ -32,9 +35,6 @@ void _post_setup_gpio() {
     if (!touch.begin(&SPI)) {
         launcherConsolePrintf("%s\n", String("Touchscreen initialization failed!").c_str());
     }
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_Bits 8
-#define TFT_BRIGHT_FREQ 5000
     // Brightness control must be initialized after tft in this case @Pirata
     pinMode(TFT_BL, OUTPUT);
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);

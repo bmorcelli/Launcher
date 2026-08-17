@@ -5,8 +5,8 @@
 void ramProfileLog(const char *tag);
 #define RAM_LOG(tag) ramProfileLog(tag)
 #else
-#define RAM_LOG(tag) \
-    do {             \
+#define RAM_LOG(tag)                                                                                         \
+    do {                                                                                                     \
     } while (0)
 #endif
 

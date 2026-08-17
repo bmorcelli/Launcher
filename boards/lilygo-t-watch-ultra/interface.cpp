@@ -6,6 +6,19 @@
 // GPIO expander
 #include <ExtensionIOXL9555.hpp>
 ExtensionIOXL9555 io;
+// Interrupt IO port
+#define TP_INT (12)
+#define RTC_INT (1)
+#define PMU_INT (7)
+#define NFC_INT (5)
+#define SENSOR_INT (8)
+#define NFC_CS (4)
+
+// External expansion chip IO definition
+#define EXPANDS_DRV_EN (6)
+#define EXPANDS_DISP_EN (7)
+#define EXPANDS_TOUCH_RST (8)
+#define EXPANDS_SD_DET (10)
 
 #define XPOWERS_CHIP_AXP2101
 #include <XPowersLib.h>
@@ -93,7 +106,12 @@ int getBattery() {
 ** location: settings.cpp
 ** set brightness value
 **********************************************************************/
-void _setBrightness(uint8_t brightval) { tft->_outputDriver.setBrightness(brightval * 254 / 100); }
+void _setBrightness(uint8_t brightval) {
+    // The AMOLED has no backlight rail; brightness is a CO5300 register.
+    // outputDriver() is the panel behind the canvas — see DisplayDrivers.
+    auto *panel = static_cast<Arduino_CO5300 *>(tft->outputDriver());
+    if (panel) panel->setBrightness(brightval * 254 / 100);
+}
 
 struct LTouchPointPro {
     int16_t x;

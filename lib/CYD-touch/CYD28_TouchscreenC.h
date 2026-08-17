@@ -25,15 +25,14 @@
 
 class CYD28_TS_Point {
 public:
-  CYD28_TS_Point(void) : x(0), y(0), z(0) {}
-  CYD28_TS_Point(int16_t x, int16_t y, int16_t z) : x(x), y(y), z(z) {}
-  int16_t x, y, z; // z is not used, but kept for compatibility of TouchscreenR
+    CYD28_TS_Point(void) : x(0), y(0), z(0) {}
+    CYD28_TS_Point(int16_t x, int16_t y, int16_t z) : x(x), y(y), z(z) {}
+    int16_t x, y, z; // z is not used, but kept for compatibility of TouchscreenR
 };
 
 class CYD28_TouchC {
 public:
-    constexpr CYD28_TouchC(int16_t w, int16_t h)
-        : sizeX_px(w), sizeY_px(h){ }
+    constexpr CYD28_TouchC(int16_t w, int16_t h) : sizeX_px(w), sizeY_px(h) {}
     bool begin(void);
     bool touched();
     CYD28_TS_Point getPointScaled();
@@ -42,7 +41,7 @@ public:
 private:
     const int16_t sizeX_px;
     const int16_t sizeY_px;
-    uint8_t rotation=1;
+    uint8_t rotation = 1;
     uint8_t i2c_read(uint8_t addr);
     uint8_t i2c_read_continuous(uint8_t addr, uint8_t *data, uint32_t length);
     void i2c_write(uint8_t addr, uint8_t data);

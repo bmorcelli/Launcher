@@ -1,6 +1,9 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <interface.h>
-#include "idf/launcher_platform.h"
+
+#define BTN_ACT LOW
+#define SEL_BTN 0 // Using Boot button as Select button
 
 /***************************************************************************************
 ** Function name: _setup_gpio()

@@ -3,13 +3,8 @@
 #include <Wire.h>
 #include <interface.h>
 
-#ifndef TFT_BRIGHT_CHANNEL
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_FREQ 5000
-#define TFT_BRIGHT_Bits 8
 #ifndef TFT_BL
 #define TFT_BL GPIO_BCKL
-#endif
 #endif
 
 #if defined(HAS_CAPACITIVE_TOUCH)
@@ -194,9 +189,6 @@ void InputHandler(void) {
     if (launcherMillis() - d_tmp > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;
-#ifdef DONT_USE_INPUT_TASK
-        checkPowerSaveTime();
-#endif
         if (touched) {
             auto t = touch.getPointScaled();
 #if defined(HAS_RESISTIVE_TOUCH)
@@ -205,16 +197,6 @@ void InputHandler(void) {
 #endif
             launcherConsolePrintf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
             d_tmp = launcherMillis();
-#ifdef DONT_USE_INPUT_TASK // need to reset the variables to avoid ghost click
-            NextPress = false;
-            PrevPress = false;
-            UpPress = false;
-            DownPress = false;
-            SelPress = false;
-            EscPress = false;
-            AnyKeyPress = false;
-            touchPoint.pressed = false;
-#endif
 
             if (rotation == 3) {
                 t.y = (tftHeight + 20) - t.y;

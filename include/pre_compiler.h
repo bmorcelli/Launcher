@@ -1,6 +1,13 @@
 #ifndef _PRE_COMPILER
 #define _PRE_COMPILER
 // clang-format off
+#ifdef HAS_2_BUTTONS
+    #define HAS_1_BUTTON 1
+#endif
+
+#ifdef HAS_6_BUTTONS
+    #define HAS_5_BUTTON 1
+#endif
 
 #ifndef LAUNCHER_DEFAULT_SPIFFS_THRESHOLD
 #define LAUNCHER_DEFAULT_SPIFFS_THRESHOLD 0xC00000 // 12Mb
@@ -17,20 +24,16 @@
     #endif
 #endif
 
+#ifndef TFT_BRIGHT_CHANNEL
+#define TFT_BRIGHT_CHANNEL 0
+#endif
 
-#ifndef HAS_BTN
-    #define HAS_BTN 0
-    #define SEL_BTN -1
-    #define UP_BTN -1
-    #define DW_BTN -1
-    #define BTN_ACT LOW
-    #define BTN_ALIAS '"Boot"'
+#ifndef TFT_BRIGHT_Bits
+#define TFT_BRIGHT_Bits 8
 #endif
-#ifndef LED
-    #define LED -1
-#endif
-#ifndef LED_ON
-    #define LED_ON 1
+
+#ifndef TFT_BRIGHT_FREQ
+#define TFT_BRIGHT_FREQ 5000
 #endif
 
 #ifndef TFT_WIDTH
@@ -89,6 +92,11 @@
 
 #ifndef OTA_TAG
     #define OTA_TAG "third party"
+#endif
+
+#ifndef DEVICE_NAME
+    #define DEVICE_NAME "Unknown device"
+    #warning "You probably forgot to name your device on boards/<env>/platformio.ini"
 #endif
 
 #ifndef ROUND_EDGE_SIZE

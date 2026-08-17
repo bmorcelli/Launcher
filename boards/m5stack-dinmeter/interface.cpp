@@ -3,9 +3,10 @@
 #include <Wire.h>
 #include <interface.h>
 
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_Bits 8
-#define TFT_BRIGHT_FREQ 5000
+#define ENCODER_INA 41
+#define ENCODER_INB 40
+#define ENCODER_KEY 42
+#define BTN_ACT LOW
 
 // Rotary encoder
 #include <RotaryEncoder.h>

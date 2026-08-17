@@ -1,6 +1,7 @@
 #include "partitioner.h"
 #include "app_registry.h"
 #include "backup_manager.h"
+#include "ble_bonds.h"
 #include "display.h"
 #include "esp_heap_caps.h"
 #include "idf/idf_update.h"
@@ -14,6 +15,7 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
+#include <nvs_flash.h>
 
 // Define o tamanho da partição
 #define PARTITION_SIZE 4096
@@ -135,7 +137,7 @@ void drawRangeSlider(
     int moveStart
 ) {
     tft->fillScreen(BGCOLOR);
-    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, _fp, BGCOLOR, BGCOLOR);
     tftprintln(title, 8);
     tftprintln(String(moveStart >= 0 ? (moveStart ? "Moving: Start" : "Moving: End") : "Moving: ----"), 8);
     tftprintln(String("Range: ") + hex32(start) + " - " + hex32(end), 8);
@@ -162,7 +164,7 @@ void drawRangeSlider(
 
     // Spread the three hints into left/centre/right columns so they
     // line up cleanly across the width (matches the touch footer layout).
-    const int hintY = tftHeight - (LH * FP + 8);
+    const int hintY = tftHeight - (LH * _fp + 8);
     tft->drawString("[Prev/Next move]", 8, hintY);
     tft->drawCentreString("[Sel ok]", tftWidth / 2, hintY, 1);
     tft->drawRightString("[Esc cancel]", tftWidth - 8, hintY, 1);
@@ -327,7 +329,7 @@ void waitForSelectRelease() {
 
 void showPartitionDetails(const LauncherPartitionEntry &entry) {
     tft->fillScreen(BGCOLOR);
-    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, _fp, BGCOLOR, BGCOLOR);
     tftprintln("Partition", 8);
     tftprintln(String("Label: ") + entry.label, 8);
     tftprintln(String("Type: ") + partitionTypeName(entry), 8);
@@ -348,15 +350,13 @@ void showPartitionDetails(const LauncherPartitionEntry &entry) {
         entry.flags,
         isProtectedPartition(entry)
     );
-#if defined(HAS_TOUCH)
     TouchFooter();
-#endif
     waitForSelectRelease();
 }
 
 void showFreeRangeDetails(const LauncherPartitionRange &range) {
     tft->fillScreen(BGCOLOR);
-    resetTftDisplay(8, 8, FGCOLOR, FP, BGCOLOR, BGCOLOR);
+    resetTftDisplay(8, 8, FGCOLOR, _fp, BGCOLOR, BGCOLOR);
     tftprintln("Free Range", 8);
     tftprintln(String("Offset: ") + hex32(range.offset), 8);
     tftprintln(String("Size: ") + hex32(range.size) + " (" + sizeText(range.size) + ")", 8);
@@ -369,9 +369,7 @@ void showFreeRangeDetails(const LauncherPartitionRange &range) {
         range.size,
         range.offset + range.size
     );
-#if defined(HAS_TOUCH)
     TouchFooter();
-#endif
     waitForSelectRelease();
 }
 
@@ -625,6 +623,56 @@ bool wipeFlashMemory() {
     return releaseHeapObjectsAndReboot();
 }
 
+bool formatNvsPartition() {
+    if (!confirmAction("Format NVS partition?")) return false;
+    const esp_partition_t *partition =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs");
+    if (!partition) {
+        partition =
+            esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, nullptr);
+    }
+    if (!partition) {
+        displayError("NVS not found");
+        return false;
+    }
+
+    displayRedStripe("Formatting NVS");
+    esp_err_t err = nvs_flash_deinit();
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_INITIALIZED) {
+        launcherConsolePrintf("NVS deinit failed: %s\n", esp_err_to_name(err));
+    }
+
+    if (!launcherUpdateErasePartition(partition)) {
+        displayError(launcherUpdateLastErrorName());
+        return false;
+    }
+
+    displayRedStripe("Restart needed");
+    waitForSelectRelease();
+
+    return releaseHeapObjectsAndReboot();
+}
+
+// Last resort for a firmware that still bootloops on a foreign bond record: unlike
+// "Format NVS Partition" this only touches the bond store, leaving WiFi and settings
+// alone. Everything has to be paired again afterwards.
+bool eraseBleBonds() {
+    size_t count = launcherBleBondsCount();
+    if (count == 0) {
+        displayMsg("No BLE bonds stored", true);
+        return false;
+    }
+
+    if (!confirmAction("Erase " + String((unsigned)count) + " BLE bond(s)?")) return false;
+    if (!launcherBleBondsEraseAll()) {
+        displayError("Bond erase failed", true);
+        return false;
+    }
+
+    displayMsg("BLE bonds erased", true);
+    return true;
+}
+
 bool applyPartitionChanges(const LauncherPartitionTable &table) {
     LauncherPartitionTable target = table;
     if (!compactOrShow(target)) return false;
@@ -817,11 +865,19 @@ void partList() {
                  }}
             );
         }
+        partitionOptions.push_back({"Erase BLE Bonds", []() { eraseBleBonds(); }});
         if (dev_mode) {
             partitionOptions.push_back(
                 {"Wipe Flash memory",
                  [&]() {
                      if (wipeFlashMemory()) returnToMenu = true;
+                 },
+                 ALCOLOR}
+            );
+            partitionOptions.push_back(
+                {"Format NVS Partition",
+                 [&]() {
+                     if (formatNvsPartition()) returnToMenu = true;
                  },
                  ALCOLOR}
             );
@@ -1171,7 +1227,7 @@ bool attachPartition(const String &_from, String _to) {
         target.seek(offset);
         while (target.position() < target.size()) {
             int angle = (360 * (target.position() - offset)) / (target.size() - offset);
-            tft->drawArc(tftWidth / 2, tftHeight / 2, 50, 45, 0, angle, FGCOLOR);
+            tft->drawArc(tftWidth / 2, tftHeight / 2, 50, 45, 0, angle, FGCOLOR, BGCOLOR);
             target.write(0xFF);
         }
     } else if (target.size() < offset) {
@@ -1183,7 +1239,7 @@ bool attachPartition(const String &_from, String _to) {
         memset(buf, 0xFF, chunk);
         while (fillLen > 0) {
             int angle = (360 * (offset - fillLen)) / offset;
-            tft->drawArc(tftWidth / 2, tftHeight / 2, 40, 35, 0, angle, FGCOLOR);
+            tft->drawArc(tftWidth / 2, tftHeight / 2, 40, 35, 0, angle, FGCOLOR, BGCOLOR);
             size_t w = min(chunk, fillLen);
             target.write(buf, w);
             fillLen -= w;
@@ -1201,7 +1257,7 @@ bool attachPartition(const String &_from, String _to) {
     target.seek(offset);
     while (true) {
         int angle = (360 * (target.position() - offset)) / from.size();
-        tft->drawArc(tftWidth / 2, tftHeight / 2, 35, 30, 0, angle, ALCOLOR);
+        tft->drawArc(tftWidth / 2, tftHeight / 2, 35, 30, 0, angle, ALCOLOR, BGCOLOR);
         size_t bytesRead = from.read(buff, sizeof(buff));
         if (!bytesRead) break;
         target.write(buff, bytesRead);

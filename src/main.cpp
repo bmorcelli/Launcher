@@ -1,17 +1,13 @@
 #include <globals.h>
 
-#if defined(HEADLESS)
-#include <VectorDisplay.h>
-#else
-#include <tft.h>
-#endif
+#include "display.h"
 #include "esp_ota_ops.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "nvs_flash.h"
-#if ARDUINO_M5STACK_TAB5
+#if BOOT_LOGIC_ON_NVS
 #include "nvs.h"
-#include "nvs_handle.hpp"
+#include "nvs_helpers.h"
 #endif
 #include <SD.h>
 #include <SPIFFS.h>
@@ -48,12 +44,13 @@ uint16_t BGCOLOR = BLACK;
 #endif
 uint16_t odd_color = 0x30c5;
 uint16_t even_color = 0x32e5;
-
 int8_t _miso = SDCARD_MISO;
 int8_t _mosi = SDCARD_MOSI;
 int8_t _sck = SDCARD_SCK;
 int8_t _cs = SDCARD_CS;
-
+uint8_t _fp = FP;
+uint8_t _fm = FM;
+uint8_t _fg = FG;
 // Navigation Variables
 long LongPressTmp = 0;
 volatile bool LongPress = false;
@@ -68,7 +65,7 @@ LTouchPoint touchPoint;
 keyStroke KeyStroke;
 
 #if defined(HAS_TOUCH)
-volatile uint16_t tftHeight = TFT_WIDTH - (FM * LH + 4);
+volatile uint16_t tftHeight = TFT_WIDTH - (_fm * LH + 4);
 #else
 volatile uint16_t tftHeight = TFT_WIDTH;
 #endif
@@ -90,11 +87,9 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
             // freeze this task inside the allocator and deadlock loopTask - see mykeyboard.h.
             launcherInputLock();
             resetGlobals();
-#ifndef DONT_USE_INPUT_TASK
             InputHandler();
 #ifdef USE_CARDKB2
             cardkb2_poll();
-#endif
 #endif
             launcherInputUnlock();
             timer = launcherMillis();
@@ -125,6 +120,8 @@ bool askSpiffs;
 
 // bool command;
 size_t file_size;
+String ota_tag = OTA_TAG;
+String device_name = DEVICE_NAME;
 String ssid;
 String pwd;
 String wui_usr = "admin";
@@ -140,7 +137,6 @@ JsonDocument settings;
 std::vector<Option> options;
 
 #include "app_registry.h"
-#include "display.h"
 #include "massStorage.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
@@ -187,23 +183,21 @@ void setup() {
     ensureM5StackUiFlowNVSDefaults();
     RAM_LOG("after-nvs-partition-defaults");
 
-#if ARDUINO_M5STACK_TAB5
-    esp_err_t nve;
-    std::unique_ptr<nvs::NVSHandle> nvsHandle = nvs::open_nvs_handle("launcher", NVS_READWRITE, &nve);
+#if BOOT_LOGIC_ON_NVS
+    lnvs::Handle nvsHandle("launcher", true);
     bool init = false;
-    nve = nvsHandle->get_item("init", init);
-    if (nve != ESP_OK) {
-        nvsHandle->set_item("init", false);
-        nvsHandle->commit();
+    if (!lnvs::getBool(nvsHandle.raw(), "init", init)) {
+        lnvs::setBool(nvsHandle.raw(), "init", false);
+        nvsHandle.commit();
         init = false;
     }
-    if (init >= 1) { // restart com eeprom em 1
-        nvsHandle->set_item("init", false);
-        nvsHandle->commit();
+    if (init) { // restart com eeprom em 1
+        lnvs::setBool(nvsHandle.raw(), "init", false);
+        nvsHandle.commit();
         ESP.restart();
     } else {
-        nvsHandle->set_item("init", true);
-        nvsHandle->commit();
+        lnvs::setBool(nvsHandle.raw(), "init", true);
+        nvsHandle.commit();
     }
 #endif
 
@@ -238,20 +232,21 @@ void setup() {
 #endif
     tft->setRotation(rotation);
     tft->setTextColor(FGCOLOR, BGCOLOR);
+
     if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
-        tftHeight = TFT_WIDTH - (FM * LH + 4);
+        tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
-        tftHeight = TFT_WIDTH;
+        tftHeight = displayConfig.width;
 #endif
-        tftWidth = TFT_HEIGHT;
+        tftWidth = displayConfig.height;
     } else {
 #if defined(HAS_TOUCH)
-        tftHeight = TFT_HEIGHT - (FM * LH + 4);
+        tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
-        tftHeight = TFT_HEIGHT;
+        tftHeight = displayConfig.height;
 #endif
-        tftWidth = TFT_WIDTH;
+        tftWidth = displayConfig.width;
     }
     tft->fillScreen(BGCOLOR);
     setBrightness(bright, false);
@@ -271,16 +266,9 @@ void setup() {
     // Gets the config.conf from SD Card and fill out the settings JSON
     getConfigs();
     RAM_LOG("after-getConfigs");
-#if defined(HAS_TOUCH)
     TouchFooter2();
-#endif
 
-    // Some boards need input polling to stay on the main loop thread because
-    // display/touch drivers are not safe to service from a helper task.
-    // Must exist before either side can take it; setup() is still single threaded here.
-    // Created unconditionally: _getKeyPress() is reachable even in DONT_USE_INPUT_TASK builds.
     launcherInputLockInit();
-#ifndef DONT_USE_INPUT_TASK
     xTaskCreate(
         taskInputHandler, // Task function
         "InputHandler",   // Task Name
@@ -289,9 +277,6 @@ void setup() {
         2,                // Task priority (0 to 3), loopTask has priority 2.
         &xHandle          // Task handle (not used)
     );
-#else
-    xHandle = nullptr;
-#endif
 
     // Command interface over the Serial Monitor (nav/reboot/partitions/flash), always
     // on so a host script can steer the Launcher before it auto-boots a queued OTA app.
@@ -373,7 +358,7 @@ void setup() {
         bool anyKeyTriggered = key.pressed && !key.enter;
 #elif defined(HAS_1_BUTTON)
         bool anyKeyTriggered = check(EscPress);
-#elif defined(STICK_C_PLUS2) || defined(STICK_C_PLUS)
+#elif defined(HAS_3_BUTTONS)
         bool anyKeyTriggered = check(NextPress);
 #else
         bool anyKeyTriggered = check(AnyKeyPress);
@@ -435,66 +420,32 @@ void loop() {
     getBrightness();
     launcherConsolePrintln("Type 'help' for Serial commands.");
     if (!sdcardMounted) index = 1; // if SD card is not present, paint SD square grey and auto select OTA
+
+    const bool tiny = (panelHeight() < 135) || (panelWidth() < 135);
     std::vector<MenuOptions> menuItems = {
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "SD", "Launch from SDCard",
-#else
-            "SD",
-            "Launch from or mng SDCard",
-#endif
+        {"SD",
+         tiny ? "Launch from SDCard" : "Launch from or mng SDCard",
          [=]() { loopSD(false); },
-         sdcardMounted
-        },
+         sdcardMounted},
 #ifndef DISABLE_OTA
         {"OTA", "Online Installer", [=]() { ota_function(); }},
 #endif
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "WUI", "Start WebUI",
-#else
-            "WUI",
-            "Start Web User Interface",
-#endif
-         [=]() { loopOptionsWebUi(); }
-        },
+        {"WUI", tiny ? "Start WebUI" : "Start Web User Interface", [=]() { loopOptionsWebUi(); }},
 #if defined(SOC_USB_OTG_SUPPORTED)
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "USB", "SD->USB",
-#else
-            "USB",
-            "SD->USB Interface",
-#endif
+        {"USB",
+         tiny ? "SD->USB" : "SD->USB Interface",
          [=]() {
-                if (setupSdCard()) {
-                    MassStorage();
-                    tft->drawPixel(0, 0, 0);
-                    tft->fillScreen(BGCOLOR);
-                } else {
-                    displayError("Insert SD Card");
-                }
-            }, sdcardMounted
-        },
+             if (setupSdCard()) {
+                 MassStorage();
+                 tft->drawPixel(0, 0, 0);
+                 tft->fillScreen(BGCOLOR);
+             } else {
+                 displayError("Insert SD Card");
+             }
+         }, sdcardMounted},
 #endif
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "PM"
-#else
-            "PMan"
-#endif
-            ,
-         "Partition Manager.", [=]() { partList(); }
-        },
-        {
-#if (TFT_HEIGHT < 135) || (TFT_WIDTH < 135)
-         "CFG", "Change Settings.",
-#else
-            "CFG",
-            "Change Launcher Settings.",
-#endif
-         [=]() { settings_menu(); }
-        }
+        {tiny ? "PM" : "PMan", "Partition Manager.", [=]() { partList(); }},
+        {"CFG", tiny ? "Change Settings." : "Change Launcher Settings.", [=]() { settings_menu(); }}
     };
     if (first_loop) RAM_LOG("first-mainMenu-built");
 
@@ -517,13 +468,12 @@ void loop() {
         );
     }
 
-#if !defined(CARDPUTER)
     menuItems.push_back(
         // Add power off option for devices that are not easy to turn off
         // on e-paper, it keeps the Launcher bootscreen printed
         {"OFF", "Turn off Device", [=]() { powerOff(); }}
     );
-#endif
+
     opt = menuItems.size(); // number of options in the menu
     update_sd = sdcardMounted;
     while (1) {
@@ -541,9 +491,7 @@ void loop() {
                 saveConfigs();
             }
             drawMainMenu(menuItems, index);
-#if defined(HAS_TOUCH)
             TouchFooter();
-#endif
             redraw = false;
             LongPress = false;
             returnToMenu = false;

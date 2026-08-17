@@ -145,23 +145,10 @@ extern volatile uint16_t tftWidth;
 
 extern TaskHandle_t xHandle;
 extern inline bool check(volatile bool &btn) {
-#ifndef DONT_USE_INPUT_TASK
     if (!btn) return false;
     btn = false;
     AnyKeyPress = false;
     return true;
-#else
-    static uint8_t count = 0;
-    if (count > 5) {
-        InputHandler();
-        count = 0;
-    }
-    count++;
-    if (!btn) return false;
-    btn = false;
-    AnyKeyPress = false;
-    return true;
-#endif
 }
 
 #define U_FAT_vfs 300
@@ -180,6 +167,10 @@ extern bool dimmer;
 extern int prog_handler; // 0 - Flash, 1 - SPIFFS, 2 - Download
 
 extern bool sdcardMounted;
+
+extern String device_name;
+
+extern String ota_tag;
 
 extern String ssid;
 
@@ -237,5 +228,14 @@ extern int8_t _miso;
 extern int8_t _mosi;
 extern int8_t _sck;
 extern int8_t _cs;
+
+// Small font Size (Fonte Pequena)
+extern uint8_t _fp;
+
+// Medium font Size (Fonte Media)
+extern uint8_t _fm;
+
+// Large font Size (Fonte Grande)
+extern uint8_t _fg;
 
 #endif

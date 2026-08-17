@@ -9,6 +9,11 @@ static PowersSY6970 PMU;
 #include <TouchDrvCSTXXX.hpp>
 #include <Wire.h>
 #define LCD_MODULE_CMD_1
+// buttons, not used here, but defined for the interface
+#define SEL_BTN 0
+#define UP_BTN 12
+#define DW_BTN 16
+#define BTN_ACT LOW
 
 #include <esp_adc_cal.h>
 

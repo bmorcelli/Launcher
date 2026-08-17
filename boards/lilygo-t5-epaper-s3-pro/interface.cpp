@@ -125,8 +125,10 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    launcherGpioInput(SEL_BTN);
-    launcherGpioInput(DW_BTN);
+    // Driving this parallel EPD is bit-banged and timing sensitive, so the
+    // input task has to stay out of the way while the panel is being painted.
+    // A pointer, because xHandle is cleared at runtime when the task goes away.
+    tft->setPaintGuard(&xHandle);
 
     // CS pins of SPI devices to HIGH
     launcherGpioOutput(46); // LORA module
@@ -138,9 +140,6 @@ void _setup_gpio() {
 ** Location: main.cpp
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_Bits 8
-#define TFT_BRIGHT_FREQ 5000
 void _post_setup_gpio() {
     uint8_t touchAddress = 0x5D; // GT911 default I2C address
     EPD_Painter::Config cfg = tft->getConfig();

@@ -4,6 +4,8 @@
 #include <SD_MMC.h>
 #include <interface.h>
 
+#define SEL_BTN 0
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
@@ -32,35 +34,6 @@ void _setup_gpio() {
     launcherDelayMs(120);
 
     launcherGpioInputPullup(SEL_BTN);
-}
-
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
-void _post_setup_gpio() {}
-
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
-int getBattery() { return 0; }
-
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, 0);
-        return;
-    }
-
-    int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100.0));
-    analogWrite(TFT_BL, bl);
 }
 
 /*********************************************************************

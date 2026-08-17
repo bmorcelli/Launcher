@@ -25,7 +25,7 @@ config.conf JSON structure
       "wifi":[
          {
             "ssid":"myNetSSID",
-            "pwd":"myNetPassword",
+            "pwd":"myNetPwd",
          },
       ]
    }
@@ -44,6 +44,7 @@ bool saveIntoNVS();
 bool saveWifiIntoNVS();
 bool getFromNVS();
 bool getWifiFromNVS();
+bool eraseNamespace(const char *ns);
 bool ensureM5StackUiFlowNVSDefaults();
 bool getWifiCredential(const String &ssid, String &password);
 bool setWifiCredential(const String &ssid, const String &password, bool persist = false);

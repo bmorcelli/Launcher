@@ -22,4 +22,5 @@ AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 BreakBeforeBraces: Attach
 BinPackArguments: false
 
+BreakArrays: false
 IndentCaseLabels: true

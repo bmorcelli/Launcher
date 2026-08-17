@@ -6,7 +6,7 @@
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
 #include "nvs.h"
-#include "nvs_handle.hpp"
+#include "nvs_helpers.h"
 #include "onlineLauncher.h"
 #include "partitioner.h"
 #include "powerSave.h"
@@ -51,15 +51,6 @@ String makeWifiKey(char prefix, uint32_t crc) {
     return String(key);
 }
 
-std::unique_ptr<nvs::NVSHandle> openNamespace(const char *ns, nvs_open_mode_t mode, esp_err_t &err) {
-    auto handle = nvs::open_nvs_handle(ns, mode, &err);
-    if (err != ESP_OK) {
-        log_i("openNamespace(%s) failed: %d", ns, err);
-        return nullptr;
-    }
-    return handle;
-}
-
 JsonArray ensureWifiListInternal() {
     JsonObject setting = ensureSettingsRoot();
     if (setting.isNull()) return JsonArray();
@@ -80,42 +71,18 @@ JsonObject ensureKeyBindingObjectInternal() {
     return bindings;
 }
 
-bool ensureStringKey(nvs::NVSHandle &handle, const char *key, const char *value) {
-    char buffer[64] = {0};
-    esp_err_t err = handle.get_string(key, buffer, sizeof(buffer));
-    if (err == ESP_OK) return false;
-    if (err != ESP_ERR_NVS_NOT_FOUND) {
-        launcherConsolePrintf("ensureStringKey(%s) read failed: %d", key, err);
-        return false;
-    }
-
-    err = handle.set_string(key, value);
-    if (err != ESP_OK) { launcherConsolePrintf("ensureStringKey(%s) write failed: %d", key, err); }
-    return err == ESP_OK;
+// Both return true only when the key was missing and got created, so the caller
+// knows whether a commit is needed.
+bool ensureStringKey(nvs_handle_t handle, const char *key, const char *value) {
+    size_t len = 0;
+    if (nvs_get_str(handle, key, nullptr, &len) == ESP_OK) return false;
+    return lnvs::setString(handle, key, value);
 }
 
-bool ensureU8Key(nvs::NVSHandle &handle, const char *key, uint8_t value) {
+bool ensureU8Key(nvs_handle_t handle, const char *key, uint8_t value) {
     uint8_t current = 0;
-    esp_err_t err = handle.get_item(key, current);
-    if (err == ESP_OK) return false;
-    if (err != ESP_ERR_NVS_NOT_FOUND) {
-        launcherConsolePrintf("ensureU8Key(%s) read failed: %d", key, err);
-        return false;
-    }
-
-    err = handle.set_item(key, value);
-    if (err != ESP_OK) { launcherConsolePrintf("ensureU8Key(%s) write failed: %d", key, err); }
-    return err == ESP_OK;
-}
-
-bool eraseNamespace(const char *ns) {
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(ns, NVS_READWRITE, err);
-    if (!handle) return false;
-    err = handle->erase_all();
-    if (err != ESP_OK) return false;
-    err = handle->commit();
-    return err == ESP_OK;
+    if (nvs_get_u8(handle, key, &current) == ESP_OK) return false;
+    return nvs_set_u8(handle, key, value) == ESP_OK;
 }
 
 bool backupConfigFileIfPresent() {
@@ -134,8 +101,8 @@ void factoryReset() {
     };
     loopOptions(options);
     if (!confirmed) return;
-    eraseNamespace("l_wifi");
-    eraseNamespace("launcher");
+    lnvs::eraseNamespace("l_wifi");
+    lnvs::eraseNamespace("launcher");
     backupConfigFileIfPresent();
     favorite = JsonArray();
     settings.clear();
@@ -144,6 +111,8 @@ void factoryReset() {
     saveConfigs();
 }
 } // namespace
+
+bool eraseNamespace(const char *ns) { return lnvs::eraseNamespace(ns); }
 
 JsonObject ensureSettingsRoot() {
     JsonArray settingsArray = settings.as<JsonArray>();
@@ -185,37 +154,36 @@ bool getWifiCredential(const String &searchSsid, String &outPwd) {
 }
 
 bool ensureM5StackUiFlowNVSDefaults() {
-#if defined(M5STACK) || defined(ARDUINO_M5STACK_TAB5)
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace("uiflow", NVS_READWRITE, err);
-    if (!nvsHandle) return false;
+#if defined(M5STACK)
+    lnvs::Handle handle("uiflow", true);
+    if (!handle) return false;
+    nvs_handle_t h = handle.raw();
 
     bool changed = false;
     // https://github.com/m5stack/uiflow-micropython/blob/master/m5stack/partition_nvs.csv
 
-    changed |= ensureStringKey(*nvsHandle, "server", "uiflow2.m5stack.com");
-    changed |= ensureStringKey(*nvsHandle, "net_mode", "WIFI");
-    changed |= ensureStringKey(*nvsHandle, "protocol", "DHCP");
-    changed |= ensureStringKey(*nvsHandle, "ip_addr", "");
-    changed |= ensureStringKey(*nvsHandle, "netmask", "");
-    changed |= ensureStringKey(*nvsHandle, "gateway", "");
-    changed |= ensureStringKey(*nvsHandle, "dns", "8.8.8.8");
-    changed |= ensureStringKey(*nvsHandle, "ssid0", "");
-    changed |= ensureStringKey(*nvsHandle, "pswd0", "");
-    changed |= ensureStringKey(*nvsHandle, "ssid1", "");
-    changed |= ensureStringKey(*nvsHandle, "pswd1", "");
-    changed |= ensureStringKey(*nvsHandle, "ssid2", "");
-    changed |= ensureStringKey(*nvsHandle, "pswd2", "");
-    changed |= ensureStringKey(*nvsHandle, "sntp0", "ntp.aliyun.com");
-    changed |= ensureStringKey(*nvsHandle, "sntp1", "jp.pool.ntp.org");
-    changed |= ensureStringKey(*nvsHandle, "sntp2", "pool.ntp.org");
-    changed |= ensureStringKey(*nvsHandle, "tz", "GMT0");
-    changed |= ensureU8Key(*nvsHandle, "boot_option", 1);
+    changed |= ensureStringKey(h, "server", "uiflow2.m5stack.com");
+    changed |= ensureStringKey(h, "net_mode", "WIFI");
+    changed |= ensureStringKey(h, "protocol", "DHCP");
+    changed |= ensureStringKey(h, "ip_addr", "");
+    changed |= ensureStringKey(h, "netmask", "");
+    changed |= ensureStringKey(h, "gateway", "");
+    changed |= ensureStringKey(h, "dns", "8.8.8.8");
+    changed |= ensureStringKey(h, "ssid0", "");
+    changed |= ensureStringKey(h, "pswd0", "");
+    changed |= ensureStringKey(h, "ssid1", "");
+    changed |= ensureStringKey(h, "pswd1", "");
+    changed |= ensureStringKey(h, "ssid2", "");
+    changed |= ensureStringKey(h, "pswd2", "");
+    changed |= ensureStringKey(h, "sntp0", "ntp.aliyun.com");
+    changed |= ensureStringKey(h, "sntp1", "jp.pool.ntp.org");
+    changed |= ensureStringKey(h, "sntp2", "pool.ntp.org");
+    changed |= ensureStringKey(h, "tz", "GMT0");
+    changed |= ensureU8Key(h, "boot_option", 1);
 
     if (changed) {
-        err = nvsHandle->commit();
-        if (err != ESP_OK) {
-            launcherConsolePrintf("ensureM5StackUiFlowNVSDefaults: commit failed: %d", err);
+        if (!handle.commit()) {
+            launcherConsolePrintln("ensureM5StackUiFlowNVSDefaults: commit failed");
             return false;
         }
         launcherConsolePrintln("ensureM5StackUiFlowNVSDefaults: default UiFlow keys created");
@@ -417,9 +385,7 @@ void settings_menu() {
         }
         if (dev_mode) options.push_back({"Reset Configs/Wifi", factoryReset});
         options.push_back({"Restart", [=]() { return (void)releaseHeapObjectsAndReboot(); }});
-#if !defined(CARDPUTER)
         options.push_back({"Turn-off", [=]() { powerOff(); }});
-#endif
 
         options.push_back({"Main Menu", [=]() { returnToMenu = true; }});
         idx = loopOptions(options);
@@ -429,7 +395,19 @@ void settings_menu() {
 }
 
 // This function comes from interface.h
-void _setBrightness(uint8_t brightval) {}
+void _setBrightness(uint8_t brightval) {
+#ifdef TFT_BL
+    if (brightval == 0) {
+        analogWrite(TFT_BL, brightval);
+    } else {
+        const uint8_t PWM_MIN = 85;
+        const uint8_t PWM_MAX = 255;
+        float linear = (float)brightval / 100.0;
+        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
+        analogWrite(TFT_BL, value);
+    }
+#endif
+}
 
 /*********************************************************************
 **  Function: setBrightness
@@ -460,42 +438,48 @@ void getBrightness() {
 **********************************************************************/
 #define DRV 1
 int gsetRotation(bool set) {
-    int result = ROTATION;
+
+    const int mountRotation = displayConfig.rotation;
+    int result = mountRotation;
 
     if (rotation > 3) {
         set = true;
-        result = ROTATION;
+        result = mountRotation;
     } else result = rotation;
 
     if (set) {
+        const bool offerPortrait = panelWidth() >= 200 && panelHeight() >= 200;
         options = {
-            {"Default",                                              [&]() { result = ROTATION; }          },
-#if TFT_WIDTH >= 200 && TFT_HEIGHT >= 200
-            {String("Portrait " + String(DRV == 1 ? 0 : 1)).c_str(), [&]() { result = (DRV == 1 ? 0 : 1); }},
-#endif
-            {String("Landscape " + String(DRV)).c_str(),             [&]() { result = DRV; }               },
-#if TFT_WIDTH >= 200 && TFT_HEIGHT >= 200
-            {String("Portrait " + String(DRV == 1 ? 2 : 3)).c_str(), [&]() { result = (DRV == 1 ? 2 : 3); }},
-#endif
-            {String("Landscape " + String(DRV + 2)).c_str(),         [&]() { result = DRV + 2; }           }
+            {"Default", [&]() { result = mountRotation; }}
         };
+        if (offerPortrait)
+            options.push_back({"Portrait " + String(DRV == 1 ? 0 : 1), [&]() {
+                                   result = (DRV == 1 ? 0 : 1);
+                               }});
+        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }});
+        if (offerPortrait)
+            options.push_back({"Portrait " + String(DRV == 1 ? 2 : 3), [&]() {
+                                   result = (DRV == 1 ? 2 : 3);
+                               }});
+        options.push_back({"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }});
         loopOptions(options);
         rotation = result;
 
+        // See the same block in main.cpp: the panel size is runtime state now.
         if (rotation & 0b1) {
 #if defined(HAS_TOUCH)
-            tftHeight = TFT_WIDTH - (FM * LH + 4);
+            tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
-            tftHeight = TFT_WIDTH;
+            tftHeight = displayConfig.width;
 #endif
-            tftWidth = TFT_HEIGHT;
+            tftWidth = displayConfig.height;
         } else {
 #if defined(HAS_TOUCH)
-            tftHeight = TFT_HEIGHT - (FM * LH + 4);
+            tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
-            tftHeight = TFT_HEIGHT;
+            tftHeight = displayConfig.height;
 #endif
-            tftWidth = TFT_WIDTH;
+            tftWidth = displayConfig.width;
         }
 
         tft->setRotation(result);
@@ -513,7 +497,7 @@ void setBrightnessMenu() {
         {"75 %", [=]() { setBrightness(75); } },
         {"50 %", [=]() { setBrightness(50); } },
         {"25 %", [=]() { setBrightness(25); } },
-        {" 0 %", [=]() { setBrightness(1); }  },
+        // {" 0 %", [=]() { setBrightness(1); }  },
     };
     loopOptions(options, true);
 }
@@ -609,7 +593,7 @@ void chargeMode() {
 #ifndef CONFIG_IDF_TARGET_ESP32P4
     setCpuFrequencyMhz(80);
 #endif
-    setBrightness(5, false);
+    setBrightness(25, false);
     vTaskDelay(pdTICKS_TO_MS(500));
     tft->fillScreen(BGCOLOR);
     unsigned long tmp = 0;
@@ -639,60 +623,54 @@ String get_efuse_mac_as_string() {
 }
 
 bool saveIntoNVS() {
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace("launcher", NVS_READWRITE, err);
+    lnvs::Handle nvsHandle("launcher", true);
     if (!nvsHandle) return false;
+    nvs_handle_t h = nvsHandle.raw();
 
-    err |= nvsHandle->set_item("dimtime", dimmerSet);
-    err |= nvsHandle->set_item("bright", bright);
-    err |= nvsHandle->set_item("onlyBins", onlyBins);
-    err |= nvsHandle->set_item("bootToApp", bootToApp);
-    err |= nvsHandle->set_item("noDotFiles", noDotFiles);
-    err |= nvsHandle->set_item("autoBackup", autoBackup);
-    err |= nvsHandle->set_item("askSpiffs", askSpiffs);
-    err |= nvsHandle->set_item("rotation", rotation);
-    err |= nvsHandle->set_item("FGCOLOR", FGCOLOR);
-    err |= nvsHandle->set_item("BGCOLOR", BGCOLOR);
-    err |= nvsHandle->set_item("ALCOLOR", ALCOLOR);
-    err |= nvsHandle->set_item("odd_color", odd_color);
-    err |= nvsHandle->set_item("even_color", even_color);
-    err |= nvsHandle->set_item("dev_mode", dev_mode);
-    err |= nvsHandle->set_string("wui_usr", wui_usr.c_str());
-    err |= nvsHandle->set_string("wui_pwd", wui_pwd.c_str());
-    err |= nvsHandle->set_string("dwn_path", dwn_path.c_str());
-    err |= nvsHandle->set_string("last_app", lastInstalledApp.c_str());
+    bool ok = true;
+    ok &= lnvs::setInt(h, "dimtime", dimmerSet);
+    ok &= lnvs::setInt(h, "bright", bright);
+    ok &= lnvs::setBool(h, "onlyBins", onlyBins);
+    ok &= lnvs::setBool(h, "bootToApp", bootToApp);
+    ok &= lnvs::setBool(h, "noDotFiles", noDotFiles);
+    ok &= lnvs::setBool(h, "autoBackup", autoBackup);
+    ok &= lnvs::setBool(h, "askSpiffs", askSpiffs);
+    ok &= lnvs::setInt(h, "rotation", rotation);
+    ok &= nvs_set_u16(h, "FGCOLOR", FGCOLOR) == ESP_OK;
+    ok &= nvs_set_u16(h, "BGCOLOR", BGCOLOR) == ESP_OK;
+    ok &= nvs_set_u16(h, "ALCOLOR", ALCOLOR) == ESP_OK;
+    ok &= nvs_set_u16(h, "odd_color", odd_color) == ESP_OK;
+    ok &= nvs_set_u16(h, "even_color", even_color) == ESP_OK;
+    ok &= lnvs::setBool(h, "dev_mode", dev_mode);
+    ok &= lnvs::setString(h, "wui_usr", wui_usr.c_str());
+    ok &= lnvs::setString(h, "wui_pwd", wui_pwd.c_str());
+    ok &= lnvs::setString(h, "dwn_path", dwn_path.c_str());
+    ok &= lnvs::setString(h, "last_app", lastInstalledApp.c_str());
 #if defined(HEADLESS)
     // SD Pins
-    err |= nvsHandle->set_item("miso", _miso);
-    err |= nvsHandle->set_item("mosi", _mosi);
-    err |= nvsHandle->set_item("sck", _sck);
-    err |= nvsHandle->set_item("cs", _cs);
+    ok &= nvs_set_i8(h, "miso", _miso) == ESP_OK;
+    ok &= nvs_set_i8(h, "mosi", _mosi) == ESP_OK;
+    ok &= nvs_set_i8(h, "sck", _sck) == ESP_OK;
+    ok &= nvs_set_i8(h, "cs", _cs) == ESP_OK;
 #endif
-    if (err != ESP_OK) {
-        launcherConsolePrintf("Failed to store settings in NVS: %d", err);
+    if (!ok) {
+        launcherConsolePrintln("Failed to store settings in NVS");
     } else {
         launcherConsolePrintln("Settings stored in NVS successfully");
     }
 
-    nvsHandle->commit();
+    nvsHandle.commit();
     if (!saveWifiIntoNVS()) { launcherConsolePrintln("saveIntoNVS: failed to store WiFi list"); }
     return true;
 }
 
 bool saveSessionToken(const String &token) {
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace("launcher", NVS_READWRITE, err);
+    lnvs::Handle nvsHandle("launcher", true);
     if (!nvsHandle) return false;
 
-    if (token.isEmpty()) {
-        err = nvsHandle->erase_item("token");
-        if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
-    } else {
-        err = nvsHandle->set_string("token", token.c_str());
-    }
-
-    if (err == ESP_OK) { err = nvsHandle->commit(); }
-    return err == ESP_OK;
+    bool ok = token.isEmpty() ? lnvs::eraseKey(nvsHandle.raw(), "token")
+                              : lnvs::setString(nvsHandle.raw(), "token", token.c_str());
+    return ok && nvsHandle.commit();
 }
 
 bool saveWifiIntoNVS() {
@@ -701,52 +679,30 @@ bool saveWifiIntoNVS() {
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
 
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace("l_wifi", NVS_READWRITE, err);
+    lnvs::Handle nvsHandle("l_wifi", true);
     if (!nvsHandle) return false;
+    nvs_handle_t h = nvsHandle.raw();
 
-    err = nvsHandle->erase_all();
-    if (err != ESP_OK) { log_i("saveWifiIntoNVS: failed to clear WiFi namespace: %d", err); }
+    if (nvs_erase_all(h) != ESP_OK) { log_i("saveWifiIntoNVS: failed to clear WiFi namespace"); }
 
     for (JsonObject wifiObj : wifiList) {
         String ssid = wifiObj["ssid"].as<String>();
         if (ssid.isEmpty()) continue;
         String encPwd = wifiPwdEncrypt(wifiObj["pwd"].as<String>());
         uint32_t crc = crc32(reinterpret_cast<const uint8_t *>(ssid.c_str()), ssid.length());
-        String ssidKey = makeWifiKey('s', crc);
-        String pwdKey = makeWifiKey('p', crc);
-        String secKey = makeWifiKey('b', crc);
 
-        esp_err_t ssidErr = nvsHandle->set_string(ssidKey.c_str(), ssid.c_str());
-        esp_err_t pwdErr = nvsHandle->set_string(pwdKey.c_str(), encPwd.c_str());
-        esp_err_t secErr = nvsHandle->set_item(secKey.c_str(), (uint8_t)1);
-        if (ssidErr != ESP_OK || pwdErr != ESP_OK || secErr != ESP_OK) {
-            log_i(
-                "saveWifiIntoNVS: failed storing %s (ssid=%d pwd=%d sec=%d)",
-                ssid.c_str(),
-                ssidErr,
-                pwdErr,
-                secErr
-            );
-        }
+        bool ok = lnvs::setString(h, makeWifiKey('s', crc).c_str(), ssid.c_str());
+        ok &= lnvs::setString(h, makeWifiKey('p', crc).c_str(), encPwd.c_str());
+        ok &= nvs_set_u8(h, makeWifiKey('b', crc).c_str(), 1) == ESP_OK;
+        if (!ok) { log_i("saveWifiIntoNVS: failed storing %s", ssid.c_str()); }
     }
 
-    nvsHandle->commit();
+    nvsHandle.commit();
     wifiListDirty = false;
     return true;
 }
 
-String loadSessionToken() {
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace("launcher", NVS_READONLY, err);
-    if (!nvsHandle) return "";
-
-    char buffer[65] = {0};
-    err = nvsHandle->get_string("token", buffer, sizeof(buffer));
-    if (err != ESP_OK) return "";
-
-    return String(buffer);
-}
+String loadSessionToken() { return lnvs::getString("launcher", "token", 64); }
 
 void defaultValues() {
     // rotation = ROTATION;
@@ -788,59 +744,46 @@ void defaultValues() {
     saveIntoNVS();
 }
 bool getFromNVS() {
-    esp_err_t err;
-    std::unique_ptr<nvs::NVSHandle> nvsHandle = nvs::open_nvs_handle("launcher", NVS_READONLY, &err);
-    if (err != ESP_OK) {
+    lnvs::Handle nvsHandle("launcher", false);
+    if (!nvsHandle) {
         // If NVS read fails, set default values
-        log_i("Failed to retrieve settings from NVS: %d\nUsing Default values", err);
+        log_i("Failed to open the launcher namespace, using default values");
         defaultValues();
         return false;
     }
-    // Get settings from NVS
-    if (err != ESP_OK) {
-        log_i("Failed to open NVS handle: %d", err);
-        return false;
-    }
-    err = nvsHandle->get_item("dimtime", dimmerSet);
-    err |= nvsHandle->get_item("bright", bright);
-    err |= nvsHandle->get_item("onlyBins", onlyBins);
-    err |= nvsHandle->get_item("bootToApp", bootToApp);
-    err |= nvsHandle->get_item("noDotFiles", noDotFiles);
-    err |= nvsHandle->get_item("autoBackup", autoBackup);
-    err |= nvsHandle->get_item("askSpiffs", askSpiffs);
-    err |= nvsHandle->get_item("rotation", rotation);
-    err |= nvsHandle->get_item("FGCOLOR", FGCOLOR);
-    err |= nvsHandle->get_item("BGCOLOR", BGCOLOR);
-    err |= nvsHandle->get_item("ALCOLOR", ALCOLOR);
-    err |= nvsHandle->get_item("odd_color", odd_color);
-    err |= nvsHandle->get_item("even_color", even_color);
-    err |= nvsHandle->get_item("dev_mode", dev_mode);
+    nvs_handle_t h = nvsHandle.raw();
+
+    // A key that is not there yet is expected after a firmware update adds new
+    // settings, so a miss leaves the variable at its default instead of failing the
+    // whole read. Only the namespace being unreadable falls back to defaultValues().
+    lnvs::getInt(h, "dimtime", dimmerSet);
+    lnvs::getInt(h, "bright", bright);
+    lnvs::getBool(h, "onlyBins", onlyBins);
+    lnvs::getBool(h, "bootToApp", bootToApp);
+    lnvs::getBool(h, "noDotFiles", noDotFiles);
+    lnvs::getBool(h, "autoBackup", autoBackup);
+    lnvs::getBool(h, "askSpiffs", askSpiffs);
+    lnvs::getInt(h, "rotation", rotation);
+    nvs_get_u16(h, "FGCOLOR", &FGCOLOR);
+    nvs_get_u16(h, "BGCOLOR", &BGCOLOR);
+    nvs_get_u16(h, "ALCOLOR", &ALCOLOR);
+    nvs_get_u16(h, "odd_color", &odd_color);
+    nvs_get_u16(h, "even_color", &even_color);
+    lnvs::getBool(h, "dev_mode", dev_mode);
 #if defined(HEADLESS)
     // SD Pins
-    err |= nvsHandle->get_item("miso", _miso);
-    err |= nvsHandle->get_item("mosi", _mosi);
-    err |= nvsHandle->get_item("sck", _sck);
-    err |= nvsHandle->get_item("cs", _cs);
+    nvs_get_i8(h, "miso", &_miso);
+    nvs_get_i8(h, "mosi", &_mosi);
+    nvs_get_i8(h, "sck", &_sck);
+    nvs_get_i8(h, "cs", &_cs);
 #endif
-    char buffer[64];
-    err |= nvsHandle->get_string("wui_usr", buffer, sizeof(buffer));
-    wui_usr = String(buffer);
-    err |= nvsHandle->get_string("wui_pwd", buffer, sizeof(buffer));
-    wui_pwd = String(buffer);
-    err |= nvsHandle->get_string("dwn_path", buffer, sizeof(buffer));
-    dwn_path = String(buffer);
-    char appBuffer[128] = {0};
-    esp_err_t lastAppErr = nvsHandle->get_string("last_app", appBuffer, sizeof(appBuffer));
-    if (lastAppErr == ESP_OK) lastInstalledApp = String(appBuffer);
-    else if (lastAppErr == ESP_ERR_NVS_NOT_FOUND) lastInstalledApp = "";
-    else err |= lastAppErr;
-    // ESP_ERR_NVS_NOT_FOUND is expected after a firmware update adds new settings keys
-    // that haven't been written yet. Keep values at their defaults instead of wiping everything.
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
-        log_i("Failed to retrieve settings from NVS: %d\nUsing Default values", err);
-        defaultValues();
-        return false;
-    }
+    String value = lnvs::getString(h, "wui_usr", 63);
+    if (!value.isEmpty()) wui_usr = value;
+    value = lnvs::getString(h, "wui_pwd", 63);
+    if (!value.isEmpty()) wui_pwd = value;
+    value = lnvs::getString(h, "dwn_path", 63);
+    if (!value.isEmpty()) dwn_path = value;
+    lastInstalledApp = lnvs::getString(h, "last_app", 127);
 
     return true;
 }
@@ -850,82 +793,28 @@ bool getWifiFromNVS() {
     wifiList.clear();
 
     launcherConsolePrintln("NVS: Finding keys in NVS...");
-    nvs_handle_t rawHandle;
-    esp_err_t err = nvs_open("l_wifi", NVS_READONLY, &rawHandle);
-    if (err != ESP_OK) {
-        launcherConsolePrintf("Error opening l_wifi: %s\n", esp_err_to_name(err));
-        return false;
-    }
+    lnvs::Handle handle("l_wifi", false);
+    if (!handle) return true; // nothing stored yet
 
-    nvs_iterator_t it = nullptr;
-    err = nvs_entry_find("nvs", "l_wifi", NVS_TYPE_ANY, &it);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        nvs_close(rawHandle);
-        return true;
-    }
-    if (err != ESP_OK) {
-        launcherConsolePrintf("Error finding l_wifi entry, error: %s\n", esp_err_to_name(err));
-        nvs_close(rawHandle);
-        return false;
-    }
+    for (const String &key : lnvs::keys("l_wifi")) {
+        if (!key.startsWith("s_")) continue;
 
-    while (err == ESP_OK) {
-        nvs_entry_info_t info;
-        nvs_entry_info(it, &info);
-        String key = String(info.key);
-        if (key.startsWith("s_")) {
-            size_t ssid_size = 0;
-            err = nvs_get_str(rawHandle, info.key, NULL, &ssid_size);
-            if (err != ESP_OK) {
-                launcherConsolePrintf("Error %d looking for %s\n", err, info.key);
-                break;
-            }
-
-            char *ssidBuff = static_cast<char *>(malloc(ssid_size));
-            if (!ssidBuff) {
-                launcherConsolePrintln("Failed to allocate buffer for SSID");
-                break;
-            }
-
-            err = nvs_get_str(rawHandle, info.key, ssidBuff, &ssid_size);
-            if (err == ESP_OK) {
-                String suffix = key.substring(2);
-                String pwdKey = "p_" + suffix;
-                size_t pwd_size = 0;
-                String pwdValue;
-                if (nvs_get_str(rawHandle, pwdKey.c_str(), NULL, &pwd_size) == ESP_OK) {
-                    char *pwdBuff = static_cast<char *>(malloc(pwd_size));
-                    if (pwdBuff) {
-                        if (nvs_get_str(rawHandle, pwdKey.c_str(), pwdBuff, &pwd_size) == ESP_OK) {
-                            pwdValue = String(pwdBuff);
-                        } else {
-                            launcherConsolePrintf("Error retrieving pwd for key %s\n", pwdKey.c_str());
-                        }
-                        free(pwdBuff);
-                    } else {
-                        launcherConsolePrintln("Failed to allocate buffer for password");
-                    }
-                } else {
-                    launcherConsolePrintf("Password key %s not found\n", pwdKey.c_str());
-                }
-
-                String secKey2 = "b_" + suffix;
-                uint8_t isSecure = 0;
-                nvs_get_u8(rawHandle, secKey2.c_str(), &isSecure);
-                if (isSecure) pwdValue = wifiPwdDecrypt(pwdValue);
-
-                setWifiCredential(String(ssidBuff), pwdValue, false);
-                launcherConsolePrintf("SSID: %s\n", ssidBuff);
-            } else {
-                launcherConsolePrintf("Error %d retrieving %s\n", err, info.key);
-            }
-            free(ssidBuff);
+        String ssid = lnvs::getString(handle.raw(), key.c_str());
+        if (ssid.isEmpty()) {
+            launcherConsolePrintf("Error retrieving %s\n", key.c_str());
+            continue;
         }
 
-        err = nvs_entry_next(&it);
+        String suffix = key.substring(2);
+        String pwdValue = lnvs::getString(handle.raw(), ("p_" + suffix).c_str());
+
+        uint8_t isSecure = 0;
+        nvs_get_u8(handle.raw(), ("b_" + suffix).c_str(), &isSecure);
+        if (isSecure) pwdValue = wifiPwdDecrypt(pwdValue);
+
+        setWifiCredential(ssid, pwdValue, false);
+        launcherConsolePrintf("SSID: %s\n", ssid.c_str());
     }
-    nvs_release_iterator(it);
-    nvs_close(rawHandle);
     return true;
 }
 
@@ -1010,8 +899,9 @@ void getConfigs() {
         count++;
         log_i("getConfigs: missing dimmerSet");
     }
-
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
     if (setting[get_efuse_mac_as_string()].is<int>()) rotation = setting[get_efuse_mac_as_string()].as<int>();
+    else if (setting[rot_dev_name].is<int>()) rotation = setting[rot_dev_name].as<int>();
     else {
         count++;
         log_i("getConfigs: missing rotation");
@@ -1131,7 +1021,7 @@ void saveConfigs() {
         JsonObject wifiObj = wifiList.add<JsonObject>();
         if (!wifiObj.isNull()) {
             wifiObj["ssid"] = ssid.length() == 0 ? "myNetSSID" : ssid;
-            wifiObj["pwd"] = pwd.length() == 0 ? "myNetPassword" : pwd;
+            wifiObj["pwd"] = pwd.length() == 0 ? "myNetPwd" : pwd;
         }
     }
 
@@ -1143,7 +1033,8 @@ void saveConfigs() {
     setting["askSpiffs"] = askSpiffs;
     setting["bright"] = bright;
     setting["dimmerSet"] = dimmerSet;
-    setting[get_efuse_mac_as_string()] = rotation;
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
+    setting[rot_dev_name] = rotation;
     setting["FGCOLOR"] = FGCOLOR;
     setting["BGCOLOR"] = BGCOLOR;
     setting["ALCOLOR"] = ALCOLOR;
@@ -1213,20 +1104,21 @@ bool validTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1) {
 }
 
 esp_err_t readTouchCalibrationItems(
-    nvs::NVSHandle &handle, uint16_t &x0, uint16_t &x1, uint16_t &y0, uint16_t &y1, uint8_t &rot
+    nvs_handle_t handle, uint16_t &x0, uint16_t &x1, uint16_t &y0, uint16_t &y1, uint8_t &rot
 ) {
-    esp_err_t err = handle.get_item("x0", x0);
-    err |= handle.get_item("x1", x1);
-    err |= handle.get_item("y0", y0);
-    err |= handle.get_item("y1", y1);
-    err |= handle.get_item("r", rot);
+    esp_err_t err = nvs_get_u16(handle, "x0", &x0);
+    err |= nvs_get_u16(handle, "x1", &x1);
+    err |= nvs_get_u16(handle, "y0", &y0);
+    err |= nvs_get_u16(handle, "y1", &y1);
+    err |= nvs_get_u8(handle, "r", &rot);
     if (err == ESP_OK) return err;
 
-    err = handle.get_item("x", x0);
-    err |= handle.get_item("X", x1);
-    err |= handle.get_item("y", y0);
-    err |= handle.get_item("Y", y1);
-    err |= handle.get_item("r", rot);
+    // Older builds used single-letter keys.
+    err = nvs_get_u16(handle, "x", &x0);
+    err |= nvs_get_u16(handle, "X", &x1);
+    err |= nvs_get_u16(handle, "y", &y0);
+    err |= nvs_get_u16(handle, "Y", &y1);
+    err |= nvs_get_u8(handle, "r", &rot);
     return err;
 }
 } // namespace
@@ -1242,14 +1134,13 @@ bool getTouchCalibration(uint16_t &x0, uint16_t &x1, uint16_t &y0, uint16_t &y1,
     y1 = 0;
     rot = 0;
 
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace(TOUCH_CAL_NAMESPACE, NVS_READONLY, err);
+    lnvs::Handle nvsHandle(TOUCH_CAL_NAMESPACE, false);
     if (!nvsHandle) {
         log_i("getTouchCalibration: no %s namespace found", TOUCH_CAL_NAMESPACE);
         return false;
     }
 
-    err = readTouchCalibrationItems(*nvsHandle, x0, x1, y0, y1, rot);
+    esp_err_t err = readTouchCalibrationItems(nvsHandle.raw(), x0, x1, y0, y1, rot);
     rot &= 0x07;
     return err == ESP_OK && validTouchCalibration(x0, x1, y0, y1);
 }
@@ -1291,21 +1182,21 @@ bool saveTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, ui
         return false;
     }
 
-    esp_err_t err = ESP_OK;
-    auto nvsHandle = openNamespace(TOUCH_CAL_NAMESPACE, NVS_READWRITE, err);
+    lnvs::Handle nvsHandle(TOUCH_CAL_NAMESPACE, true);
     if (!nvsHandle) {
         launcherConsolePrintf("saveTouchCalibration: Failed to open %s namespace\n", TOUCH_CAL_NAMESPACE);
         return false;
     }
+    nvs_handle_t h = nvsHandle.raw();
 
     rot &= 0x07;
-    err |= nvsHandle->set_item("x0", x0);
-    err |= nvsHandle->set_item("x1", x1);
-    err |= nvsHandle->set_item("y0", y0);
-    err |= nvsHandle->set_item("y1", y1);
-    err |= nvsHandle->set_item("r", rot);
+    esp_err_t err = nvs_set_u16(h, "x0", x0);
+    err |= nvs_set_u16(h, "x1", x1);
+    err |= nvs_set_u16(h, "y0", y0);
+    err |= nvs_set_u16(h, "y1", y1);
+    err |= nvs_set_u8(h, "r", rot);
 
-    if (err == ESP_OK) { err = nvsHandle->commit(); }
+    if (err == ESP_OK && !nvsHandle.commit()) err = ESP_FAIL;
 
     if (err == ESP_OK) {
         launcherConsolePrintf(
@@ -1337,7 +1228,7 @@ void calibrateTouch() {
     auto drawCenteredLine = [&](const char *text, int16_t y) { tft->drawCentreString(text, _w / 2, y, 1); };
 
     tft->setTextColor(FGCOLOR, BGCOLOR);
-    tft->setTextSize(FP);
+    tft->setTextSize(_fp);
     const int16_t lineHeight = LH;
     int16_t y = (_h - lineHeight * 4) / 2;
     drawCenteredLine("Launcher Touch Calibration", y);

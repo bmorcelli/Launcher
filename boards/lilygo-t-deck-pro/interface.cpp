@@ -146,7 +146,8 @@ void _setup_gpio() {
     launcherGpioWrite(BOARD_GPS_EN, HIGH);
     launcherGpioWrite(BOARD_A7682E_PWRKEY, HIGH);
 
-    SPI.begin(BOARD_SPI_SCK, SDCARD_MISO, BOARD_SPI_MOSI, BOARD_SPI_CS);
+    // Same bus the e-paper hangs off; the pins are the board's TFT_* flags.
+    SPI.begin(TFT_SCLK, SDCARD_MISO, TFT_MOSI, TFT_CS);
 
     Wire.begin(BOARD_SDA, BOARD_SCL);
     launcherDelayMs(100);
@@ -176,9 +177,6 @@ void _setup_gpio() {
 ** Location: main.cpp
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_Bits 8
-#define TFT_BRIGHT_FREQ 5000
 #define TFT_BL 40
 
 void scanDevices(void) {

@@ -4,6 +4,10 @@
 #include <M5Unified.h>
 #include <interface.h>
 
+#define SEL_BTN 1
+#define UP_BTN 9
+#define DW_BTN 10
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp

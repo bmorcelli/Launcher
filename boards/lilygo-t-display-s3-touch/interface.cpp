@@ -9,6 +9,9 @@
 #include <Wire.h>
 #define LCD_MODULE_CMD_1
 
+#define SEL_BTN 0
+#define DW_BTN 14
+
 #include <esp_adc_cal.h>
 TouchDrvCSTXXX touch;
 struct LTouchPointPro {
@@ -68,7 +71,6 @@ void _setup_gpio() {
                                .active_level = 0,
                                },
     };
-    launcherGpioInputPullup(SEL_BTN);
 
     btn1 = new Button(bt1);
 

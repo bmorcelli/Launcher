@@ -12,6 +12,8 @@ void launcherInputLockInit();
 void launcherInputLock();
 void launcherInputUnlock();
 
+bool launcherSelectHeld();
+
 void __attribute__((weak)) powerOff();
 
 void __attribute__((weak)) reboot();

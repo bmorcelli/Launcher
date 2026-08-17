@@ -69,7 +69,7 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
             }
         }
 
-        resetTftDisplay(10, 10, FGCOLOR, FP);
+        resetTftDisplay(10, 10, FGCOLOR, _fp);
         tft->fillScreen(BGCOLOR);
         tftprint("Connecting to: " + ssid + ".", 10);
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
@@ -438,7 +438,8 @@ bool flashRawRangeFromHttp(
     RawHttpUpdateContext update = {target.offset, target.size, sourceOffset, imageSize, 0, appImage, false};
     LauncherHttpResponse response;
     RAM_LOG("flashRawRangeFromHttp-stream");
-    bool httpOk = launcherHttpGetStream(url.c_str(), launcherRawUpdateHttpCb, &update, &response, "HWID", hwid);
+    bool httpOk =
+        launcherHttpGetStream(url.c_str(), launcherRawUpdateHttpCb, &update, &response, "HWID", hwid);
     bool complete = update.written == imageSize;
     bool endOk = complete && launcherRawUpdateEnd();
     bool ok = complete && endOk;
@@ -601,11 +602,12 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
 
     pauseInputHandlerTask();
     resetTftDisplay();
+    tft->setTextSize(_fm);
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
     tft->drawCentreString("Getting info from", tftWidth / 2, tftHeight / 3, 1);
-    tft->drawCentreString("LauncherHub", tftWidth / 2, tftHeight / 3 + FM * 9, 1);
+    tft->drawCentreString("LauncherHub", tftWidth / 2, tftHeight / 3 + _fm * 9, 1);
     tft->display(false);
-    tft->setCursor(18, tftHeight / 3 + FM * 9 * 2);
+    tft->setCursor(18, tftHeight / 3 + _fm * 9 * 2);
     const uint8_t maxAttempts = 5;
     for (uint8_t attempt = 0; attempt < maxAttempts; ++attempt) {
         String payload;
@@ -639,7 +641,9 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
             reason = String("Net err ") + resp.transport_error;
         }
         launcherConsolePrintf(
-            "getInfo: GET failed attempt=%u status=%d transport=%d\n", attempt + 1, resp.status,
+            "getInfo: GET failed attempt=%u status=%d transport=%d\n",
+            attempt + 1,
+            resp.status,
             resp.transport_error
         );
         displayRedStripe(String("GET failed (") + (attempt + 1) + "/" + maxAttempts + "): " + reason);
@@ -697,7 +701,7 @@ bool GetJsonFromLauncherHub(uint8_t page, const String &order, bool star, const 
 #ifdef OTA_EXTRA
     q += normalizeExtraQuery(String(OTA_EXTRA));
 #endif
-    String serverUrl = "https://api.launcherhub.net/firmwares?category=" + String(OTA_TAG) + q;
+    String serverUrl = "https://api.launcherhub.net/firmwares?category=" + ota_tag + q;
 
     JsonDocument filter;
     buildFirmwareListFilter(filter);
@@ -1335,7 +1339,8 @@ retry:
     RAM_LOG("downloadFirmware-before-httpGetStream");
     FileDownloadContext download = {&file, 0, 0, 0, &response};
     String hwid = launcherWifiMac().c_str();
-    bool ok = launcherHttpGetStream(fileAddr.c_str(), fileDownloadCb, &download, &response, "HWID", hwid.c_str());
+    bool ok =
+        launcherHttpGetStream(fileAddr.c_str(), fileDownloadCb, &download, &response, "HWID", hwid.c_str());
     launcherConsolePrintf(
         "downloadFirmware: ok=%d status=%d transport_error=%d content_length=%lld downloaded=%u\n",
         (int)ok,

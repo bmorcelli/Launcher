@@ -1,46 +1,26 @@
 #include "app_registry.h"
 #include "backup_manager.h"
+#include "ble_bonds.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
 #include "mykeyboard.h"
+#include "nvs_helpers.h"
 #include "settings.h"
 #include "utils.h"
+#include <cstring>
 #include <esp_flash.h>
 #include <esp_image_format.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
 #include <memory>
-#include <nvs.h>
-#include <nvs_flash.h>
-#include <nvs_handle.hpp>
 
 namespace {
 constexpr const char *kNamespace = "l_apps";
 
-std::unique_ptr<nvs::NVSHandle> openNamespace(const char *ns, nvs_open_mode_t mode, esp_err_t &err) {
-    auto handle = nvs::open_nvs_handle(ns, mode, &err);
-    if (err != ESP_OK) {
-        log_i("openNamespace(%s) failed: %d", ns, err);
-        return nullptr;
-    }
-    return handle;
-}
-
 String loadAppNameForLabel(const char *label) {
     if (!label || !label[0]) return "";
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(kNamespace, NVS_READONLY, err);
-    if (!handle) return "";
-
-    char buffer[32] = {0};
-    err = handle->get_string(label, buffer, sizeof(buffer));
-    if (err == ESP_ERR_NVS_NOT_FOUND) return "";
-    if (err != ESP_OK) {
-        launcherConsolePrintf("App registry: read failed label=%s err=%d\n", label, err);
-        return "";
-    }
-    return String(buffer);
+    return lnvs::getString(kNamespace, label, 31);
 }
 
 String shortAppActionName(const String &name, const String &fallback) {
@@ -59,34 +39,16 @@ String dataKeyForLabel(const char *prefix, const char *label) {
     return key;
 }
 
-String loadNvsString(const char *key, size_t maxLen) {
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(kNamespace, NVS_READONLY, err);
-    if (!handle) return "";
-    char buffer[64] = {0};
-    if (maxLen >= sizeof(buffer)) maxLen = sizeof(buffer) - 1;
-    err = handle->get_string(key, buffer, maxLen + 1);
-    if (err == ESP_ERR_NVS_NOT_FOUND) return "";
-    if (err != ESP_OK) {
-        launcherConsolePrintf("App registry: read failed key=%s err=%d\n", key, err);
-        return "";
-    }
-    return String(buffer);
-}
+String loadNvsString(const char *key, size_t maxLen) { return lnvs::getString(kNamespace, key, maxLen); }
 
 bool saveNvsString(const char *key, const String &value) {
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(kNamespace, NVS_READWRITE, err);
+    lnvs::Handle handle(kNamespace, true);
     if (!handle) return false;
-    if (value.isEmpty()) {
-        err = handle->erase_item(key);
-        if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
-    } else {
-        err = handle->set_string(key, value.c_str());
-    }
-    if (err == ESP_OK) err = handle->commit();
-    if (err != ESP_OK) { launcherConsolePrintf("App registry: write failed key=%s err=%d\n", key, err); }
-    return err == ESP_OK;
+
+    bool ok = value.isEmpty() ? lnvs::eraseKey(handle.raw(), key)
+                              : lnvs::setString(handle.raw(), key, value.c_str());
+    if (!ok) launcherConsolePrintf("App registry: write failed key=%s\n", key);
+    return ok && handle.commit();
 }
 
 std::vector<String> parseFatLabels(const String &stored) {
@@ -125,18 +87,14 @@ String loadSpiffsLabelForLabel(const char *label) {
 
 bool saveAppNameForLabel(const char *label, const String &name) {
     if (!label || !label[0]) return false;
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(kNamespace, NVS_READWRITE, err);
-    if (!handle) return false;
 
     String storedName = name;
     storedName.trim();
     if (storedName.length() > 20) storedName = storedName.substring(0, 20);
 
-    err = handle->set_string(label, storedName.c_str());
-    if (err == ESP_OK) err = handle->commit();
-    if (err != ESP_OK) { launcherConsolePrintf("App registry: save failed label=%s err=%d\n", label, err); }
-    return err == ESP_OK;
+    bool ok = lnvs::setString(kNamespace, label, storedName.c_str());
+    if (!ok) launcherConsolePrintf("App registry: save failed label=%s\n", label);
+    return ok;
 }
 
 bool saveFatLabelsForLabel(const char *label, const std::vector<String> &fatLabels) {
@@ -205,15 +163,73 @@ std::vector<LauncherAppMetadata> launcherLoadAppRegistry() {
     return apps;
 }
 
-bool launcherClearAppRegistry() {
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(kNamespace, NVS_READWRITE, err);
+bool launcherClearAppRegistry() { return lnvs::eraseNamespace(kNamespace); }
+
+bool launcherPruneAppRegistry(const LauncherPartitionTable &table) {
+    std::vector<String> storedKeys = lnvs::keys(kNamespace);
+    if (storedKeys.empty()) return true;
+
+    lnvs::Handle handle(kNamespace, true);
     if (!handle) return false;
 
-    err = handle->erase_all();
-    if (err == ESP_OK) err = handle->commit();
-    if (err != ESP_OK) { launcherConsolePrintf("App registry: erase_all failed err=%d\n", err); }
-    return err == ESP_OK;
+    bool changed = false;
+    for (const String &storedKey : storedKeys) {
+        const char *key = storedKey.c_str();
+
+        bool remove = false;
+        const bool linkedKey = key[1] == '_' && (key[0] == 'f' || key[0] == 's' || key[0] == 'n');
+        if (linkedKey) {
+            remove = true;
+            for (const LauncherPartitionEntry &entry : table.entries) {
+                if (!entry.isOtaApp()) continue;
+                char expected[16] = {key[0], '_', 0};
+                strncpy(expected + 2, entry.label, sizeof(expected) - 3);
+                if (strcmp(expected, key) == 0) {
+                    remove = false;
+                    break;
+                }
+            }
+
+            if (!remove && key[0] != 'n') {
+                String value = lnvs::getString(handle.raw(), key, key[0] == 's' ? 16 : 63);
+                if (value.isEmpty()) continue; // unreadable or gone: leave it alone
+
+                const char *labelStart = value.c_str();
+                do {
+                    char label[16] = {0};
+                    const char *labelEnd = strchr(labelStart, ',');
+                    size_t len = labelEnd ? static_cast<size_t>(labelEnd - labelStart) : strlen(labelStart);
+                    if (len >= sizeof(label)) len = sizeof(label) - 1;
+                    memcpy(label, labelStart, len);
+
+                    bool dataExists = false;
+                    for (const LauncherPartitionEntry &entry : table.entries) {
+                        if (entry.isData() && strcmp(entry.label, label) == 0) {
+                            dataExists = true;
+                            break;
+                        }
+                    }
+                    if (!dataExists) remove = true;
+                    labelStart = labelEnd ? labelEnd + 1 : nullptr;
+                } while (!remove && key[0] == 'f' && labelStart && *labelStart);
+            }
+        } else {
+            remove = true;
+            for (const LauncherPartitionEntry &entry : table.entries) {
+                if (entry.isOtaApp() && strcmp(entry.label, key) == 0) {
+                    remove = false;
+                    break;
+                }
+            }
+        }
+
+        if (remove) {
+            if (!lnvs::eraseKey(handle.raw(), key)) return false;
+            changed = true;
+        }
+    }
+
+    return changed ? handle.commit() : true;
 }
 
 bool launcherSaveAppMetadata(const LauncherAppMetadata &app) {
@@ -238,26 +254,17 @@ bool launcherSaveAppMetadata(const LauncherAppMetadata &app) {
 bool launcherRemoveAppMetadata(const char *label) {
     if (!label || !label[0]) return false;
 
-    esp_err_t err = ESP_OK;
-    auto handle = openNamespace(kNamespace, NVS_READWRITE, err);
+    lnvs::Handle handle(kNamespace, true);
     if (!handle) return false;
-    err = handle->erase_item(label);
-    if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
-    if (err == ESP_OK) {
-        esp_err_t fatErr = handle->erase_item(dataKeyForLabel("f_", label).c_str());
-        if (fatErr != ESP_OK && fatErr != ESP_ERR_NVS_NOT_FOUND) err = fatErr;
+
+    bool ok = lnvs::eraseKey(handle.raw(), label);
+    for (const char *prefix : {"f_", "s_", "n_"}) {
+        if (!ok) break;
+        ok = lnvs::eraseKey(handle.raw(), dataKeyForLabel(prefix, label).c_str());
     }
-    if (err == ESP_OK) {
-        esp_err_t spiffsErr = handle->erase_item(dataKeyForLabel("s_", label).c_str());
-        if (spiffsErr != ESP_OK && spiffsErr != ESP_ERR_NVS_NOT_FOUND) err = spiffsErr;
-    }
-    if (err == ESP_OK) {
-        esp_err_t appNumErr = handle->erase_item(dataKeyForLabel("n_", label).c_str());
-        if (appNumErr != ESP_OK && appNumErr != ESP_ERR_NVS_NOT_FOUND) err = appNumErr;
-    }
-    if (err == ESP_OK) err = handle->commit();
-    if (err != ESP_OK) { launcherConsolePrintf("App registry: remove failed label=%s err=%d\n", label, err); }
-    return err == ESP_OK;
+    if (ok) ok = handle.commit();
+    if (!ok) launcherConsolePrintf("App registry: remove failed label=%s\n", label);
+    return ok;
 }
 
 std::vector<String> launcherAppFatLabelsForLabel(const char *label) { return loadFatLabelsForLabel(label); }
@@ -381,6 +388,12 @@ bool launcherBootAppByLabel(const char *label) {
     if (!launcherPartitionSetOtaBoot(table, entry->subtype, &error)) {
         return reportStepFailed(error, "Boot set failed");
     }
+
+    // Firmwares dump BLE bonds as raw structs whose layout depends on their own
+    // NimBLE build, so one left behind by another app bootloops this one. Hand the
+    // app back the records it wrote itself and nothing else. Failing here only costs
+    // a re-pairing, so it must not hold up the boot.
+    launcherBleBondsSwitchTo(label);
 
     lastInstalledApp = launcherAppDisplayNameForLabel(label);
     saveIntoNVS();

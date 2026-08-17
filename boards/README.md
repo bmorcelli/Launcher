@@ -2,37 +2,31 @@
 .
 ├── platformio.ini
 ├── boards
-    ├── _JsonFiles
+    ├── _jsonfiles
     │   └── [board].json
     ├── [board]
+    |   └── conections.md
     │   ├── interface.cpp
-    |   └── [board].ini
-    ├── pinouts
-    │   ├── pins_arduino.h
-    │   └── [board].h
+    |   └── platformio.ini
     └── Readme.md
-    
+
 ...
 ```
 
 # Files
 (Replace \[board] with the board name)
 
-## boards/pinouts/pins_arduio.h
-This is where you will put the flag that will include your boards pinouts header.
-
-## boards/pinouts/\[board].h
-This is where you put the flags and pinouts to the board. Look at other boards for whats needed.
-Here is an official example and what we are actually using here:
-https://github.com/espressif/arduino-esp32/blob/master/variants/esp32s3/pins_arduino.h
-
-## boards/\[board]/interface.cpp
-This is where you do the board specific setup code
-
 ## boards/_JsonFiles/\[board].json
 This is the board config. Look at other boards for whats needed.
 Here is an offical example and what we are actually using here:
 https://github.com/platformio/platform-espressif32/blob/master/boards/esp32-s3-devkitc-1.json
+DO NOT TOUCH THESE FILES, Add only if the variant one doesn't exists.
 
-## boards/\[board]\[board].ini
+## boards/\[board]/connections.md
+Document with pinouts for DIY devices.
+
+## boards/\[board]/interface.cpp
+This is where you do the board specific setup code.
+
+## boards/\[board]\platformio.ini
 This is the platformio config for the device. Look at other boards for whats needed.

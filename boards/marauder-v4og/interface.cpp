@@ -8,6 +8,10 @@ CYD28_TouchR touch(320, 240);
 
 #ifdef WAVESENTRY
 #include <RotaryEncoder.h>
+#define ENCODER_INA 2
+#define ENCODER_INB 14
+#define ENCODER_KEY 0
+#define BTN_ACT LOW
 RotaryEncoder *encoder = nullptr;
 IRAM_ATTR void checkPosition() { encoder->tick(); }
 #endif

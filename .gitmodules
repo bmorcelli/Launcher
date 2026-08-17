@@ -1,12 +1,18 @@
 [submodule "ArduinoJson"]
-	path = lib_modules/ArduinoJson
+	path = lib/ArduinoJson
 	url = https://github.com/bblanchon/ArduinoJson.git
 [submodule "Arduino_GFX"]
-	path = lib_modules/Arduino_GFX
+	path = lib/Arduino_GFX
 	url = https://github.com/moononournation/Arduino_GFX.git
 [submodule "SensorLib"]
-	path = lib_modules/SensorLib
+	path = lib/SensorLib
 	url = https://github.com/lewisxhe/SensorLib.git
-[submodule "lib_modules/XPowersLib"]
-	path = lib_modules/XPowersLib
+[submodule "XPowersLib"]
+	path = lib/XPowersLib
 	url = https://github.com/lewisxhe/XPowersLib.git
+[submodule "DisplayDrivers"]
+	path = lib/DisplayDrivers
+	url = https://github.com/bmorcelli/DisplayDrivers.git
+[submodule "platformio-espressif32-sunton"]
+	path = boards/CYD-2432S028/source/platformio-espressif32-sunton
+	url = https://github.com/rzeldent/platformio-espressif32-sunton

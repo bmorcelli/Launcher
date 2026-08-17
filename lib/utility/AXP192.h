@@ -5,12 +5,12 @@
 #include <Wire.h>
 
 #define SLEEP_MSEC(us) (((uint64_t)us) * 1000L)
-#define SLEEP_SEC(us)  (((uint64_t)us) * 1000000L)
-#define SLEEP_MIN(us)  (((uint64_t)us) * 60L * 1000000L)
-#define SLEEP_HR(us)   (((uint64_t)us) * 60L * 60L * 1000000L)
+#define SLEEP_SEC(us) (((uint64_t)us) * 1000000L)
+#define SLEEP_MIN(us) (((uint64_t)us) * 60L * 1000000L)
+#define SLEEP_HR(us) (((uint64_t)us) * 60L * 60L * 1000000L)
 
 class AXP192 {
-   public:
+public:
     AXP192();
     void begin(void);
     void ScreenBreath(int brightness);
@@ -45,7 +45,7 @@ class AXP192 {
     void LightSleep(uint64_t time_in_us = 0);
     uint8_t GetWarningLeve(void);
 
-   public:
+public:
     // void SetChargeVoltage( uint8_t );
     // void SetChargeCurrent( uint8_t );
     float GetBatVoltage();
@@ -68,7 +68,7 @@ class AXP192 {
     // -- Power Off
     void PowerOff();
 
-   public:
+public:
     void Write1Byte(uint8_t Addr, uint8_t Data);
     uint8_t Read8bit(uint8_t Addr);
     uint16_t Read12Bit(uint8_t Addr);

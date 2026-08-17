@@ -14,80 +14,10 @@
 #include <globals.h>
 #include <vector>
 
-#if defined(HEADLESS)
-SerialDisplayClass *tft = new SerialDisplayClass();
-#elif defined(USE_EPD_PAINTER) || defined(USE_EPDIY) || defined(USE_TFT_ESPI) || defined(USE_LOVYANGFX) ||   \
-    defined(GxEPD2_DISPLAY) || defined(USE_M5GFX)
-Ard_eSPI *tft = new Ard_eSPI();
-#else
-#ifdef TFT_PARALLEL_8_BIT
-#ifdef TFT_PARALLEL_8_BIT_MIXED_GPIO
-Arduino_DataBus *bus = new Arduino_ESP32PAR8(
-    TFT_DC, TFT_CS, TFT_WR, TFT_RD, TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7
-);
-#else
-Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
-    TFT_DC, TFT_CS, TFT_WR, TFT_RD, TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7
-);
-#endif
-#elif RGB_PANEL // 16-par connections
-Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
-#if defined(DISPLAY_ST7262_PAR)
-    ST7262_PANEL_CONFIG_DE_GPIO_NUM /* DE */, ST7262_PANEL_CONFIG_VSYNC_GPIO_NUM /* VSYNC */,
-    ST7262_PANEL_CONFIG_HSYNC_GPIO_NUM /* HSYNC */, ST7262_PANEL_CONFIG_PCLK_GPIO_NUM /* PCLK */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_B0 /* R0 */, // for ST7262 panels (SUNTON boards) R and B are changed
-    ST7262_PANEL_CONFIG_DATA_GPIO_B1 /* R1 */, ST7262_PANEL_CONFIG_DATA_GPIO_B2 /* R2 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_B3 /* R3 */, ST7262_PANEL_CONFIG_DATA_GPIO_B4 /* R4 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_G0 /* G0 */, ST7262_PANEL_CONFIG_DATA_GPIO_G1 /* G1 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_G2 /* G2 */, ST7262_PANEL_CONFIG_DATA_GPIO_G3 /* G3 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_G4 /* G4 */, ST7262_PANEL_CONFIG_DATA_GPIO_G5 /* G5 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_R0 /* B0 */, ST7262_PANEL_CONFIG_DATA_GPIO_R1 /* B1 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_R2 /* B2 */, ST7262_PANEL_CONFIG_DATA_GPIO_R3 /* B3 */,
-    ST7262_PANEL_CONFIG_DATA_GPIO_R4 /* B4 */, 0 /* hsync_polarity */,
-    ST7262_PANEL_CONFIG_TIMINGS_HSYNC_FRONT_PORCH /* hsync_front_porch */,
-    ST7262_PANEL_CONFIG_TIMINGS_HSYNC_PULSE_WIDTH /* hsync_pulse_width */,
-    ST7262_PANEL_CONFIG_TIMINGS_HSYNC_BACK_PORCH /* hsync_back_porch */, 0 /* vsync_polarity */,
-    ST7262_PANEL_CONFIG_TIMINGS_VSYNC_FRONT_PORCH /* vsync_front_porch */,
-    ST7262_PANEL_CONFIG_TIMINGS_VSYNC_PULSE_WIDTH /* vsync_pulse_width */,
-    ST7262_PANEL_CONFIG_TIMINGS_VSYNC_BACK_PORCH /* vsync_back_porch */,
-    ST7262_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG /* pclk_active_neg */, 16000000 /* prefer_speed */
-#elif defined(DISPLAY_ST7701_PAR)
-    ST7701_PANEL_CONFIG_DE_GPIO_NUM /* DE */, ST7701_PANEL_CONFIG_VSYNC_GPIO_NUM /* VSYNC */,
-    ST7701_PANEL_CONFIG_HSYNC_GPIO_NUM /* HSYNC */, ST7701_PANEL_CONFIG_PCLK_GPIO_NUM /* PCLK */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_R0 /* R0 */, ST7701_PANEL_CONFIG_DATA_GPIO_R1 /* R1 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_R2 /* R2 */, ST7701_PANEL_CONFIG_DATA_GPIO_R3 /* R3 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_R4 /* R4 */, ST7701_PANEL_CONFIG_DATA_GPIO_G0 /* G0 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_G1 /* G1 */, ST7701_PANEL_CONFIG_DATA_GPIO_G2 /* G2 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_G3 /* G3 */, ST7701_PANEL_CONFIG_DATA_GPIO_G4 /* G4 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_G5 /* G5 */, ST7701_PANEL_CONFIG_DATA_GPIO_B0 /* B0 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_B1 /* B1 */, ST7701_PANEL_CONFIG_DATA_GPIO_B2 /* B2 */,
-    ST7701_PANEL_CONFIG_DATA_GPIO_B3 /* B3 */, ST7701_PANEL_CONFIG_DATA_GPIO_B4 /* B4 */,
-    1 /* hsync_polarity */, ST7701_PANEL_CONFIG_TIMINGS_HSYNC_FRONT_PORCH /* hsync_front_porch */,
-    ST7701_PANEL_CONFIG_TIMINGS_HSYNC_PULSE_WIDTH /* hsync_pulse_width */,
-    ST7701_PANEL_CONFIG_TIMINGS_HSYNC_BACK_PORCH /* hsync_back_porch */, 1 /* vsync_polarity */,
-    ST7701_PANEL_CONFIG_TIMINGS_VSYNC_FRONT_PORCH /* vsync_front_porch */,
-    ST7701_PANEL_CONFIG_TIMINGS_VSYNC_PULSE_WIDTH /* vsync_pulse_width */,
-    ST7701_PANEL_CONFIG_TIMINGS_VSYNC_BACK_PORCH /* vsync_back_porch */,
-    ST7701_PANEL_CONFIG_TIMINGS_FLAGS_PCLK_ACTIVE_NEG /* pclk_active_neg */
-#endif
-);
-#elif defined(TFT_QSPI)
-Arduino_DataBus *bus = new Arduino_ESP32QSPI(TFT_CS, TFT_SCLK, TFT_D0, TFT_D1, TFT_D2, TFT_D3);
-#elif defined(TFT_DSI_PANEL)
-Arduino_ESP32DSIPanel *bus = new Arduino_ESP32DSIPanel(
-    TFT_HSYNC_PULSE_WIDTH /* hsync_pulse_width */, TFT_HSYNC_BACK_PORCH /* hsync_back_porch */,
-    TFT_HSYNC_FRONT_PORCH /* hsync_front_porch */, TFT_VSYNC_PULSE_WIDTH /* vsync_pulse_width */,
-    TFT_VSYNC_BACK_PORCH /*vsync_back_porch  */, TFT_VSYNC_FRONT_PORCH /* vsync_front_porch */,
-    TFT_PREF_SPEED /* prefer_speed */
-);
-#else // SPI Data Bus shared with SDCard and other SPIClass devices
-Arduino_DataBus *bus = new Arduino_HWSPI(TFT_DC, TFT_CS, TFT_SCLK, TFT_MOSI, TFT_MISO, &SPI);
-#endif
-Ard_eSPI *tft = new Ard_eSPI(
-    bus, TFT_RST, ROTATION, TFT_IPS, TFT_WIDTH, TFT_HEIGHT, TFT_COL_OFS1, TFT_ROW_OFS1, TFT_COL_OFS2,
-    TFT_ROW_OFS2
-);
-#endif
+// The panel, its data bus and every pin come from the TFT_* / USE_* build flags
+// in boards/<board>/platformio.ini — DisplayDrivers builds the whole chain from
+// them. See the library's README for the flag vocabulary.
+tft_display *tft = new tft_display();
 
 /***************************************************************************************
 ** Function name: displayScrollingText
@@ -114,7 +44,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
         String scrollingPart =
             displayText.substring(i, i + (coord.size - 1)); // Display charLimit characters at a time
         tft->fillRect(
-            coord.x, coord.y, (coord.size - 1) * LW * tft->getTextsize(), LH * tft->getTextsize(), BGCOLOR
+            coord.x, coord.y, (coord.size - 1) * LW * tft->getTextSize(), LH * tft->getTextSize(), BGCOLOR
         ); // Clear display area
         tft->setCursor(coord.x, coord.y);
         tft->setCursor(coord.x, coord.y);
@@ -125,6 +55,18 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
         if (i == 1) _lastmillis = launcherMillis() + 1000;
         tft->display(false);
     }
+}
+
+/***************************************************************************************
+** Function name: drawCharAt
+** Description:   one character in explicit colours, current text colours kept
+***************************************************************************************/
+void drawCharAt(int32_t x, int32_t y, char c, uint16_t fg, uint16_t bg) {
+    const uint16_t oldFg = tft->getTextColor();
+    const uint16_t oldBg = tft->getTextBgColor();
+    tft->setTextColor(fg, bg);
+    tft->drawString(String(c), x, y);
+    tft->setTextColor(oldFg, oldBg);
 }
 
 static inline void drawOptionsErase(const Opt_Coord &coord) {
@@ -161,12 +103,14 @@ void setTftDisplay(int x, int y, uint16_t fc, int size, uint16_t bg) {
 ** Description:   Draw touch screen footer
 ***************************************************************************************/
 void TouchFooter(uint16_t color) {
-    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (FM * LH + 4), 5, color);
+#if defined(HAS_TOUCH)
+    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (_fm * LH + 4), 5, color);
     tft->setTextColor(color);
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
     tft->drawString("<<<", 11 + RES, tftHeight + 4);
     tft->drawCentreString("SEL", tftWidth / 2, tftHeight + 4, 1);
     tft->drawRightString(">>>", tftWidth - (RES + 11), tftHeight + 4, 1);
+#endif
 }
 
 /***************************************************************************************
@@ -174,12 +118,14 @@ void TouchFooter(uint16_t color) {
 ** Description:   Draw touch screen footer
 ***************************************************************************************/
 void TouchFooter2(uint16_t color) {
-    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (FM * LH + 4), 5, color);
+#if defined(HAS_TOUCH)
+    tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (_fm * LH + 4), 5, color);
     tft->setTextColor(color);
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
     tft->drawString("<<", 11 + RES, tftHeight + 4);
     tft->drawCentreString("LAUNCHER", tftWidth / 2, tftHeight + 4, 1);
     tft->drawRightString(">>", tftWidth - (RES + 11), tftHeight + 4, 1);
+#endif
 }
 
 /***************************************************************************************
@@ -215,7 +161,7 @@ void initDisplay(bool doAll) {
     if (!bootAppShortcuts.empty()) matrixTopMargin = drawBootAppShortcuts(bootAppShortcuts) + 2;
 #endif
 
-    tft->setTextSize(FP);
+    tft->setTextSize(_fp);
     tft->setCursor(10, matrixTopMargin);
     cor = 0;
     show = launcherRandom(0, 40);
@@ -224,7 +170,7 @@ void initDisplay(bool doAll) {
 
     while (tft->getCursorY() < (tftHeight - (LH + 4))) {
         cor = launcherRandom(0, 11);
-        tft->setTextSize(FP);
+        tft->setTextSize(_fp);
         show = launcherRandom(0, 40);
         if (show == 0 || doAll) {
             if (cor == 10) {
@@ -237,52 +183,49 @@ void initDisplay(bool doAll) {
                 txt = String(cor);
             }
 
-            if (_x >= (tftWidth - (LW * FP + 4))) {
+            if (_x >= (tftWidth - (LW * _fp + 4))) {
                 _x = 10;
-                _y += LH * FP;
+                _y += LH * _fp;
             } else if (_x < 10) {
                 _x = 10;
             }
-            if (_y >= (tftHeight - (LH * FP + LH * FP / 2))) break;
+            if (_y >= (tftHeight - (LH * _fp + LH * _fp / 2))) break;
             tft->setCursor(_x, _y);
-            if (_y > (tftHeight - (LH * FM + LH * FP / 2)) &&
-                _x >= (tftWidth - ((LW * FP + 4) + LW * FP * name.length()))) {
+            if (_y > (tftHeight - (LH * _fm + LH * _fp / 2)) &&
+                _x >= (tftWidth - ((LW * _fp + 4) + LW * _fp * name.length()))) {
                 tft->setTextColor(FGCOLOR);
                 tft->print(name);
-                _x += LW * FP * name.length();
+                _x += LW * _fp * name.length();
             } else {
                 tft->print(txt);
-                _x += LW * FP;
+                _x += LW * _fp;
             }
         } else {
-            if (_y > (tftHeight - (LH * FM + LH * FP / 2)) &&
-                _x >= (tftWidth - ((LW * FP + 4) + LW * FP * name.length())))
-                _x += LW * FP * name.length();
-            else _x += LW * FP;
+            if (_y > (tftHeight - (LH * _fm + LH * _fp / 2)) &&
+                _x >= (tftWidth - ((LW * _fp + 4) + LW * _fp * name.length())))
+                _x += LW * _fp * name.length();
+            else _x += LW * _fp;
 
-            if (_x >= (tftWidth - (LW * FP + 4))) {
+            if (_x >= (tftWidth - (LW * _fp + 4))) {
                 _x = 10;
-                _y += LH * FP;
+                _y += LH * _fp;
             }
         }
         tft->setCursor(_x, _y);
     }
-    tft->setTextSize(FG);
+    tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
-#if TFT_HEIGHT > 200
+    // Both arms of the old #if TFT_HEIGHT > 200 here were the same line.
     tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
-#else
-    tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
-#endif
-    tft->setTextSize(FG);
+    tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
 
     String selectedAppName = launcherSelectedBootAppName();
     if (!selectedAppName.isEmpty()) {
-        selectedAppName = selectedAppName.substring(0, tftWidth / (FM * LW) - 4);
-        tft->setTextSize(FM);
+        selectedAppName = selectedAppName.substring(0, tftWidth / (_fm * LW) - 4);
+        tft->setTextSize(_fm);
         tft->setTextColor(FGCOLOR, BGCOLOR);
-        int appTextY = tftHeight - (1.5 * (FM * LH) + 10);
+        int appTextY = tftHeight - (1.5 * (_fm * LH) + 10);
         tft->drawCentreString(" " + selectedAppName + " ", tftWidth / 2, appTextY, 1);
     }
 
@@ -321,12 +264,11 @@ void displayCurrentVersion(
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
 
-    setTftDisplay(10, 10, ~BGCOLOR, FM, BGCOLOR);
+    setTftDisplay(10, 10, ~BGCOLOR, _fm, BGCOLOR);
     String name2 = String(name);
     tftprintln(name2, 10, 2);
-#if TFT_HEIGHT > 200
-    setTftDisplay(10, 50, ALCOLOR, FM);
-#endif
+    // Tall panels have room to put the author on its own line.
+    if (panelHeight() > 200) setTftDisplay(10, 50, ALCOLOR, _fm);
     tft->print("by: ");
     tft->setTextColor(~BGCOLOR);
     tft->println(String(author).substring(0, 14));
@@ -345,23 +287,21 @@ void displayCurrentVersion(
 
     if (versions.size() > 1) {
         tft->setTextColor(ALCOLOR);
-        tft->drawChar2(10, tftHeight - (10 + FM * 9), '<', FGCOLOR, BGCOLOR);
-        tft->drawChar2(tftWidth - (10 + FM * 6), tftHeight - (10 + FM * 9), '>', FGCOLOR, BGCOLOR);
+        drawCharAt(10, tftHeight - (10 + _fm * 9), '<', FGCOLOR, BGCOLOR);
+        drawCharAt(tftWidth - (10 + _fm * 6), tftHeight - (10 + _fm * 9), '>', FGCOLOR, BGCOLOR);
         tft->setTextColor(~BGCOLOR);
     }
 
-    setTftDisplay(-1, -1, ALCOLOR, FM, BGCOLOR);
-    tft->drawCentreString("Options", tftWidth / 2, tftHeight - (10 + FM * 9), 1);
+    setTftDisplay(-1, -1, ALCOLOR, _fm, BGCOLOR);
+    tft->drawCentreString("Options", tftWidth / 2, tftHeight - (10 + _fm * 9), 1);
     tft->drawRoundRect(
-        tftWidth / 2 - 3 * FM * 11, tftHeight - (12 + FM * 9), FM * 6 * 11, FM * 8 + 3, 3, ALCOLOR
+        tftWidth / 2 - 3 * _fm * 11, tftHeight - (12 + _fm * 9), _fm * 6 * 11, _fm * 8 + 3, 3, ALCOLOR
     );
 
     int div = versions.size();
     if (div == 0) div = 1;
 
-#if defined(HAS_TOUCH)
     TouchFooter(ALCOLOR);
-#endif
 
     int bar = int(tftWidth / div);
     if (bar < 5) bar = 5;
@@ -376,11 +316,11 @@ void displayCurrentVersion(
 ***************************************************************************************/
 void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bool keepAwake) {
     // save tft settings before showing the stripe
-    int _size = tft->getTextsize();
+    int _size = tft->getTextSize();
     int _x = tft->getCursorX();
     int _y = tft->getCursorY();
-    uint16_t _color = tft->getTextcolor();
-    uint16_t _bgcolor = tft->getTextbgcolor();
+    uint16_t _color = tft->getTextColor();
+    uint16_t _bgcolor = tft->getTextBgColor();
     Serial.println(String("Display Red Stripe: ") + text);
     // A stripe is put up to be read, so it restarts the idle clock. Long stages —
     // an HTTP connect, an erase, a retry backoff — otherwise pass without a single
@@ -396,7 +336,7 @@ void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bo
 #endif
 
     // stripe drawing
-    int size = text.length() * LW * FM < (tft->width() - 2 * FM * LW) ? FM : FP;
+    int size = text.length() * LW * _fm < (tft->width() - 2 * _fm * LW) ? _fm : _fp;
     int paddingX = 8;
     int paddingY = 5;
     int rectX = 10;
@@ -508,14 +448,10 @@ void progressHandler(size_t progress, size_t total) {
     if (progress == 0) {
         lastProgressDraw = launcherMillis();
         lastProgressBarWidth = 0;
-        tft->setTextSize(FM);
+        tft->setTextSize(_fm);
         tft->setTextColor(ALCOLOR);
         tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
-#if TFT_HEIGHT > 200
-        tft->drawCentreString("-=Launcher=-", tftWidth / 2, 20, 1);
-#else
-        tft->drawCentreString("-=Launcher=-", tftWidth / 2, 10, 1);
-#endif
+        tft->drawCentreString("-=Launcher=-", tftWidth / 2, panelHeight() > 200 ? 20 : 10, 1);
         tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
         if (prog_handler == 1) {
             tft->drawRect(18, tftHeight - 28, tftWidth - 36, 17, ALCOLOR);
@@ -543,7 +479,7 @@ void progressHandler(size_t progress, size_t total) {
     if (prog_handler == 1) tft->fillRect(20, tftHeight - 26, barWidth, 13, ALCOLOR);
     else tft->fillRect(20, tftHeight - 45, barWidth, 13, FGCOLOR);
 
-#if defined(E_PAPER_DISPLAY) && (defined(GxEPD2_DISPLAY) || defined(USE_M5GFX))
+#if defined(E_PAPER_DISPLAY) && (defined(USE_GXEPD2) || defined(USE_M5GFX))
     if (launcherMillis() - lastUpdate > 2000) {
         tft->display();
         lastUpdate = launcherMillis();
@@ -588,7 +524,7 @@ Opt_Coord drawOptions(
     if (index < 0) index = 0;
     if (index >= arraySize) index = arraySize - 1;
 
-    int lineHeight = FM * LH;
+    int lineHeight = _fm * LH;
     const int rowSpacing = 4;
     const int paddingTop = 4;
     const int paddingBottom = 4;
@@ -701,7 +637,7 @@ Opt_Coord drawOptions(
     coord.boxH = contentHeight;
 
     bool firstItemSelected = (optionCount > 0 && index == start);
-    tft->setTextSize(FM);
+    tft->setTextSize(_fm);
 
     if (border) {
         if (firstItemSelected) tft->fillRoundRect(boxX, boxY, contentWidth, contentHeight, 5, bgcolor);
@@ -713,7 +649,7 @@ Opt_Coord drawOptions(
 
     int lineWidth = contentWidth - paddingSide * 2;
     if (lineWidth < 0) lineWidth = contentWidth;
-    int charWidth = LW * tft->getTextsize();
+    int charWidth = LW * tft->getTextSize();
     if (charWidth <= 0) charWidth = 1;
     int indicatorWidth = charWidth;
     if (indicatorWidth > lineWidth) indicatorWidth = lineWidth;
@@ -751,7 +687,7 @@ Opt_Coord drawOptions(
 #endif
 #ifdef HAS_TOUCH
         if (RES && !border) {
-            if (i < (RES / (LH * FM) + 1)) cursorX += RES - i * LW * FM;
+            if (i < (RES / (LH * _fm) + 1)) cursorX += RES - i * LW * _fm;
         }
 #endif
 
@@ -790,8 +726,8 @@ Opt_Coord drawOptions(
         }
 #endif
         if (RES && !border) {
-            if (i < (RES / (LH * FM) + 1)) { labelWidth -= RES / (i + 1); }
-            if (i >= (optionCount - (RES / (LH * FM) + 1))) { labelWidth -= RES / (optionCount - i); }
+            if (i < (RES / (LH * _fm) + 1)) { labelWidth -= RES / (i + 1); }
+            if (i >= (optionCount - (RES / (LH * _fm) + 1))) { labelWidth -= RES / (optionCount - i); }
         }
         if (labelWidth < 0) labelWidth = 0;
         int labelCharLimit = labelWidth / charWidth;
@@ -850,11 +786,11 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     bool compactOneLine = tftHeight <= 90;
     int cols = compactOneLine ? 5 : 3; // Number of columns based on height
     int visibleItems = compactOneLine && size > cols ? cols : size;
-    int rows = compactOneLine ? 1 : (size + cols - 1) / cols;           // Calculate rows needed
-    int w = (tftWidth - 16) / cols;                                     // Width of each icon
-    int h = (tftHeight - ((6 + 6 + FP * LH + 6) + LH * FP + 6)) / rows; // Height of each icon
+    int rows = compactOneLine ? 1 : (size + cols - 1) / cols;             // Calculate rows needed
+    int w = (tftWidth - 16) / cols;                                       // Width of each icon
+    int h = (tftHeight - ((6 + 6 + _fp * LH + 6) + LH * _fp + 6)) / rows; // Height of each icon
 
-    int maxIconTextSize = tftHeight <= 135 ? FM : FG;
+    int maxIconTextSize = tftHeight <= 135 ? _fm : _fg;
 
     for (int i = 0; i < size; ++i) opt[i].resetCoords();
 
@@ -867,7 +803,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
 
         int col = slot % cols;
         int row = compactOneLine ? 0 : slot / cols;
-        int y = (6 + 6 + FP * LH + 8) + row * h;
+        int y = (6 + 6 + _fp * LH + 8) + row * h;
         int xOffset = 0;
 
         // Última linha incompleta: centralizar
@@ -891,12 +827,12 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
         int f_size = maxIconTextSize;
         const int textLimit = w - 10;
         tft->setTextSize(f_size);
-        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > FM) {
-            f_size = FM;
+        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > _fm) {
+            f_size = _fm;
             tft->setTextSize(f_size);
         }
-        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > FP) {
-            f_size = FP;
+        if (static_cast<int>(opt[i].name.length()) * LW * f_size > textLimit && f_size > _fp) {
+            f_size = _fp;
             tft->setTextSize(f_size);
         }
 
@@ -938,17 +874,15 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
         // tft->drawRect(opt[i].x,opt[i].y,opt[i].w,opt[i].h,BLUE); // debug purpose
     }
 
-    tft->setTextSize(FP);
+    tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
     // Draw the description of the selected item
-    tft->fillRect(10, tftHeight - (6 + LH * FP), tftWidth - 20, LH * FP, BGCOLOR);
-    tft->drawCentreString(opt[index].text, tftWidth / 2, tftHeight - (6 + LH * FP), 1);
+    tft->fillRect(10, tftHeight - (6 + LH * _fp), tftWidth - 20, LH * _fp, BGCOLOR);
+    tft->drawCentreString(opt[index].text, tftWidth / 2, tftHeight - (6 + LH * _fp), 1);
     // Draw Launcher version and battery value
-#if TFT_HEIGHT < 200
-    tft->drawString("Launcher", 12 + RES, 12);
-#else
-    tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
-#endif
+    // Short panels have no room for the version next to the battery gauge.
+    if (panelHeight() < 200) tft->drawString("Launcher", 12 + RES, 12);
+    else tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
     tft->setTextSize(maxIconTextSize);
     drawDeviceBorder();
     int bat = getBattery();
@@ -993,7 +927,7 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
     if (!CardKB2Installed) return 0;
 #endif
 
-    int boxH = LH * FM + 8;
+    int boxH = LH * _fm + 8;
     int minBoxW = boxH * 2; // keep the card proportional to its (now taller) height
     int maxCols = (tftWidth - 8) / minBoxW;
     if (maxCols < 1) maxCols = 1;
@@ -1003,7 +937,7 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
 
     // Only as many characters as actually fit the card, so names never overlap
     // when several apps are installed and the cards get narrow.
-    int maxNameChars = (boxW - 6) / (LW * FM);
+    int maxNameChars = (boxW - 6) / (LW * _fm);
     if (maxNameChars < 1) maxNameChars = 1;
 
     for (int i = 0; i < size; ++i) {
@@ -1018,13 +952,13 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
 
         String name = opt[i].name;
         if (static_cast<int>(name.length()) > maxNameChars) name = name.substring(0, maxNameChars);
-        tft->setTextSize(FM);
+        tft->setTextSize(_fm);
         tft->setTextColor(FGCOLOR, BGCOLOR);
-        tft->drawCentreString(name, x + (boxW - 2) / 2, by + boxH / 2 - (LH * FM) / 2, 1);
+        tft->drawCentreString(name, x + (boxW - 2) / 2, by + boxH / 2 - (LH * _fm) / 2, 1);
 
         if (i < 10) { // Only the first 10 apps have a keyboard digit shortcut (1..9,0)
             String shortcutLabel = (i == 9) ? "0" : String(i + 1);
-            tft->setTextSize(FP);
+            tft->setTextSize(_fp);
             tft->setTextColor(ALCOLOR, BGCOLOR);
             tft->drawString(shortcutLabel, x + 2, by + 1);
         }
@@ -1035,17 +969,17 @@ int drawBootAppShortcuts(std::vector<MenuOptions> &opt) {
 }
 void drawDeviceBorder() {
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, FGCOLOR);
-    tft->drawLine(5, (6 + 6 + FP * LH + 5), tftWidth - 6, (6 + 6 + FP * LH + 5), FGCOLOR);
+    tft->drawLine(5, (6 + 6 + _fp * LH + 5), tftWidth - 6, (6 + 6 + _fp * LH + 5), FGCOLOR);
 }
 
 void drawWifiStatus(bool hasBattery) {
-    const int size = LH * FP;
+    const int size = LH * _fp;
     int u = size / 4;
     if (u < 1) u = 1;
     const int gap = 4;
-    int batteryLeft = tftWidth - 5 - (LW * FP * 4 * hasBattery + 40) - RES;
+    int batteryLeft = tftWidth - 5 - (LW * _fp * 4 * hasBattery + 40) - RES;
     int cx = batteryLeft - gap - 3 * u;
-    int by = 7 + (FP * LH + 9) / 2 + u;
+    int by = 7 + (_fp * LH + 9) / 2 + u;
     int dot = u < 2 ? 2 : u;
     if (!launcherWifiIsConnected()) return;
     tft->fillRect(cx - 3 * u - 1, 6, 6 * u + 3, 4 * u + dot + 2, BGCOLOR);
@@ -1064,16 +998,16 @@ void drawWifiStatus(bool hasBattery) {
 }
 
 void drawBatteryStatus(uint8_t bat) {
-    tft->drawRoundRect(tftWidth - 42 - RES, 7, 34, FP * LH + 9, 2, FGCOLOR);
-    tft->setTextSize(FP);
+    tft->drawRoundRect(tftWidth - 42 - RES, 7, 34, _fp * LH + 9, 2, FGCOLOR);
+    tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
-#if TFT_HEIGHT > 140 // Excludes Marauder Mini
-    tft->drawRightString("  " + String(bat) + "%", tftWidth - 45 - RES, 12, 1);
-#endif
-    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30, FP * LH + 5, 2, BGCOLOR);
-    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30 * bat / 100, FP * LH + 5, 2, FGCOLOR);
-    tft->drawLine(tftWidth - 30 - RES, 9, tftWidth - 30 - RES, 9 + FP * LH + 6, BGCOLOR);
-    tft->drawLine(tftWidth - 20 - RES, 9, tftWidth - 20 - RES, 9 + FP * LH + 6, BGCOLOR);
+    // Excludes the Marauder Mini and anything else that short: no room for a
+    // percentage beside the gauge.
+    if (panelHeight() > 140) tft->drawRightString("  " + String(bat) + "%", tftWidth - 45 - RES, 12, 1);
+    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30, _fp * LH + 5, 2, BGCOLOR);
+    tft->fillRoundRect(tftWidth - 40 - RES, 9, 30 * bat / 100, _fp * LH + 5, 2, FGCOLOR);
+    tft->drawLine(tftWidth - 30 - RES, 9, tftWidth - 30 - RES, 9 + _fp * LH + 6, BGCOLOR);
+    tft->drawLine(tftWidth - 20 - RES, 9, tftWidth - 20 - RES, 9 + _fp * LH + 6, BGCOLOR);
 }
 
 /*********************************************************************
@@ -1112,9 +1046,8 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
                 }
             }
             if (bright) { setBrightness(100 * (numOpt - index) / numOpt, false); }
-#if defined(HAS_TOUCH)
+
             TouchFooter();
-#endif
             redraw = false;
         }
         if (index >= 0 && index < static_cast<int>(options.size())) {
@@ -1122,7 +1055,7 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
             displayScrollingText(txt, coord);
         }
 
-#if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
+#if defined(HAS_ENCODER) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
 #if defined(HAS_TOUCH)
         if (border == false) EscPress = false;
         if (touchPoint.pressed) {
@@ -1178,7 +1111,8 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
                         15,
                         0,
                         360 * (launcherMillis() - (LongPressTmp + 200)) / 500,
-                        FGCOLOR - 0x1111
+                        FGCOLOR - 0x1111,
+                        BGCOLOR
                     );
                 if (launcherMillis() - LongPressTmp > 700) { // longpress detected to exit
                     LongPress = false;
@@ -1222,10 +1156,9 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
         if (check(EscPress) || returnToMenu || exit) return -1;
 #endif
     }
-    // if (border) tft->fillScreen(BGCOLOR);
-#if defined(HAS_TOUCH)
+
     TouchFooter(FGCOLOR);
-#endif
+
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
     M5.Display.setEpdMode(epd_mode_t::epd_quality);
 #endif
@@ -1271,7 +1204,7 @@ void loopVersions(const String &_fid) {
 
         /* UP Btn go back to FW menu and ´<´ go to previous version item */
 
-#if defined(T_EMBED) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
+#if defined(HAS_ENCODER) || defined(HAS_TOUCH) || defined(HAS_KEYBOARD)
         /* UP Btn go to previous item */
         if (check(PrevPress)) {
             versionIndex--;
@@ -1309,7 +1242,8 @@ void loopVersions(const String &_fid) {
                         15,
                         0,
                         360 * (launcherMillis() - (LongPressTmp + 200)) / 500,
-                        FGCOLOR - 0x1111
+                        FGCOLOR - 0x1111,
+                        BGCOLOR
                     );
                 if (launcherMillis() - LongPressTmp > 700) { // longpress detected to exit
                     returnToMenu = true;
@@ -1347,8 +1281,8 @@ void loopVersions(const String &_fid) {
                                    }});
                 options.push_back({"Add to Favorite", [=] {
                                        JsonObject fav = favorite.add<JsonObject>();
-                                       fav["name"] = String(name) + " - " + String(author) + " (" +
-                                                     String(OTA_TAG) + ")";
+                                       fav["name"] =
+                                           String(name) + " - " + String(author) + " (" + ota_tag + ")";
                                        fav["fid"] = _fid;
                                        fav["link"] = "";
                                        saveConfigs();
@@ -1483,14 +1417,14 @@ RESTART:
 void tftprintln(const String &txt, int margin, int numlines) {
     String rem = txt; // working copy: consumed line by line below
     int size = rem.length();
-    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextsize() * 8);
-    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextSize() * 8);
+    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
     int x = tft->getCursorX();
     int start = 0;
     while (size > 0 && numlines > 0) {
         if (tft->getCursorX() < margin) tft->setCursor(margin, tft->getCursorY());
         nchars = (tftWidth - tft->getCursorX() - margin) /
-                 (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+                 (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
         tft->println(rem.substring(0, nchars));
         rem = rem.substring(nchars);
         size -= nchars;
@@ -1504,8 +1438,8 @@ void tftprintln(const String &txt, int margin, int numlines) {
 void tftprint(const String &txt, int margin, int numlines) {
     String rem = txt; // working copy: consumed line by line below
     int size = rem.length();
-    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextsize() * 8);
-    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+    if (numlines == 0) numlines = (tftHeight - 2 * margin) / (tft->getTextSize() * 8);
+    int nchars = (tftWidth - 2 * margin) / (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
     int x = tft->getCursorX();
     int start = 0;
     bool prim = true;
@@ -1513,7 +1447,7 @@ void tftprint(const String &txt, int margin, int numlines) {
         if (!prim) { tft->println(); }
         if (tft->getCursorX() < margin) tft->setCursor(margin, tft->getCursorY());
         nchars = (tftWidth - tft->getCursorX() - margin) /
-                 (6 * tft->getTextsize()); // 6 pixels of width fot a letter size 1
+                 (6 * tft->getTextSize()); // 6 pixels of width fot a letter size 1
         tft->print(rem.substring(0, nchars));
         rem = rem.substring(nchars);
         size -= nchars;

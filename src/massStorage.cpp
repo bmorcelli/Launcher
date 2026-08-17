@@ -328,7 +328,7 @@ void MassStorage::beginUsb() {
 void MassStorage::displayMessage(String message) {
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, ALCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
-    setTftDisplay(7, 7, ALCOLOR, FP, BGCOLOR);
+    setTftDisplay(7, 7, ALCOLOR, _fp, BGCOLOR);
     tft->drawCentreString("-= USB MSC =-", tftWidth / 2, 0, 8);
     tft->setCursor(10, 20);
     tftprint(message, 10, 5);

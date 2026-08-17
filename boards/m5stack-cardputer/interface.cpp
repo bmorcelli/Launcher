@@ -5,6 +5,10 @@
 #include <Wire.h>
 #include <interface.h>
 
+#define TCA8418_INT_PIN 11
+#define TCA8418_I2C_ADDR 0x34
+#define TCA8418_SDA_PIN 8
+#define TCA8418_SCL_PIN 9
 // Cardputer and 1.1 keyboard
 Keyboard_Class Keyboard;
 // TCA8418 keyboard controller for ADV variant
@@ -147,20 +151,6 @@ void _post_setup_gpio() {
 }
 
 /*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-    } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
-    }
-}
-
-/*********************************************************************
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
@@ -177,6 +167,8 @@ void InputHandler(void) {
     static bool up = false;
     static bool down = false;
     static bool esc = false;
+    static bool selReported = false;
+    static bool escReported = false;
 
     if (!UseTCA8418 && launcherMillis() - tm < 200 && !LongPress) return;
 
@@ -347,10 +339,6 @@ void InputHandler(void) {
             downRepeatTime = now + TCA8418_REPEAT_MS;
         }
 
-        if (!keyEventHandled && !nextPulse && !prevPulse && !upPulse && !downPulse && !LongPress) {
-            sel = false; // avoid multiple selections
-            esc = false; // avoid multiple escapes
-        }
         if (delPulse) {
             pendingKey.del = true;
             pendingKey.exit_key = true;
@@ -368,8 +356,10 @@ void InputHandler(void) {
         PrevPress = prevPulse;
         UpPress = upPulse;
         DownPress = downPulse;
-        SelPress = sel | SelPress; // in case G0 is pressed
-        EscPress = esc;
+        if (sel && (!selReported || LongPress)) SelPress = true; // `| SelPress`: keeps GPIO0 above
+        if (esc && (!escReported || LongPress)) EscPress = true;
+        selReported = sel;
+        escReported = esc;
         tm = now;
         return;
     } else {

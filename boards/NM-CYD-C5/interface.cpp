@@ -3,13 +3,6 @@
 #include <Wire.h>
 #include <interface.h>
 
-#ifndef TFT_BRIGHT_CHANNEL
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_FREQ 5000
-#define TFT_BRIGHT_Bits 8
-#define TFT_BL 25
-#endif
-
 // NM-CYD-C5 uses XPT2046 resistive touch on the shared SPI bus
 #include "CYD28_TouchscreenR.h"
 #ifndef CYD28_DISPLAY_HOR_RES_MAX
@@ -79,24 +72,11 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static long tm = launcherMillis();
-    if (launcherMillis() - tm > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
+    if (launcherMillis() - tm > 200 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;
-#ifdef DONT_USE_INPUT_TASK
-        checkPowerSaveTime();
-#endif
         if (touch.touched()) {
             tm = launcherMillis();
-#ifdef DONT_USE_INPUT_TASK // need to reset the variables to avoid ghost click
-            NextPress = false;
-            PrevPress = false;
-            UpPress = false;
-            DownPress = false;
-            SelPress = false;
-            EscPress = false;
-            AnyKeyPress = false;
-            touchPoint.pressed = false;
-#endif
             auto t = touch.getPointScaled();
             auto t2 = touch.getPointRaw();
             // launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);

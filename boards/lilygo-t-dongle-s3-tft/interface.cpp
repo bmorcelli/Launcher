@@ -2,6 +2,11 @@
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <interface.h>
+#ifdef CONFIG_IDF_TARGET_ESP32C5
+#define SEL_BTN 0
+#else
+#define SEL_BTN 28
+#endif
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -40,9 +45,9 @@ void _setup_gpio() {
 ***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
-    pinMode(GFX_BL, OUTPUT);
-    ledcAttach(GFX_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(GFX_BL, bright);
+    pinMode(TFT_BL, OUTPUT);
+    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+    ledcWrite(TFT_BL, bright);
 }
 
 /***************************************************************************************
@@ -67,11 +72,11 @@ void _setBrightness(uint8_t brightval) {
     else dutyCycle = 250 - ((brightval * 250) / 100);
 
     launcherConsolePrintf("dutyCycle for bright 0-255: %d", dutyCycle);
-    if (!ledcWrite(GFX_BL, dutyCycle)) {
+    if (!ledcWrite(TFT_BL, dutyCycle)) {
         launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
-        ledcDetach(GFX_BL);
-        ledcAttach(GFX_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(GFX_BL, dutyCycle);
+        ledcDetach(TFT_BL);
+        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+        ledcWrite(TFT_BL, dutyCycle);
     }
 }
 

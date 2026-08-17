@@ -3,6 +3,15 @@
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
+
+#define SEL_BTN 0
+#define UP_BTN 3
+#define DW_BTN 15
+#define L_BTN 2
+#define R_BTN 1
+#define BTN_ACT LOW
+#define PIN_POWER_ON 10
+
 TouchDrvGT911 touch;
 
 struct LTouchPointPro {
@@ -109,11 +118,12 @@ void _setBrightness(uint8_t brightval) {
     Wire.write(LILYGO_KB_BRIGHTNESS_CMD);
     if (brightval == 0) {
         analogWrite(TFT_BL, brightval);
-        Wire.write(brightval);
     } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
-        Wire.write(bl);
+        const uint8_t PWM_MIN = 85;
+        const uint8_t PWM_MAX = 255;
+        float linear = (float)brightval / 100.0;
+        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
+        analogWrite(TFT_BL, value);
     }
     Wire.endTransmission();
 }
@@ -157,12 +167,39 @@ void InputHandler(void) {
         rot = rotation;
     }
     touched = touch.getPoint(&t.x, &t.y, 1);
-    launcherDelayMs(1);
+    launcherDelayMs(2);
     Wire.requestFrom(LILYGO_KB_SLAVE_ADDRESS, 1);
     while (Wire.available() > 0) {
         keyValue = Wire.read();
         launcherDelayMs(1);
     }
+
+    if (keyValue != (char)0x00) {
+        if (!wakeUpScreen()) {
+            AnyKeyPress = true;
+        } else return;
+        KeyStroke.Clear();
+        KeyStroke.hid_keys.push_back(keyValue);
+        if (keyValue == ' ') KeyStroke.exit_key = true; // key pressed to try to exit
+        if (keyValue == (char)0x08) {
+            KeyStroke.exit_key = true;
+            KeyStroke.del = true;
+        }
+
+        if (keyValue == 'w') UpPress = true;
+        if (keyValue == 's') DownPress = true;
+        if (keyValue == 'a') PrevPress = true;
+        if (keyValue == 'd') NextPress = true;
+
+        if (keyValue == (char)0x0D) KeyStroke.enter = true;
+        if (launcherGpioRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
+        KeyStroke.word.push_back(keyValue);
+        if (KeyStroke.del) EscPress = true;
+        if (KeyStroke.enter) SelPress = true;
+        KeyStroke.pressed = true;
+        tm = launcherMillis();
+    } else KeyStroke.pressed = false;
+
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
     // if the trackball movement has expired, reset it to avoid unwanted movements
@@ -195,32 +232,6 @@ void InputHandler(void) {
             DownPress = true;
         } // Down
     }
-
-    if (keyValue != (char)0x00) {
-        if (!wakeUpScreen()) {
-            AnyKeyPress = true;
-        } else return;
-        KeyStroke.Clear();
-        KeyStroke.hid_keys.push_back(keyValue);
-        if (keyValue == ' ') KeyStroke.exit_key = true; // key pressed to try to exit
-        if (keyValue == (char)0x08) {
-            KeyStroke.exit_key = true;
-            KeyStroke.del = true;
-        }
-
-        if (keyValue == 'w') UpPress = true;
-        if (keyValue == 's') DownPress = true;
-        if (keyValue == 'a') PrevPress = true;
-        if (keyValue == 'd') NextPress = true;
-
-        if (keyValue == (char)0x0D) KeyStroke.enter = true;
-        if (launcherGpioRead(SEL_BTN) == BTN_ACT) KeyStroke.fn = true;
-        KeyStroke.word.push_back(keyValue);
-        if (KeyStroke.del) EscPress = true;
-        if (KeyStroke.enter) SelPress = true;
-        KeyStroke.pressed = true;
-        tm = launcherMillis();
-    } else KeyStroke.pressed = false;
 
     if (launcherGpioRead(SEL_BTN) == BTN_ACT) {
         tm = launcherMillis();
@@ -261,17 +272,3 @@ void powerOff() {
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
 }
-
-/*********************************************************************
-** Function: _checkNextPagePress
-** location: mykeyboard.cpp
-** returns the key from the keyboard
-**********************************************************************/
-bool _checkNextPagePress() { return false; }
-
-/*********************************************************************
-** Function: _checkPrevPagePress
-** location: mykeyboard.cpp
-** returns the key from the keyboard
-**********************************************************************/
-bool _checkPrevPagePress() { return false; }

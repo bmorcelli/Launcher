@@ -1,7 +1,7 @@
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <M5Unified.h>
 #include <interface.h>
-#include "idf/launcher_platform.h"
 
 /***************************************************************************************
 ** Function name: _setup_gpio()

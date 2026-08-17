@@ -9,7 +9,15 @@
 ** Location: main.cpp
 ** Description:   initial setup for the device
 ***************************************************************************************/
-void _setup_gpio() { M5.begin(); }
+void _setup_gpio() {
+    M5.begin();
+#if defined(ARDUINO_M5STACK_PAPER)
+    // Draw directly into the IT8951 panel memory and present complete frames
+    // explicitly. Repeated full-screen M5Canvas pushes leave this hardware on
+    // its first frame with current M5GFX.
+    M5.Display.setAutoDisplay(false);
+#endif
+}
 
 /***************************************************************************************
 ** Function name: _post_setup_gpio()

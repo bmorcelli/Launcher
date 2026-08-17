@@ -1,5 +1,16 @@
-#include "powerSave.h"
 #include "idf/launcher_platform.h"
+#include "powerSave.h"
+
+#define SEL_BTN 0
+#define UP_BTN 41
+#define DW_BTN 40
+#define R_BTN 38
+#define L_BTN 39
+#define BTN_ACT LOW
+#define CC1101_SS_PIN 46
+#define NRF24_SS_PIN 14
+#define GROVE_SDA 47
+#define GROVE_SCL 48
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -60,16 +71,6 @@ int getBattery() {
     percent = (PPM.getSystemVoltage() - 3300) * 100 / (float)(4150 - 3350);
 
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
-
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int bl = MINBRIGHT + round(((255 - MINBRIGHT) * bright / 100));
-    analogWrite(TFT_BL, bl);
 }
 
 /*********************************************************************

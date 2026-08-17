@@ -1,5 +1,12 @@
 // Main I2C Bus
-#define MINBRIGHT (uint8_t)1
+#define SEL_BTN 0
+#define UP_BTN 41
+#define DW_BTN 40
+#define R_BTN 38
+#define L_BTN 39
+#define ESC_BTN 21
+#define BTN_ACT LOW
+
 #define GROVE_SDA 47
 #define GROVE_SCL 48
 #define CC1101_GDO0_PIN 46
@@ -118,21 +125,6 @@ int getBattery() {
 
 bool isCharging() {
     return bq.getIsCharging(); // Return the charging status from BQ27220
-}
-
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-    } else {
-        int bl = MINBRIGHT + round(((255 - MINBRIGHT) * brightval / 100));
-        analogWrite(TFT_BL, bl);
-    }
 }
 
 /*********************************************************************

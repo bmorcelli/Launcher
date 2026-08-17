@@ -3,36 +3,22 @@
 #include <Wire.h>
 #include <interface.h>
 
+#define HAS_CAPACITIVE_TOUCH 1
+#define TOUCH_SDA 9
+#define TOUCH_SCL 10
+#define TOUCH_RST 8
+#define TOUCH_INT 25
+
 // Pancake uses an FT6336U capacitive touch controller over I2C.
 // I2C bus is shared with the MAX17048 fuel gauge.
 // Pin map:
 //   SDA = GPIO9   SCL = GPIO10
 //   RST = GPIO8   INT = GPIO25
 
-#ifndef TFT_BRIGHT_CHANNEL
-#define TFT_BRIGHT_CHANNEL 0
-#define TFT_BRIGHT_FREQ    5000
-#define TFT_BRIGHT_Bits    8
-#define TFT_BL             26
-#endif
-
-#ifndef TOUCH_SDA
-#define TOUCH_SDA 9
-#endif
-#ifndef TOUCH_SCL
-#define TOUCH_SCL 10
-#endif
-#ifndef TOUCH_RST
-#define TOUCH_RST 8
-#endif
-#ifndef TOUCH_INT
-#define TOUCH_INT 25
-#endif
-
 // ─── MAX17048 fuel gauge (I2C address 0x36, shares bus with FT6336) ──────────
 
-#define MAX17048_ADDR     0x36
-#define MAX17048_REG_SOC  0x04  // high byte = integer %, low byte = 1/256 %
+#define MAX17048_ADDR 0x36
+#define MAX17048_REG_SOC 0x04 // high byte = integer %, low byte = 1/256 %
 
 /***************************************************************************************
 ** Function name: getBattery()
@@ -45,25 +31,24 @@ int getBattery() {
     Wire.write(MAX17048_REG_SOC);
     if (Wire.endTransmission(false) != 0) return 0;
     if (Wire.requestFrom((int)MAX17048_ADDR, 2) != 2) return 0;
-    uint8_t hi = Wire.read();  // integer percent
-    Wire.read();               // fractional byte (discard)
+    uint8_t hi = Wire.read(); // integer percent
+    Wire.read();              // fractional byte (discard)
     if (hi > 100) hi = 100;
     return (int)hi;
 }
 
 // --- FT6336 minimal driver ---
 
-#define FT6336_ADDR      0x38
-#define FT6336_TD_STATUS 0x02   // number of touch points
-#define FT6336_T1_XH     0x03   // first touch X high byte (4-bit MSB)
+#define FT6336_ADDR 0x38
+#define FT6336_TD_STATUS 0x02 // number of touch points
+#define FT6336_T1_XH 0x03     // first touch X high byte (4-bit MSB)
 
 static bool _ft_read(uint8_t reg, uint8_t *buf, uint8_t len) {
     Wire.beginTransmission(FT6336_ADDR);
     Wire.write(reg);
     if (Wire.endTransmission(false) != 0) return false;
     Wire.requestFrom((int)FT6336_ADDR, (int)len);
-    for (uint8_t i = 0; i < len; i++)
-        buf[i] = Wire.available() ? Wire.read() : 0;
+    for (uint8_t i = 0; i < len; i++) buf[i] = Wire.available() ? Wire.read() : 0;
     return true;
 }
 
@@ -84,8 +69,9 @@ static void _ft6336_init() {
         Wire.requestFrom((int)FT6336_ADDR, 1);
         if (Wire.available()) chipId = Wire.read();
     }
-    launcherConsolePrintf("[Pancake] FT6336 chip ID: 0x%02X%s\n",
-                          chipId, chipId == 0x64 ? " (OK)" : " (unexpected)");
+    launcherConsolePrintf(
+        "[Pancake] FT6336 chip ID: 0x%02X%s\n", chipId, chipId == 0x64 ? " (OK)" : " (unexpected)"
+    );
 
     // Raise touch threshold (reg 0x80 = IDTHRESHOLD). Default 22; 40 reduces
     // phantom touches when the device is in a case.
@@ -125,7 +111,7 @@ static bool _ft6336_get_point(LTouchPoint *out) {
             out->y = TFT_WIDTH - rx;
             break;
         case 2:
-            out->x = TFT_WIDTH  - rx;
+            out->x = TFT_WIDTH - rx;
             out->y = TFT_HEIGHT - ry;
             break;
         case 3:
@@ -175,12 +161,12 @@ void _post_setup_gpio() {
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
     int dutyCycle;
-    if      (brightval == 100) dutyCycle = 250;
-    else if (brightval ==  75) dutyCycle = 130;
-    else if (brightval ==  50) dutyCycle =  70;
-    else if (brightval ==  25) dutyCycle =  20;
-    else if (brightval ==   0) dutyCycle =   0;
-    else                       dutyCycle = ((brightval * 250) / 100);
+    if (brightval == 100) dutyCycle = 250;
+    else if (brightval == 75) dutyCycle = 130;
+    else if (brightval == 50) dutyCycle = 70;
+    else if (brightval == 25) dutyCycle = 20;
+    else if (brightval == 0) dutyCycle = 0;
+    else dutyCycle = ((brightval * 250) / 100);
 
     log_i("dutyCycle for bright 0-255: %d", dutyCycle);
     if (!ledcWrite(TFT_BL, dutyCycle)) {
@@ -199,27 +185,15 @@ void InputHandler(void) {
     static long tm = launcherMillis();
     if (launcherMillis() - tm > 250 || LongPress) {
         LTouchPoint t;
-#ifdef DONT_USE_INPUT_TASK
         checkPowerSaveTime();
-#endif
         if (_ft6336_get_point(&t)) {
             tm = launcherMillis();
-#ifdef DONT_USE_INPUT_TASK
-            // Reset all press flags to prevent ghost clicks
-            NextPress    = false;
-            PrevPress    = false;
-            UpPress      = false;
-            DownPress    = false;
-            SelPress     = false;
-            EscPress     = false;
-            AnyKeyPress  = false;
-            touchPoint.pressed = false;
-#endif
+
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 
-            touchPoint.x       = t.x;
-            touchPoint.y       = t.y;
+            touchPoint.x = t.x;
+            touchPoint.y = t.y;
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
         }
