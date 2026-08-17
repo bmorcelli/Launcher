@@ -608,6 +608,14 @@
             "link": "",
             "family": "ESP32",
             "id": "xueersi-xiaomiao"
+        },
+        {
+            "display": true,
+            "name": "ES3C28P",
+            "description": "",
+            "link": "https://www.lcdwiki.com/2.8inch_ESP32-S3_Display",
+            "family": "ESP32-S3",
+            "id": "ES3C28P"
         }
     ],
     "Elecrow": [
