@@ -39,6 +39,7 @@ tr:last-child td{border-bottom:none}
 .upl{position:relative;height:26px;background:var(--s2);border-radius:3px;overflow:hidden;margin:5px 0}
 .upl-fill{position:absolute;inset:0;width:0%;background:var(--ac);opacity:.25;transition:width .1s linear}
 .upl-lbl{position:absolute;inset:0;display:flex;align-items:center;padding:0 8px;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upl-fail{background:#7a2020}
 #configOverlay,#pmanResizeOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:20;align-items:center;justify-content:center}
 #configOverlay.open,#pmanResizeOverlay.open{display:flex}
 #configBox{background:var(--s1);border:1px solid var(--br);border-radius:var(--r);padding:16px 20px;width:min(280px,90vw)}

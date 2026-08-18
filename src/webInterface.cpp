@@ -23,6 +23,7 @@
 #include "utils.h"
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <esp_partition.h>
 #include <globals.h>
 #include <memory>
@@ -113,6 +114,33 @@ struct WebInstallContext {
 };
 
 WebInstallContext webInstallCtx;
+
+// Bigger recv/SD granularity than the generic 1 kB bufSize: four times fewer FAT
+// transactions and recv() calls per file, which is what makes a long batch survive.
+constexpr size_t kUploadChunkSize = 4096;
+constexpr size_t kUploadChunkFallback = 1024;
+constexpr size_t kMaxFieldValueLen = 512;
+
+// The httpd task serves one request at a time, so every handler can share a single
+// scratch buffer. Keeping it alive for the lifetime of the server removes the
+// malloc/free churn (one 1 kB block per request, interleaved with String allocations)
+// that fragmented the heap and made later uploads in a batch fail.
+uint8_t *webScratchBuffer = nullptr;
+size_t webScratchSize = 0;
+
+uint8_t *acquireWebScratch(size_t size) {
+    if (webScratchBuffer && webScratchSize >= size) return webScratchBuffer;
+    free(webScratchBuffer);
+    webScratchBuffer = static_cast<uint8_t *>(malloc(size));
+    webScratchSize = webScratchBuffer ? size : 0;
+    return webScratchBuffer;
+}
+
+void releaseWebScratch() {
+    free(webScratchBuffer);
+    webScratchBuffer = nullptr;
+    webScratchSize = 0;
+}
 
 void clearWebInstallContext() { webInstallCtx = WebInstallContext(); }
 
@@ -502,29 +530,43 @@ String humanReadableSize(uint64_t bytes) {
 }
 
 String listFiles(const String &folder) {
-    String returnText = "pa:" + folder + ":0\n";
     launcherConsolePrintln("Listing files stored on SD");
 
     File root = SDM.open(folder);
     uploadFolder = folder;
 
+    String returnText = "pa:" + folder + ":0\n";
+    // Grow in blocks instead of reallocating on every entry: a folder holding a few
+    // hundred files used to force hundreds of realloc+copy rounds and left the heap too
+    // fragmented for the uploads that follow.
+    size_t reserved = 2048;
+    returnText.reserve(reserved);
+
     while (true) {
         bool isDir;
         String fullPath = root.getNextFileName(&isDir);
-        String nameOnly = fullPath.substring(fullPath.lastIndexOf("/") + 1);
         if (fullPath == "") break;
+        String nameOnly = fullPath.substring(fullPath.lastIndexOf("/") + 1);
 
-        if (esp_get_free_heap_size() > (String("Fo:" + nameOnly + ":0\n").length()) + 1024) {
-            if (isDir) {
-                returnText += "Fo:" + nameOnly + ":0\n";
-            } else {
-                File fileForSize = SDM.open(fullPath);
-                if (fileForSize) {
-                    returnText += "Fi:" + nameOnly + ":" + humanReadableSize(fileForSize.size()) + "\n";
-                    fileForSize.close();
-                }
+        String line;
+        if (isDir) {
+            line = "Fo:" + nameOnly + ":0\n";
+        } else {
+            File fileForSize = SDM.open(fullPath);
+            if (fileForSize) {
+                line = "Fi:" + nameOnly + ":" + humanReadableSize(fileForSize.size()) + "\n";
+                fileForSize.close();
             }
-        } else break;
+        }
+
+        if (line.length()) {
+            if (esp_get_free_heap_size() < line.length() + 4096) break;
+            if (returnText.length() + line.length() >= reserved) {
+                reserved += 2048;
+                returnText.reserve(reserved);
+            }
+            returnText += line;
+        }
         esp_task_wdt_reset();
     }
     root.close();
@@ -599,13 +641,12 @@ bool receiveBody(httpd_req_t *req, String &body, size_t maxSize = 8192) {
     body = "";
     body.reserve(req->content_len + 1);
     size_t remaining = req->content_len;
-    std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow)
-                                             uint8_t[bufSize]); // on-demand, httpd task has a small stack
-    uint8_t *buff = buffGuard.get();
+    uint8_t *buff = acquireWebScratch(kUploadChunkSize); // shared, see acquireWebScratch
     if (!buff) return false;
     while (remaining > 0) {
-        int readLen =
-            httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
+        int readLen = httpd_req_recv(
+            req, reinterpret_cast<char *>(buff), remaining > kUploadChunkSize ? kUploadChunkSize : remaining
+        );
         if (readLen <= 0) return false;
         body.concat(reinterpret_cast<const char *>(buff), readLen);
         remaining -= readLen;
@@ -743,23 +784,32 @@ void createDirRecursive(String path) {
     }
 }
 
-int findBytes(const std::vector<uint8_t> &data, const String &needle) {
-    if (needle.isEmpty() || data.size() < static_cast<size_t>(needle.length())) return -1;
-    for (size_t i = 0; i <= data.size() - needle.length(); ++i) {
-        bool match = true;
-        for (int j = 0; j < needle.length(); ++j) {
-            if (data[i + j] != static_cast<uint8_t>(needle[j])) {
-                match = false;
-                break;
-            }
-        }
-        if (match) return i;
+// Boyer-Moore-ish scan built on memchr/memcmp. The previous byte-by-byte compare
+// walked the whole pending window for every offset and dominated the upload loop.
+int findPattern(const uint8_t *hay, size_t hayLen, const uint8_t *needle, size_t needleLen) {
+    if (needleLen == 0 || hayLen < needleLen) return -1;
+    const uint8_t *pos = hay;
+    size_t left = hayLen;
+    while (left >= needleLen) {
+        const uint8_t *hit = static_cast<const uint8_t *>(memchr(pos, needle[0], left - needleLen + 1));
+        if (!hit) return -1;
+        if (memcmp(hit, needle, needleLen) == 0) return static_cast<int>(hit - hay);
+        left -= static_cast<size_t>(hit - pos) + 1;
+        pos = hit + 1;
     }
     return -1;
 }
 
 bool writeUploadData(File &file, const uint8_t *data, size_t len, size_t written) {
-    if (!update) return file.write(data, len) == len;
+    if (!update) {
+        size_t done = 0;
+        while (done < len) {
+            const size_t chunk = file.write(data + done, len - done);
+            if (chunk == 0) return false; // a zero-length write means the card refused the data
+            done += chunk;
+        }
+        return true;
+    }
     if (webInstallCtx.active) {
         if (!writeWebInstallData(data, len)) {
             return failWebInstall("WebUI Update Fail: " + String(launcherUpdateLastError()));
@@ -774,26 +824,31 @@ bool writeUploadData(File &file, const uint8_t *data, size_t len, size_t written
     return true;
 }
 
-bool beginUploadTarget(File &file, const String &filename) {
-    if (uploadFolder == "/") uploadFolder = "";
+bool beginUploadTarget(File &file, const String &filename, const String &folder, String &outPath) {
+    outPath = "";
+
+    String destFolder = folder;
+    if (destFolder == "/") destFolder = "";
 
     String effectiveFilename = filename;
     int firstSlash = effectiveFilename.indexOf('/');
     if (firstSlash > 0) {
         String topSegment = effectiveFilename.substring(0, firstSlash);
-        String destTop = uploadFolder.substring(uploadFolder.lastIndexOf('/') + 1);
+        String destTop = destFolder.substring(destFolder.lastIndexOf('/') + 1);
         if (!destTop.isEmpty() && destTop == topSegment) {
             effectiveFilename = effectiveFilename.substring(firstSlash + 1);
         }
     }
 
     if (!update) {
-        launcherConsolePrintf("File: %s/%s\n", uploadFolder.c_str(), effectiveFilename.c_str());
-        String fullPath = uploadFolder + "/" + effectiveFilename;
+        launcherConsolePrintf("File: %s/%s\n", destFolder.c_str(), effectiveFilename.c_str());
+        String fullPath = destFolder + "/" + effectiveFilename;
         String dirPath = fullPath.substring(0, fullPath.lastIndexOf("/"));
         if (dirPath.length() > 0) createDirRecursive(dirPath);
         file = SDM.open(fullPath, "w");
-        return static_cast<bool>(file);
+        if (!file) return false;
+        outPath = fullPath;
+        return true;
     }
 
     if (webInstallCtx.active) {
@@ -804,14 +859,44 @@ bool beginUploadTarget(File &file, const String &filename) {
     return false;
 }
 
-bool finishUploadTarget(File &file) {
-    if (!update) {
-        file.close();
-        return true;
+bool finishUploadTarget(File &file, const String &path, size_t expected) {
+    if (update) {
+        if (webInstallCtx.active) return finalizeWebInstall();
+        return false;
     }
-    if (webInstallCtx.active) { return finalizeWebInstall(); }
-    return false;
+    file.flush();
+    file.close();
+    if (path.isEmpty()) return true;
+    // The write path can report success while the directory entry never lands (card
+    // hiccup, full volume, dropped SPI transaction). Re-stat the file so a lost upload
+    // is reported instead of answering "OK" for something that is not on the card.
+    File stored = SDM.open(path, FILE_READ);
+    if (!stored) return false;
+    const size_t actual = stored.size();
+    stored.close();
+    if (actual != expected) {
+        launcherConsolePrintf(
+            "Upload size mismatch on %s: %u != %u\n", path.c_str(), (unsigned)actual, (unsigned)expected
+        );
+        return false;
+    }
+    return true;
 }
+
+// Discards whatever is left of the request body. ESP-IDF purges unread bodies in
+// 32-byte steps, which takes forever on a multi-MB upload and leaves the keep-alive
+// socket unusable; draining here with the real buffer keeps the connection in sync so
+// the next file of the batch is not fed the leftovers of this one.
+void drainRequestBody(httpd_req_t *req, size_t remaining, uint8_t *buff, size_t buffSize) {
+    while (remaining > 0) {
+        const size_t want = remaining > buffSize ? buffSize : remaining;
+        const int readLen = httpd_req_recv(req, reinterpret_cast<char *>(buff), want);
+        if (readLen <= 0) return;
+        remaining -= static_cast<size_t>(readLen);
+    }
+}
+
+enum class MultipartPhase : uint8_t { Delimiter, Headers, FieldValue, FileData, Finished };
 
 bool streamMultipartUpload(httpd_req_t *req) {
     if (!checkUserWebAuth(req)) return false;
@@ -822,105 +907,198 @@ bool streamMultipartUpload(httpd_req_t *req) {
         return false;
     }
 
-    const String delimiter = "\r\n" + boundary;
-    const size_t keep = delimiter.length() + 8;
-    std::vector<uint8_t> pending;
-    pending.reserve(bufSize + keep + 256);
-    File file;
-    bool inFile = false;
-    bool finishedFile = false;
-    size_t written = 0;
-    size_t remaining = req->content_len;
-    std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow)
-                                             uint8_t[bufSize]); // on-demand, httpd task has a small stack
-    uint8_t *buff = buffGuard.get();
+    // Every part is preceded by CRLF + boundary; seeding the buffer with a CRLF below
+    // makes the opening boundary match that same pattern, so the parser needs one rule.
+    const String delimiterStr = "\r\n" + boundary;
+    const size_t delimiterLen = delimiterStr.length();
+    const uint8_t *delimiter = reinterpret_cast<const uint8_t *>(delimiterStr.c_str());
+    const size_t keep = delimiterLen + 4; // room for the "\r\n" or "--" that follows it
+
+    size_t capacity = kUploadChunkSize + keep;
+    uint8_t *buff = acquireWebScratch(capacity);
+    if (!buff) {
+        capacity = kUploadChunkFallback + keep;
+        buff = acquireWebScratch(capacity);
+    }
     if (!buff) {
         sendText(req, 500, "text/plain", "Out of memory");
         return false;
     }
 
-    while (remaining > 0) {
-        int readLen =
-            httpd_req_recv(req, reinterpret_cast<char *>(buff), remaining > bufSize ? bufSize : remaining);
-        if (readLen <= 0) {
-            sendText(req, 500, "text/plain", "Upload receive failed");
-            return false;
-        }
-        pending.insert(pending.end(), buff, buff + readLen);
-        remaining -= readLen;
+    buff[0] = '\r';
+    buff[1] = '\n';
+    size_t len = 2;
+    size_t remaining = req->content_len;
 
-        while (!finishedFile) {
-            if (!inFile) {
-                int headerEnd = findBytes(pending, "\r\n\r\n");
-                if (headerEnd < 0) break;
-                String headers;
-                headers.reserve(headerEnd);
-                for (int i = 0; i < headerEnd; ++i) headers += static_cast<char>(pending[i]);
-                String name = extractDispositionValue(headers, "name");
-                String filename = extractDispositionValue(headers, "filename");
-                pending.erase(pending.begin(), pending.begin() + headerEnd + 4);
-                if (filename.isEmpty()) {
-                    int boundaryAt = findBytes(pending, delimiter);
-                    if (boundaryAt < 0) break;
-                    if (name == "folder") {
-                        String folder;
-                        folder.reserve(boundaryAt);
-                        for (int i = 0; i < boundaryAt; ++i) folder += static_cast<char>(pending[i]);
-                        folder.trim();
-                        uploadFolder = folder.length() ? folder : "/";
+    MultipartPhase phase = MultipartPhase::Delimiter;
+    String fieldName;
+    String fieldValue;
+    String activePath;
+    // The last listed folder is only a fallback: the "folder" field of this very request
+    // overrides it, so a stale global can no longer redirect an upload elsewhere.
+    String folder = uploadFolder;
+    File file;
+    bool inFile = false;
+    size_t written = 0;
+    int filesStored = 0;
+    String error;
+
+    while (true) {
+        bool needMore = false;
+
+        while (!needMore && phase != MultipartPhase::Finished && error.isEmpty()) {
+            switch (phase) {
+                case MultipartPhase::Delimiter: {
+                    const int at = findPattern(buff, len, delimiter, delimiterLen);
+                    if (at < 0) {
+                        // Preamble/epilogue filler: drop all but a possible partial delimiter.
+                        if (len > keep) {
+                            memmove(buff, buff + len - keep, keep);
+                            len = keep;
+                        }
+                        needMore = true;
+                        break;
                     }
-                    pending.erase(pending.begin(), pending.begin() + boundaryAt + delimiter.length());
-                    continue;
+                    const size_t after = static_cast<size_t>(at) + delimiterLen;
+                    if (len - after < 2) { // need the two bytes that say "next part" or "end"
+                        memmove(buff, buff + at, len - at);
+                        len -= static_cast<size_t>(at);
+                        needMore = true;
+                        break;
+                    }
+                    const bool lastPart = buff[after] == '-' && buff[after + 1] == '-';
+                    const size_t skip = after + 2;
+                    memmove(buff, buff + skip, len - skip);
+                    len -= skip;
+                    phase = lastPart ? MultipartPhase::Finished : MultipartPhase::Headers;
+                    break;
                 }
-                if (!beginUploadTarget(file, filename)) {
-                    sendText(req, 500, "text/plain", "Unable to open upload target");
-                    return false;
-                }
-                inFile = true;
-            }
 
-            int boundaryAt = findBytes(pending, delimiter);
-            if (boundaryAt >= 0) {
-                if (boundaryAt > 0 && !writeUploadData(file, pending.data(), boundaryAt, written)) {
-                    sendText(req, 500, "text/plain", "Unable to write upload data");
-                    return false;
-                }
-                written += boundaryAt;
-                pending.erase(pending.begin(), pending.begin() + boundaryAt + delimiter.length());
-                finishedFile = finishUploadTarget(file);
-                if (!finishedFile) {
-                    sendText(req, 500, "text/plain", "Unable to finish upload");
-                    return false;
-                }
-                break;
-            }
+                case MultipartPhase::Headers: {
+                    static const uint8_t headerEndPattern[4] = {'\r', '\n', '\r', '\n'};
+                    const int at = findPattern(buff, len, headerEndPattern, 4);
+                    if (at < 0) {
+                        if (len >= capacity) error = "Multipart headers too large";
+                        needMore = true;
+                        break;
+                    }
+                    String headers;
+                    headers.reserve(static_cast<unsigned int>(at) + 1);
+                    headers.concat(reinterpret_cast<const char *>(buff), static_cast<unsigned int>(at));
+                    fieldName = extractDispositionValue(headers, "name");
+                    const String filename = extractDispositionValue(headers, "filename");
+                    const size_t skip = static_cast<size_t>(at) + 4;
+                    memmove(buff, buff + skip, len - skip);
+                    len -= skip;
 
-            if (pending.size() > keep) {
-                size_t writeLen = pending.size() - keep;
-                if (!writeUploadData(file, pending.data(), writeLen, written)) {
-                    sendText(req, 500, "text/plain", "Unable to write upload data");
-                    return false;
+                    if (filename.isEmpty()) {
+                        fieldValue = "";
+                        phase = MultipartPhase::FieldValue;
+                        break;
+                    }
+                    if (!beginUploadTarget(file, filename, folder, activePath)) {
+                        error = "Unable to open upload target";
+                        break;
+                    }
+                    inFile = true;
+                    written = 0;
+                    phase = MultipartPhase::FileData;
+                    break;
                 }
-                written += writeLen;
-                pending.erase(pending.begin(), pending.begin() + writeLen);
+
+                case MultipartPhase::FieldValue: {
+                    const int at = findPattern(buff, len, delimiter, delimiterLen);
+                    const size_t take = at >= 0 ? static_cast<size_t>(at) : (len > keep ? len - keep : 0);
+                    if (take > 0) {
+                        if (fieldValue.length() < kMaxFieldValueLen) {
+                            fieldValue.concat(
+                                reinterpret_cast<const char *>(buff),
+                                static_cast<unsigned int>(take > kMaxFieldValueLen ? kMaxFieldValueLen : take)
+                            );
+                        }
+                        memmove(buff, buff + take, len - take);
+                        len -= take;
+                    }
+                    if (at < 0) {
+                        needMore = true;
+                        break;
+                    }
+                    if (fieldName == "folder") {
+                        fieldValue.trim();
+                        folder = fieldValue.length() ? fieldValue : "/";
+                        uploadFolder = folder;
+                    }
+                    phase = MultipartPhase::Delimiter;
+                    break;
+                }
+
+                case MultipartPhase::FileData: {
+                    const int at = findPattern(buff, len, delimiter, delimiterLen);
+                    const size_t take = at >= 0 ? static_cast<size_t>(at) : (len > keep ? len - keep : 0);
+                    if (take > 0) {
+                        if (!writeUploadData(file, buff, take, written)) {
+                            error = "Unable to write upload data";
+                            break;
+                        }
+                        written += take;
+                        memmove(buff, buff + take, len - take);
+                        len -= take;
+                    }
+                    if (at < 0) {
+                        needMore = true;
+                        break;
+                    }
+                    if (!finishUploadTarget(file, activePath, written)) {
+                        inFile = false;
+                        error = "Upload was not stored on the SD card";
+                        break;
+                    }
+                    inFile = false;
+                    filesStored++;
+                    phase = MultipartPhase::Delimiter;
+                    break;
+                }
+
+                default: break;
             }
+        }
+
+        if (!error.isEmpty() || phase == MultipartPhase::Finished) break;
+        if (remaining == 0) break; // body exhausted before the closing boundary
+        if (len >= capacity) {     // nothing consumed and no room left: unparsable
+            error = "Malformed multipart data";
             break;
         }
+        const size_t want = capacity - len;
+        const int readLen =
+            httpd_req_recv(req, reinterpret_cast<char *>(buff) + len, want > remaining ? remaining : want);
+        if (readLen <= 0) {
+            error = "Upload receive failed";
+            break;
+        }
+        len += static_cast<size_t>(readLen);
+        remaining -= static_cast<size_t>(readLen);
     }
 
-    if (!finishedFile && inFile) {
-        if (!pending.empty() && !writeUploadData(file, pending.data(), pending.size(), written)) {
-            sendText(req, 500, "text/plain", "Unable to write upload data");
-            return false;
-        }
-        finishedFile = finishUploadTarget(file);
-        if (!finishedFile) {
-            sendText(req, 500, "text/plain", "Unable to finish upload");
-            return false;
-        }
+    if (inFile) { // truncated body: never answer OK for a half-written file
+        file.close();
+        if (!activePath.isEmpty()) SDM.remove(activePath);
+        if (error.isEmpty()) error = "Upload truncated";
     }
-    sendText(req, finishedFile ? 200 : 400, "text/plain", finishedFile ? "OK" : "No file");
-    return finishedFile;
+
+    if (remaining > 0) drainRequestBody(req, remaining, buff, capacity);
+
+    if (!error.isEmpty()) {
+        launcherConsolePrintf("Upload failed: %s\n", error.c_str());
+        sendText(req, 500, "text/plain", error);
+        return false;
+    }
+    if (filesStored == 0) {
+        sendText(req, 400, "text/plain", "No file");
+        return false;
+    }
+    sendText(req, 200, "text/plain", "OK");
+    return true;
 }
 
 esp_err_t pingHandler(httpd_req_t *req) {
@@ -1059,6 +1237,11 @@ esp_err_t styleHandler(httpd_req_t *req) {
 
 esp_err_t rootHandler(httpd_req_t *req) {
     if (req->method == HTTP_POST) {
+        // File-manager uploads always land on the SD card. Without this, an OTA left in
+        // flight (update stays set until the next listing) would route the payload into
+        // a flash partition and still answer "OK" to the browser.
+        update = false;
+        clearWebInstallContext();
         streamMultipartUpload(req);
         return ESP_OK;
     }
@@ -1116,16 +1299,14 @@ void sendFileDownload(httpd_req_t *req, const String &fileName) {
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     String disposition = "attachment; filename=\"" + fileName.substring(fileName.lastIndexOf('/') + 1) + "\"";
     httpd_resp_set_hdr(req, "Content-Disposition", disposition.c_str());
-    std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow)
-                                             uint8_t[bufSize]); // on-demand, httpd task has a small stack
-    uint8_t *buff = buffGuard.get();
+    uint8_t *buff = acquireWebScratch(kUploadChunkSize); // shared, see acquireWebScratch
     if (!buff) {
         file.close();
         sendText(req, 500, "text/plain", "Out of memory");
         return;
     }
     while (file.available()) {
-        size_t readLen = file.read(buff, bufSize);
+        size_t readLen = file.read(buff, kUploadChunkSize);
         if (httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buff), readLen) != ESP_OK) break;
     }
     httpd_resp_send_chunk(req, nullptr, 0);
@@ -1180,16 +1361,14 @@ esp_err_t editfileHandler(httpd_req_t *req) {
         }
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-        std::unique_ptr<uint8_t[]> buffGuard(new (std::nothrow)
-                                                 uint8_t[bufSize]); // on-demand, httpd task has a small stack
-        uint8_t *buff = buffGuard.get();
+        uint8_t *buff = acquireWebScratch(kUploadChunkSize); // shared, see acquireWebScratch
         if (!buff) {
             file.close();
             sendText(req, 500, "text/plain", "Out of memory");
             return ESP_OK;
         }
         while (file.available()) {
-            size_t len = file.read(buff, bufSize);
+            size_t len = file.read(buff, kUploadChunkSize);
             httpd_resp_send_chunk(req, reinterpret_cast<const char *>(buff), len);
         }
         httpd_resp_send_chunk(req, nullptr, 0);
@@ -1996,6 +2175,7 @@ void startWebUiLoopCommon(bool mode_ap) {
 void stopWebServerAndWifi() {
     launcherWebServerStop(server);
     server = nullptr;
+    releaseWebScratch();
     launcherMdnsStop();
     vTaskDelay(pdTICKS_TO_MS(100));
 #if CONFIG_ESP_HOSTED_ENABLED

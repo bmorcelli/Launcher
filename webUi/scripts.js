@@ -594,69 +594,95 @@ window.addEventListener("load", () => {
     systemInfo();
 });
 let fileQueue = [];
-let activeUploads = 0;
-const maxConcurrentUploads = 2;
+let failedFiles = [];
+// The device serves one HTTP request at a time; a second parallel upload only added a
+// socket that could be dropped while it waited, so the queue is strictly serial.
+const maxUploadRetries = 3;
+const uploadTimeoutMs = 120000;
 function handleFileForm(files, folder) {
     uploadIdx = 0;
     writeSendForm();
     fileQueue = Array.from(files);
     totalFiles = fileQueue.length;
     completedFiles = 0;
-    activeUploads = 0;
-    for (let i = 0; i < maxConcurrentUploads; i++) {
-        processNextUpload(folder);
+    failedFiles = [];
+    processNextUpload(folder);
+}
+function finishUploadBatch() {
+    const actualFolder = _("actualFolder").value;
+    _('upmodal').classList.remove('open');
+    if (failedFiles.length) {
+        // Never report a clean run when files were lost: the batch used to end on
+        // "Upload Complete" even if every single transfer had failed.
+        _("status").innerHTML = `Uploaded ${completedFiles} of ${totalFiles} files - ${failedFiles.length} FAILED, see below.`;
+        _("updetailsheader").innerHTML = "<h3>Failed uploads</h3>";
+        _("updetails").innerHTML = failedFiles.map((f) => `<p>${f.name}: ${f.error}</p>`).join('');
+    } else {
+        _("status").innerHTML = `Upload Complete (${completedFiles} of ${totalFiles} files).`;
     }
+    listFilesButton(actualFolder);
 }
 function processNextUpload(folder) {
     if (fileQueue.length === 0) {
-        if (activeUploads === 0) {
-            _('upmodal').classList.remove('open');
-            _("status").innerHTML = "Upload Complete";
-            const actualFolder = _("actualFolder").value;
-            listFilesButton(actualFolder);
-        }
+        finishUploadBatch();
         return;
     }
-    if (activeUploads >= maxConcurrentUploads) return;
     const file = fileQueue.shift();
-    activeUploads++;
-    uploadFile(folder, file)
+    const name = file.webkitRelativePath || file.name;
+    const row = createUploadRow(name);
+    uploadWithRetry(folder, file, row, 1)
         .then(() => {
-            activeUploads--;
             completedFiles++;
+            row.fill.style.width = '100%';
             _("status").innerHTML = `Uploaded ${completedFiles} of ${totalFiles} files.`;
-            processNextUpload(folder);
         })
         .catch((error) => {
-            activeUploads--;
-            _("status").innerHTML = error || "Upload Failed";
-            processNextUpload(folder);
+            row.el.classList.add('upl-fail');
+            row.label.innerHTML = `${name} - ${error}`;
+            failedFiles.push({ name: name, error: error });
+            _("status").innerHTML = `${name}: ${error}`;
+        })
+        .then(() => {
+            // Small gap so the device can close the file and flush the SD card before
+            // the next request lands on the same connection.
+            setTimeout(() => processNextUpload(folder), 60);
         });
 }
-function uploadFile(folder, file) {
+function createUploadRow(name) {
+    const id = 'upfill' + (uploadIdx++);
+    const row = document.createElement('div');
+    row.className = 'upl';
+    row.innerHTML = `<div class="upl-fill" id="${id}"></div><div class="upl-lbl">${name}</div>`;
+    _('uplist').appendChild(row);
+    return { el: row, fill: _(id), label: row.querySelector('.upl-lbl') };
+}
+function uploadWithRetry(folder, file, row, attempt) {
+    return uploadFile(folder, file, row).catch((error) => {
+        if (attempt >= maxUploadRetries) throw error;
+        row.fill.style.width = '0%';
+        row.label.innerHTML = `${file.webkitRelativePath || file.name} - retry ${attempt + 1}/${maxUploadRetries}`;
+        return new Promise((resolve) => setTimeout(resolve, 400 * attempt))
+            .then(() => uploadWithRetry(folder, file, row, attempt + 1));
+    });
+}
+function uploadFile(folder, file, row) {
     return new Promise((resolve, reject) => {
-        const id = 'upfill' + (uploadIdx++);
-        const row = document.createElement('div');
-        row.className = 'upl';
-        row.innerHTML = `<div class="upl-fill" id="${id}"></div><div class="upl-lbl">${file.webkitRelativePath || file.name}</div>`;
-        _('uplist').appendChild(row);
         const formdata = new FormData();
         formdata.append("folder", folder);
         formdata.append("file", file, file.webkitRelativePath || file.name);
         const ajax = new XMLHttpRequest();
+        ajax.timeout = uploadTimeoutMs;
         ajax.upload.addEventListener("progress", (event) => {
             if (event.lengthComputable)
-                _(id).style.width = Math.round(event.loaded / event.total * 100) + '%';
+                row.fill.style.width = Math.round(event.loaded / event.total * 100) + '%';
         }, false);
         ajax.addEventListener("load", () => {
-            if (ajax.status === 200 && ajax.responseText === "OK") {
-                resolve();
-            } else {
-                reject(ajax.responseText || "Upload failed");
-            }
+            if (ajax.status === 200 && ajax.responseText === "OK") resolve();
+            else reject(ajax.responseText || `HTTP ${ajax.status}`);
         }, false);
-        ajax.addEventListener("error", () => reject(), false);
-        ajax.addEventListener("abort", () => reject(), false);
+        ajax.addEventListener("error", () => reject("connection lost"), false);
+        ajax.addEventListener("timeout", () => reject("timed out"), false);
+        ajax.addEventListener("abort", () => reject("aborted"), false);
         ajax.open("POST", "/");
         ajax.send(formdata);
     });
