@@ -104,6 +104,19 @@ bool launcherBleBondsSwitchTo(const char *label) {
     if (!store) return false;
 
     String owner = lnvs::getString(store.raw(), kOwnerKey, kMaxLabelLen);
+
+    // The owner tag is never touched when an app is deleted (the partition manager
+    // and "partition delete/deleteall" don't call this module), so a deleted owner's
+    // tag can persist and later be handed to an unrelated app that reuses the same
+    // label. Trusting "owner == label" in that case would skip the wipe below and
+    // hand the new app raw bytes from a firmware with a possibly different
+    // nimble_bond layout -- treat a deleted owner the same as an unknown one.
+    if (!owner.isEmpty()) {
+        LauncherPartitionTable table;
+        if (launcherPartitionReadCurrent(table) && !launcherPartitionFindByLabel(table, owner.c_str())) {
+            owner = "";
+        }
+    }
     if (owner == label) return true; // already its own store, nothing to swap
 
     std::vector<String> live = listBlobs(kLiveNs);

@@ -5,6 +5,7 @@
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "install_shared.h"
+#include "nvs_helpers.h"
 #include "partition_install_layout.h"
 #include "partition_table_model.h"
 #include "settings.h"
@@ -49,6 +50,13 @@
 //   calibrate show                                print the calibration currently saved in NVS
 //   calibrate mirror <X/Y>                        flip the given axis and persist it
 //   calibrate swapXY                              toggle swapped X/Y and persist it
+//   sdio show                                     print effective ESP-Hosted SDIO pins
+//                                                  (boards with SDIO2_CLK defined only)
+//   sdio set <clk> <cmd> <d0> <d1> <d2> <d3> <rst>
+//                                                  override the co-processor SDIO pins in
+//                                                  NVS, for boards whose build-time pinout
+//                                                  is unconfirmed; takes effect on reboot
+//   sdio reset                                     clear the override, back to build-time pins
 // This lets a host script recover a device stuck auto-booting a queued OTA
 // firmware: send "nav SelPress" while the "Press the button to enter the
 // Launcher!" banner is printed (src/main.cpp bootscreen loop) to force the
@@ -769,6 +777,51 @@ static void handleCalibrateCommand(const std::vector<String> &tokens) {
 }
 #endif
 
+#if defined(SDIO2_CLK)
+static void printSdioPin(const char *key) {
+    lnvs::Handle h(SDIO_OVERRIDE_NVS_NS, false);
+    int value;
+    if (h && lnvs::getInt(h.raw(), key, value)) launcherConsolePrintf("  %s: %d (override)\n", key, value);
+    else launcherConsolePrintf("  %s: (build default)\n", key);
+}
+
+static void handleSdioShowCommand() {
+    for (const char *key : {"clk", "cmd", "d0", "d1", "d2", "d3", "rst"}) printSdioPin(key);
+}
+
+static void handleSdioSetCommand(const std::vector<String> &tokens) {
+    if (tokens.size() < 9) {
+        launcherConsolePrintln("ERR usage: sdio set <clk> <cmd> <d0> <d1> <d2> <d3> <rst>");
+        return;
+    }
+    lnvs::Handle h(SDIO_OVERRIDE_NVS_NS, true);
+    if (!h) {
+        launcherConsolePrintln("ERR could not open NVS");
+        return;
+    }
+    static const char *keys[7] = {"clk", "cmd", "d0", "d1", "d2", "d3", "rst"};
+    for (int i = 0; i < 7; i++) lnvs::setInt(h.raw(), keys[i], (int)parseNumber(tokens[2 + i]));
+    h.commit();
+    launcherConsolePrintln("SDIO override saved. Reboot to apply.");
+}
+
+static void handleSdioResetCommand() {
+    lnvs::eraseNamespace(SDIO_OVERRIDE_NVS_NS);
+    launcherConsolePrintln("SDIO override cleared. Reboot to apply.");
+}
+
+static void handleSdioCommand(const std::vector<String> &tokens) {
+    if (tokens.size() < 2) {
+        launcherConsolePrintln("ERR usage: sdio <show|set|reset>");
+        return;
+    }
+    if (tokens[1].equalsIgnoreCase("show")) handleSdioShowCommand();
+    else if (tokens[1].equalsIgnoreCase("set")) handleSdioSetCommand(tokens);
+    else if (tokens[1].equalsIgnoreCase("reset")) handleSdioResetCommand();
+    else launcherConsolePrintln("ERR usage: sdio <show|set|reset>");
+}
+#endif
+
 static void printVersion() { launcherConsolePrintln("Launcher " LAUNCHER); }
 
 static void printWhoami() { launcherConsolePrintln(device_name.c_str()); }
@@ -798,6 +851,11 @@ static void printHelp() {
     launcherConsolePrintln("  wifi del <SSID>");
     launcherConsolePrintln("  wifi clear");
     launcherConsolePrintln("  wifi hosted retry");
+#if defined(SDIO2_CLK)
+    launcherConsolePrintln("  sdio show");
+    launcherConsolePrintln("  sdio set <clk> <cmd> <d0> <d1> <d2> <d3> <rst>");
+    launcherConsolePrintln("  sdio reset");
+#endif
 }
 
 static void handleSerialCommand(const String &line) {
@@ -824,6 +882,10 @@ static void handleSerialCommand(const String &line) {
 #if defined(HAS_RESISTIVE_TOUCH)
     } else if (cmd.equalsIgnoreCase("calibrate")) {
         handleCalibrateCommand(tokens);
+#endif
+#if defined(SDIO2_CLK)
+    } else if (cmd.equalsIgnoreCase("sdio") && tokens.size() >= 2) {
+        handleSdioCommand(tokens);
 #endif
     } else if (cmd.equalsIgnoreCase("version")) {
         printVersion();

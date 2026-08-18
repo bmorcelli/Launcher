@@ -24,6 +24,13 @@ enum class LauncherWifiConnectState : uint8_t {
 // true, so callers can test it unconditionally.
 extern bool hostedWifiAvailable;
 
+// NVS namespace for runtime overrides of a board's SDIO2_CLK/CMD/D0-D3/RST
+// build-time pins, keyed "clk"/"cmd"/"d0"/"d1"/"d2"/"d3"/"rst" (ints). Boards
+// whose co-processor pinout is uncertain (undocumented hardware revisions,
+// no unit to verify against) can read these at boot instead of requiring a
+// rebuild per guess. See the "sdio" serial console command.
+#define SDIO_OVERRIDE_NVS_NS "wifi_sdio_ov"
+
 bool launcherWifiStartSta();
 bool launcherWifiInitHostedSdio(
     int8_t clk, int8_t cmd, int8_t d0, int8_t d1, int8_t d2, int8_t d3, int8_t rst
