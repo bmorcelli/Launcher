@@ -324,6 +324,14 @@
             "link": "",
             "family": "ESP32-C5",
             "id": "NM-CYD-C5"
+        },
+        {
+            "display": true,
+            "name": "ES3C28P",
+            "description": "aka. Cheap Black Display",
+            "link": "https://www.lcdwiki.com/2.8inch_ESP32-S3_Display",
+            "family": "ESP32-S3",
+            "id": "ES3C28P"
         }
     ],
     "Lilygo": [
@@ -608,14 +616,6 @@
             "link": "",
             "family": "ESP32",
             "id": "xueersi-xiaomiao"
-        },
-        {
-            "display": true,
-            "name": "ES3C28P",
-            "description": "",
-            "link": "https://www.lcdwiki.com/2.8inch_ESP32-S3_Display",
-            "family": "ESP32-S3",
-            "id": "ES3C28P"
         }
     ],
     "Elecrow": [
@@ -650,6 +650,22 @@
             "link": "https://www.elecrow.com/wiki/esp32-display-352727-intelligent-touch-screen-wi-fi26ble-320480-hmi-display.html",
             "family": "ESP32",
             "id": "elecrow-35Bv2_2"
+        },
+        {
+            "display": true,
+            "name": "Crowpanel Advance S3 5in",
+            "description": "",
+            "link": "https://www.elecrow.com/crowpanel-advanced-5inch-esp32-p4-hmi-ai-display-800x480-ips-touch-screen-with-wifi-6.html",
+            "family": "ESP32-S3",
+            "id": "elecrow-esp32s3-5in"
+        },
+        {
+            "display": true,
+            "name": "Crowpanel Advance P4 7in",
+            "description": "",
+            "link": "https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html",
+            "family": "ESP32-P4",
+            "id": "elecrow-esp32p4-7in"
         }
     ],
     "Waveshare": [
