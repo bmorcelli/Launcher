@@ -117,6 +117,8 @@
             - { env: "elecrow-28B"                }
             - { env: "elecrow-35B"                }
             - { env: "elecrow-35Bv2_2"            }
+            - { env: "elecrow-esp32p4-7in"        }
+            - { env: "elecrow-esp32s3-5in"        }
             - { env: "waveshare-esp32-s3-lcd-147" }
             - { env: "ES3C28P"                    }
             - { env: "xteink-x3-x4"               }

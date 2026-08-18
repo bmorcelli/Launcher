@@ -368,7 +368,7 @@ bool launcherWifiInitSdioAuto(
     activeBackend = LauncherWifiBackend::Hosted;
     launcherWifiResetSdioCoprocessor();
     if (launcherWifiInitHostedSdioGuarded(clk, cmd, d0, d1, d2, d3, rst)) return true;
-    printf("[wifi] ESP-Hosted unavailable, trying ESP-AT co-processor firmware instead\n");
+    printf("[wifi] ESP-Hosted unavailable (tried ESP-AT first, also unavailable)\n");
     return false;
 }
 

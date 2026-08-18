@@ -99,9 +99,12 @@ Things that need to be done in future updates
 * [ ] Optimize Storage functions to save Flash
 
 ## Latest Changelog
-* 2.8.1:
+* 2.9.0:
      * [x] Port to [T-Display P4](https://lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO)
      * [x] Port to [T-Display C5](https://lilygo.cc/products/t-display-c5?bg_ref=sDI8Bh4HmO)
+     * [x] Port to [ES3C28P](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display) aka `Cheap Black Display`, thanks to @AlexeOnTheShip
+     * [x] Port to [Elecrow Crowpanel Advance ESP32-S3 5.0in](https://www.elecrow.com/crowpanel-advance-5-0-hmi-esp32-ai-display-800x480-ips-artificial-intelligent-touch-screen.html)
+     * [x] Port to [Elecrow Crowpanel Advance ESP32-P4 7.0in](https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html)
      * [x] **BETA**: Port to XTeink X3, X4 and X4 Pro
      * [x] **Wi-Fi over ESP-AT**: boards with a Wi-Fi co-processor (T-Display P4) are now probed at boot to detect whether the slave runs ESP-Hosted or the factory ESP-AT firmware, and the matching backend (scan, connect, HTTP/HTTPS, including ranged and streamed downloads) is selected automatically. No need to reflash the co-processor to use Launcher.
      * [x] **USB Mass Storage on ESP32-P4**: boards wired to the high-speed OTG port (T-Display P4) are now supported alongside the full-speed ones (Tab5).
