@@ -10,8 +10,10 @@ flashing a board every time.
 
 Verified end-to-end on WSL2 (Ubuntu): built, launched a window, sat through
 the real boot-wait screen into the real main menu, navigated with real
-arrow-key input into CFG/SD/OTA/WUI, and confirmed each renders through the
-real drawing functions with fake data.
+arrow-key input into CFG/SD/OTA/WUI/PMan, and confirmed each renders through
+the real drawing functions with fake data — SD goes a level deeper still (see
+table below): it's the real `sd_functions.cpp` walking a fake in-memory
+folder tree, folder-into-folder and "> Back" both confirmed working.
 
 ## Prerequisites
 
@@ -39,22 +41,24 @@ immediately) before showing the real main menu.
 
 The real menu items are what real `main.cpp` builds (SD/OTA/WUI/PMan/CFG/OFF
 + any installed apps, minus the ones this harness can't provide — see
-below). Their *actions* are real too, except four are given fake data in
-place of what would normally come from SD/WiFi:
+below). Two different depths of "real" are in play:
 
-| Item | Real function called | What's faked |
-|------|----------------------|---------------|
-| SD   | `loopSD()`            | 3 fake folders + 3 fake files, not a real card |
-| OTA  | `ota_function()` → `loopFirmware()` / `loopVersions()` | 3 fake firmware entries in `doc`, fake version info |
-| WUI  | `loopOptionsWebUi()`  | The "server started" screen with a fake IP, real configured user/pass |
-| CFG  | `settings_menu()`     | A fake settings list (Brightness/Rotation/Colors/Wifi Credentials) |
+| Item | What's compiled and running | What's faked |
+|------|------------------------------|---------------|
+| SD   | **Real `sd_functions.cpp`**: `loopSD()`, `readFs()`, `sortList()`, folder traversal, "> Back" | The filesystem underneath (`native/sources/FS.h`'s `kFakeFs` in-memory tree) — not a real card |
+| OTA  | Real `loopFirmware()` / `loopVersions()` (`display.cpp`) | `ota_function()` (`stubs.cpp`) seeds `doc` with 3 fake firmware entries instead of calling the real online API |
+| WUI  | Real `tft`/`tftprintln` calls | `loopOptionsWebUi()` (`stubs.cpp`) draws the real "server started" layout with a fake IP instead of running a real web server |
+| CFG  | Real `loopOptions()` (`display.cpp`) | `settings_menu()` (`stubs.cpp`) hands it a fake settings list instead of the real one |
+| PMan | Real `loopOptions()` (`display.cpp`) | `partList()` (`stubs.cpp`) hands it a fake partition table instead of reading real flash — `partitioner.cpp` (2000+ lines of real flash/MD5 partition-table editing) isn't compiled here, unlike SD |
 
-All four are implemented in `src/stubs.cpp` — real Launcher code
-(`settings.cpp`, `sd_functions.cpp`, `onlineLauncher.cpp`, `webInterface.cpp`)
-isn't compiled here, so these stand in for it, populating the same globals
-(`options`, `doc`, `total_firmware`) the real ones would and then calling the
-**real** `loopOptions()` / `loopFirmware()` / `loopVersions()` from
-`display.cpp` to draw and navigate them.
+SD is the deepest: the actual navigation logic runs unmodified, fed by a fake
+filesystem. The other four stop one level higher — a stub builds fake data
+and hands it to the real drawing/navigation function, but the module that
+would normally produce that data (`onlineLauncher.cpp`, `webInterface.cpp`,
+`settings.cpp`, `partitioner.cpp`) isn't compiled. Going as deep on any of
+them as SD is a matter of compiling that real `.cpp` too and building a fake
+version of whatever it reads (a fake `doc`-shaped JSON, a fake flash-backed
+partition table, ...) — see "Extending this" below.
 
 ## How this works
 
@@ -97,16 +101,35 @@ modified — instead:
 
 ## Extending this
 
-**A menu item's action needs new data or a new fake screen**: edit its
-implementation in `src/stubs.cpp`.
+**A menu item's fake data needs tweaking**: edit its implementation in
+`src/stubs.cpp` (`settings_menu()`, `ota_function()`, `loopOptionsWebUi()`,
+`partList()`) or, for SD, `native/sources/FS.h`'s `kFakeFs` table.
 
-**A function the linker names that isn't stubbed yet**: add a stub in
-`src/stubs.cpp` — include the real header it's declared in, copy the
-signature, return a sensible default (`false`/empty/no-op) — until it links.
-Watch for functions declared `__attribute__((weak))` with no strong
-definition anywhere (see `mykeyboard.h`, `settings.h`) — those link *clean*
-but resolve to address 0, so calling one segfaults instead of failing at link
-time. Stub these explicitly too, don't rely on the linker to catch them.
+**Going one level deeper on OTA/WUI/CFG/PMan, the way SD already is** — i.e.
+compiling the real `onlineLauncher.cpp` / `webInterface.cpp` / `settings.cpp`
+/ `partitioner.cpp` instead of stubbing the whole module:
+
+1. `#include` the real `.cpp` from `src/stubs.cpp` (see how SD does it —
+   `#include "../../src/sd_functions.cpp"`) instead of writing your own
+   `ota_function()`/etc.
+2. Build. The linker will name whatever ESP32-only functions that file calls
+   into that aren't stubbed yet.
+3. For each: either add a fake header to `sources/` (if it's a *type* the
+   real code needs — that's what `FS.h`'s fake filesystem is, or what a fake
+   `esp_partition_t` table would be for `partitioner.cpp`), or a stub
+   function in `src/stubs.cpp` (if it's a *behaviour* nothing here needs to
+   actually perform — `false`/empty/no-op is usually enough) — until it
+   links.
+4. Watch for functions declared `__attribute__((weak))` with no strong
+   definition anywhere (see `mykeyboard.h`, `settings.h`) — those link
+   *clean* but resolve to address 0, so calling one segfaults instead of
+   failing at link time. Stub these explicitly too, don't rely on the linker
+   to catch them.
+
+This is real work per module (SD took a fake filesystem plus ~25 low-level
+stubs for the install/backup code paths it also compiles in, even though
+they're unreachable from plain browsing) — worth it for a module whose
+*navigation logic itself* is what you're testing, not just its screen.
 
 ## What this does not cover
 

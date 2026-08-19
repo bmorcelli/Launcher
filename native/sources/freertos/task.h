@@ -23,6 +23,8 @@ using StackType_t = uint32_t;
 #define pdPASS 1
 
 inline void vTaskDelay(uint32_t ticks) { lgfx::delay(ticks); }
+inline void vTaskSuspend(TaskHandle_t) {}
+inline void vTaskResume(TaskHandle_t) {}
 
 inline BaseType_t xTaskCreate(
     TaskFunction_t task, const char *, uint32_t, void *param, UBaseType_t, TaskHandle_t *handle

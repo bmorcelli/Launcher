@@ -13,10 +13,16 @@
 #include <DisplayDrivers.h>
 
 #include <app_registry.h>
+#include <backup_manager.h>
 #include <display.h>
 #include <globals.h>
+#include <idf/idf_update.h>
+#include <install_shared.h>
+#include <littlefs_patch.h>
 #include <mykeyboard.h>
 #include <onlineLauncher.h>
+#include <partition_install_layout.h>
+#include <partition_table_model.h>
 #include <partitioner.h>
 #include <powerSave.h>
 #include <sd_functions.h>
@@ -42,9 +48,7 @@ bool launcherWifiIsConnected() { return false; }
 
 String keyboard(String mytext, int, const String &) { return mytext; }
 
-ArduinoJson::Allocator *launcherJsonAllocator() {
-    return ArduinoJson::detail::DefaultAllocator::instance();
-}
+ArduinoJson::Allocator *launcherJsonAllocator() { return ArduinoJson::detail::DefaultAllocator::instance(); }
 
 void installFirmwareFromManifest(const String &, const String &, String) {}
 void downloadFirmware(const String &, String, String, String, const String &, bool) {}
@@ -61,31 +65,22 @@ bool GetJsonFromLauncherHub(uint8_t, const String &, bool, const String &) { ret
 // CFG: a settings-style options list, real loopOptions().
 void settings_menu() {
     options = {
-        {"Brightness",       [] {}                            },
-        {"Rotation",         [] {}                            },
-        {"UI Colors",        [] {}                            },
-        {"Wifi Credentials", [] {}                            },
+        {"Brightness",       [] {}                      },
+        {"Rotation",         [] {}                      },
+        {"UI Colors",        [] {}                      },
+        {"Wifi Credentials", [] {}                      },
         {"Main Menu",        [] { returnToMenu = true; }},
     };
     loopOptions(options);
 }
 
-// SD: 3 fake folders + 3 fake files, real loopOptions(). Folders get
-// FGCOLOR-0x1111 — the same colour loopSD/loopOptions itself uses to tell a
-// folder row from a file row.
-String loopSD(bool) {
-    const uint16_t folderColor = static_cast<uint16_t>(FGCOLOR - 0x1111);
-    options = {
-        {"Documents/",   [] {}, folderColor},
-        {"Firmware/",    [] {}, folderColor},
-        {"Backup/",      [] {}, folderColor},
-        {"readme.txt",   [] {}            },
-        {"config.conf",  [] {}            },
-        {"firmware.bin", [] {}            },
-    };
-    loopOptions(options);
-    return "";
-}
+// SD: real sd_functions.cpp (loopSD/readFs, real folder-tree navigation,
+// "> Back", sorting, ...) compiled below against the fake filesystem in
+// native/sources/FS.h — see NativeUI's README for the include-path trick.
+// The install/backup machinery it also compiles in (flashing a selected
+// .bin, partition table edits) isn't exercised by browsing and is stubbed
+// out below, just enough to link.
+#include "../../src/sd_functions.cpp"
 
 // OTA: a fake firmware list in `doc`, then the real loopFirmware()/
 // loopVersions() (display.cpp) draw and navigate it exactly like the real
@@ -118,9 +113,9 @@ void ota_function() {
         bool star;
     };
     const FakeFw fake[] = {
-        {"Marauder", "justcallmekoko", "fw-marauder", true},
-        {"Bruce", "pr3y", "fw-bruce", false},
-        {"SomeFirmware", "someone", "fw-x", false},
+        {"Marauder",     "justcallmekoko", "fw-marauder", true },
+        {"Bruce",        "pr3y",           "fw-bruce",    false},
+        {"SomeFirmware", "someone",        "fw-x",        false},
     };
     for (const auto &f : fake) {
         JsonObject it = items.add<JsonObject>();
@@ -145,7 +140,7 @@ void loopOptionsWebUi() {
     tft->setTextColor(ALCOLOR, BGCOLOR);
     tft->setTextSize(_fp);
     tft->drawCentreString("-= Launcher WebUI =-", tftWidth / 2, 10, 1);
-    tft->drawCentreString("http://launcher.local", tftWidth / 2, 22, 1);
+    tft->drawCentreString("http://launcher.local\n", tftWidth / 2, 22, 1);
     tft->setTextColor(FGCOLOR, BGCOLOR);
     tft->setTextSize(_fm);
     tftprintln("IP 192.168.4.1", 10, 1);
@@ -170,7 +165,25 @@ bool ensureM5StackUiFlowNVSDefaults() { return true; }
 
 void partitionCrawler() {}
 void launcherPartitionInitDefaultSizes() {}
-void partList() {}
+// PMan: a fake partition table, real loopOptions(). partitioner.cpp isn't
+// compiled here (2000+ lines of real flash/MD5 partition-table editing) —
+// this is the same tier as CFG/SD/OTA/WUI, not the "real code, fake data
+// underneath" tier SD gets. Selecting an entry doesn't do anything (yet);
+// extend the lambdas here to fake a partition's action screen the same way
+// loopSD/ota_function do, if that's useful.
+void partList() {
+    options = {
+        {"factory  0x010000  2.5MB",  [] {}                            },
+        {"nvs      0x009000  20KB",   [] {}                            },
+        {"otadata  0x00E000  8KB",    [] {}                            },
+        {"ota_0    0x290000  2.5MB",  [] {}                            },
+        {"ota_1    0x520000  2.5MB",  [] {}                            },
+        {"spiffs   0x7B0000  2.5MB",  [] {}                            },
+        {"coredump 0xA40000  64KB",   [] {}                            },
+        {"Main Menu",                 [] { returnToMenu = true; }},
+    };
+    loopOptions(options);
+}
 
 bool releaseHeapObjectsAndReboot() { return true; }
 
@@ -219,6 +232,73 @@ void checkReboot() {}
 int getBattery() { return 0; }
 void _setBrightness(uint8_t) {}
 
-// sd_functions.h declares this extern; sd_functions.cpp (the real definition)
-// isn't compiled here.
-SPIClass sdcardSPI;
+// ---------------------------------------------------------------------------
+// Low-level stubs for sd_functions.cpp's install/backup/partition-table code
+// paths — reachable only by actually flashing a selected file, not by
+// browsing, so these only need to link, not work.
+// ---------------------------------------------------------------------------
+bool launcherSelectHeld() { return false; }
+
+size_t launcherUpdateWrite(const uint8_t *, size_t) { return 0; }
+void launcherUpdateAbort() {}
+bool launcherUpdateIsFinished() { return true; }
+int launcherUpdateLastError() { return 0; }
+const char *launcherUpdateLastErrorName() { return "n/a"; }
+bool launcherRawUpdateBegin(uint32_t, size_t, size_t, bool) { return false; }
+size_t launcherRawUpdateWrite(const uint8_t *, size_t) { return 0; }
+bool launcherRawUpdateEnd() { return false; }
+bool launcherRawErase(uint32_t, size_t) { return false; }
+bool launcherRawPrepareDataPartition(uint32_t, size_t) { return false; }
+bool launcherClearCoredump() { return false; }
+bool launcherUpdateErasePartition(const esp_partition_t *) { return false; }
+bool launcherUpdateCopyPartition(const esp_partition_t *, const esp_partition_t *, LauncherUpdateProgress) {
+    return false;
+}
+bool launcherUpdateRepairPartitionTable(uint32_t, bool *) { return false; }
+bool launcherRawUpdateStream(Stream &, uint32_t, size_t, size_t, bool, LauncherUpdateProgress) {
+    return false;
+}
+
+bool launcherPatchReducedLittlefsSuperblocks(uint32_t, uint32_t, String *, bool *) { return false; }
+
+String launcherInstallAppDisplayName(const String &sourceName, const String &) { return sourceName; }
+void launcherSaveInstalledAppMetadata(
+    const LauncherPartitionTable &, const LauncherPartitionEntry &, const String &, const String &,
+    const std::vector<String> &, const String &
+) {}
+
+bool launcherPartitionReadCurrent(LauncherPartitionTable &, String *) { return false; }
+bool launcherPartitionValidate(const LauncherPartitionTable &, String *) { return false; }
+bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &, String *) { return false; }
+String launcherPartitionNextAppLabel(const LauncherPartitionTable &, const String &installedName) {
+    return installedName;
+}
+uint32_t launcherAlignUp(uint32_t value, uint32_t alignment) {
+    return alignment ? ((value + alignment - 1) / alignment) * alignment : value;
+}
+uint32_t launcherPartitionBoundedPayloadSize(uint32_t declaredSize, uint32_t, uint32_t, uint32_t) {
+    return declaredSize;
+}
+LauncherPartitionPayloadPlan
+launcherPartitionFatPayloadPlan(const char *, uint32_t declaredSize, uint32_t, uint32_t) {
+    return LauncherPartitionPayloadPlan{declaredSize, declaredSize};
+}
+bool launcherPartitionSetOtaBoot(const LauncherPartitionTable &, uint8_t, String *) { return false; }
+String generateAppNum(const String &) { return "00000000"; }
+BackupInstallInfo loadInstalledFromConfig(const String &appNum) {
+    BackupInstallInfo info;
+    info.appNum = appNum;
+    return info;
+}
+bool restorePartitionFromBackupDirect(const char *, const char *, uint32_t, uint32_t) { return false; }
+bool restorePartitionFromBackup(const char *, const char *) { return false; }
+bool saveIntoNVS() { return false; }
+bool saveInstalledToConfig(const BackupInstallInfo &) { return false; }
+
+bool launcherSelectInstallLayout(
+    LauncherPartitionTable &, size_t, const String &, std::vector<LauncherInstallDataPartition> &,
+    LauncherPartitionEntry &, String &error
+) {
+    error = "install not supported in native harness";
+    return false;
+}

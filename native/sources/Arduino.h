@@ -40,6 +40,17 @@ inline void delay(unsigned long ms) { lgfx::delay(ms); }
 #define PROGMEM
 #endif
 
+#ifndef FILE_READ
+#define FILE_READ "r"
+#endif
+#ifndef FILE_WRITE
+#define FILE_WRITE "w"
+#endif
+
+// Arduino's global min/max templates.
+template <typename T, typename U> auto min(T a, U b) -> decltype(a < b ? a : b) { return a < b ? a : b; }
+template <typename T, typename U> auto max(T a, U b) -> decltype(a > b ? a : b) { return a > b ? a : b; }
+
 // ESP32 Arduino core's esp32-hal-log.h logging macros.
 #define log_e(...) ((void)0)
 #define log_w(...) ((void)0)
