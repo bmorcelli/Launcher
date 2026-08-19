@@ -407,3 +407,21 @@
           gh workflow list
           gh workflow run .github/workflows/deploy.yml --ref WebPage
 
+      - name: Close "Fixed on Beta" issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.launcher_version.outputs.version }}
+        run: |
+          set -x
+          gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "Fixed on Beta" \
+            --state open \
+            --limit 500 \
+            --json number \
+            --jq '.[].number' | while read -r issue; do
+            [ -z "$issue" ] && continue
+            gh issue close "$issue" \
+              --repo "${{ github.repository }}" \
+              --comment "Fixed on ${VERSION}. Issue automatically closed after release"
+          done
