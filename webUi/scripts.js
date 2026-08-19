@@ -598,7 +598,13 @@ let failedFiles = [];
 // The device serves one HTTP request at a time; a second parallel upload only added a
 // socket that could be dropped while it waited, so the queue is strictly serial.
 const maxUploadRetries = 3;
-const uploadTimeoutMs = 120000;
+// XMLHttpRequest's `timeout` is an absolute cap on the whole request, not an idle
+// timer - it does NOT reset on progress events. Large files (>3MB) push through the
+// device's blocking SD write between every recv(), so throughput drops well below
+// what small files see; a flat 2 min cap made every big upload fail even while bytes
+// were still moving. We disable ajax.timeout and enforce our own idle-only watchdog
+// instead, restarted on each progress tick, so only a genuinely stalled transfer aborts.
+const uploadIdleTimeoutMs = 30000;
 function handleFileForm(files, folder) {
     uploadIdx = 0;
     writeSendForm();
@@ -671,18 +677,27 @@ function uploadFile(folder, file, row) {
         formdata.append("folder", folder);
         formdata.append("file", file, file.webkitRelativePath || file.name);
         const ajax = new XMLHttpRequest();
-        ajax.timeout = uploadTimeoutMs;
+        // No built-in timeout: it can't distinguish "slow but progressing" from "stuck",
+        // see uploadIdleTimeoutMs above. We roll our own idle watchdog instead.
+        let idleTimer = null;
+        const clearIdleTimer = () => { if (idleTimer) clearTimeout(idleTimer); idleTimer = null; };
+        const armIdleTimer = () => {
+            clearIdleTimer();
+            idleTimer = setTimeout(() => ajax.abort(), uploadIdleTimeoutMs);
+        };
+        armIdleTimer();
         ajax.upload.addEventListener("progress", (event) => {
+            armIdleTimer(); // bytes are still moving, push the deadline back out
             if (event.lengthComputable)
                 row.fill.style.width = Math.round(event.loaded / event.total * 100) + '%';
         }, false);
         ajax.addEventListener("load", () => {
+            clearIdleTimer();
             if (ajax.status === 200 && ajax.responseText === "OK") resolve();
             else reject(ajax.responseText || `HTTP ${ajax.status}`);
         }, false);
-        ajax.addEventListener("error", () => reject("connection lost"), false);
-        ajax.addEventListener("timeout", () => reject("timed out"), false);
-        ajax.addEventListener("abort", () => reject("aborted"), false);
+        ajax.addEventListener("error", () => { clearIdleTimer(); reject("connection lost"); }, false);
+        ajax.addEventListener("abort", () => { clearIdleTimer(); reject("timed out (no progress)"); }, false);
         ajax.open("POST", "/");
         ajax.send(formdata);
     });

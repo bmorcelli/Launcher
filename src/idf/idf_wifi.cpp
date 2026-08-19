@@ -428,13 +428,9 @@ launcherWifiConnectStatus(const char *ssid, const char *password, uint32_t timeo
     EventBits_t bits = xEventGroupWaitBits(
         wifiEvents, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE, pdFALSE, pdMS_TO_TICKS(timeout_ms)
     );
-#if CONFIG_ESP_HOSTED_ENABLED
-    // ESP-Hosted may update the STA netif before (or without) forwarding the
-    // IP_EVENT_STA_GOT_IP event to the host.  In that case the connection is
-    // already usable even though WIFI_CONNECTED_BIT was never set, and callers
-    // would otherwise keep polling until their UI reports a false timeout.
-    // Keep this fallback hosted-only so native Wi-Fi continues to use its
-    // established event-driven result handling.
+
+    // Instead of waiting and trusting the WIFI_CONNECTED_BIT event blindly
+    // Check if the device got IP from AccessPoint..
     if (staHasIpAddress()) {
         expectingConnection = false;
         wifiConnectRetryCount = 0;
@@ -442,9 +438,10 @@ launcherWifiConnectStatus(const char *ssid, const char *password, uint32_t timeo
         autoReconnect = true;
         xEventGroupClearBits(wifiEvents, WIFI_FAIL_BIT);
         xEventGroupSetBits(wifiEvents, WIFI_CONNECTED_BIT);
+        vTaskDelay(pdMS_TO_TICKS(200)); // wait to finish transactions
         return LauncherWifiConnectState::Connected;
     }
-#endif
+
     if ((bits & WIFI_CONNECTED_BIT) != 0) return LauncherWifiConnectState::Connected;
     if ((bits & WIFI_FAIL_BIT) != 0) {
         if (isWrongPasswordReason(lastDisconnectReason)) return LauncherWifiConnectState::WrongPassword;

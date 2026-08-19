@@ -12,9 +12,12 @@ httpd_handle_t launcherWebServerStart(uint16_t port) {
     config.max_uri_handlers = 24;
     config.lru_purge_enable = true;
     // A queued upload can sit idle while the previous file is written to the SD card;
-    // ten seconds was short enough for slow cards to time it out mid-batch.
-    config.recv_wait_timeout = 30;
-    config.send_wait_timeout = 30;
+    // ten seconds was short enough for slow cards to time it out mid-batch. Kept a bit
+    // above the browser's own idle watchdog (uploadIdleTimeoutMs in scripts.js, 30s) so
+    // a stalled transfer is reported by the client's clean abort instead of a raw
+    // connection reset from the server hitting first.
+    config.recv_wait_timeout = 45;
+    config.send_wait_timeout = 45;
     config.uri_match_fn = httpd_uri_match_wildcard;
     // Big multipart bodies arrive in many segments; a deeper backlog keeps the parser
     // fed instead of stalling on every recv.
