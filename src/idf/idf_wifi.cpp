@@ -429,8 +429,7 @@ launcherWifiConnectStatus(const char *ssid, const char *password, uint32_t timeo
         wifiEvents, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE, pdFALSE, pdMS_TO_TICKS(timeout_ms)
     );
 
-    // Instead of waiting and trusting the WIFI_CONNECTED_BIT event blindly
-    // Check if the device got IP from AccessPoint..
+#ifdef CONFIG_ESP_HOSTED_ENABLED
     if (staHasIpAddress()) {
         expectingConnection = false;
         wifiConnectRetryCount = 0;
@@ -441,6 +440,7 @@ launcherWifiConnectStatus(const char *ssid, const char *password, uint32_t timeo
         vTaskDelay(pdMS_TO_TICKS(200)); // wait to finish transactions
         return LauncherWifiConnectState::Connected;
     }
+#endif
 
     if ((bits & WIFI_CONNECTED_BIT) != 0) return LauncherWifiConnectState::Connected;
     if ((bits & WIFI_FAIL_BIT) != 0) {

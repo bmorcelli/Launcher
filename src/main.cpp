@@ -117,6 +117,7 @@ bool autoBackup = true;
 bool returnToMenu;
 bool update;
 bool askSpiffs;
+bool autoConnect = true;
 
 // bool command;
 size_t file_size;

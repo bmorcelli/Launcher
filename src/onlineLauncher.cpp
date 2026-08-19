@@ -77,6 +77,7 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
         int count = 0;
         LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
         RAM_LOG("before-wifi-connect-status");
+        // check state more often
         while (connectState != LauncherWifiConnectState::Connected) {
             connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
             if (connectState == LauncherWifiConnectState::Connected) break;
@@ -85,7 +86,6 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
                 wrongPass = true;
                 goto Retry;
             }
-            vTaskDelay(500 / portTICK_PERIOD_MS);
             tftprint(".", 10);
             count++;
             if (connectState == LauncherWifiConnectState::Failed || count > kWifiConnectAttempts) {
@@ -130,6 +130,7 @@ bool connectWifi() {
     for (int i = 0; i < nets; i++) {
         String networkSsid = networks[i].ssid.c_str();
         if (networkSsid.isEmpty()) continue;
+        if (!autoConnect) continue;
         String knownPwd;
         if (!getWifiCredential(networkSsid, knownPwd)) continue;
         launcherConsolePrintf("Auto-connecting to saved SSID: %s\n", networkSsid.c_str());

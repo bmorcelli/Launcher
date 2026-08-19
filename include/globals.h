@@ -221,6 +221,9 @@ extern bool askSpiffs;
 // Used to control boot process
 extern bool bootToApp;
 
+// Used to set Autoconnection after list networks
+extern bool autoConnect;
+
 // size o the file in the webInterface
 extern size_t file_size;
 

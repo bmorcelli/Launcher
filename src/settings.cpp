@@ -358,6 +358,12 @@ void settings_menu() {
                                askSpiffs = !askSpiffs;
                                saveConfigs();
                            }});
+        options.push_back(
+            {autoConnect ? "[x] Auto connect to known Wifi" : "[ ] Auto connect to known Wifi", [=]() {
+                 autoConnect = !autoConnect;
+                 saveConfigs();
+             }}
+        );
         options.push_back({"Partition Manager", [=]() { partList(); }});
 #if defined(HAS_KEYBOARD)
         options.push_back({"Manage shortcuts", [=]() { manageKeyBindings(); }});
@@ -642,6 +648,7 @@ bool saveIntoNVS() {
     ok &= nvs_set_u16(h, "odd_color", odd_color) == ESP_OK;
     ok &= nvs_set_u16(h, "even_color", even_color) == ESP_OK;
     ok &= lnvs::setBool(h, "dev_mode", dev_mode);
+    ok &= lnvs::setBool(h, "autoConnect", autoConnect);
     ok &= lnvs::setString(h, "wui_usr", wui_usr.c_str());
     ok &= lnvs::setString(h, "wui_pwd", wui_pwd.c_str());
     ok &= lnvs::setString(h, "dwn_path", dwn_path.c_str());
@@ -731,6 +738,7 @@ void defaultValues() {
     even_color = 0x32e5;
 #endif
     dev_mode = false;
+    autoConnect = true;
     wui_usr = "admin";
     wui_pwd = "launcher";
     dwn_path = "/downloads/";
@@ -770,6 +778,7 @@ bool getFromNVS() {
     nvs_get_u16(h, "odd_color", &odd_color);
     nvs_get_u16(h, "even_color", &even_color);
     lnvs::getBool(h, "dev_mode", dev_mode);
+    lnvs::getBool(h, "auto_connect", autoConnect);
 #if defined(HEADLESS)
     // SD Pins
     nvs_get_i8(h, "miso", &_miso);
@@ -944,6 +953,11 @@ void getConfigs() {
         count++;
         log_i("getConfigs: missing dev");
     }
+    if (setting["autoConnect"].is<bool>()) autoConnect = setting["autoConnect"].as<bool>();
+    else {
+        count++;
+        log_i("getConfigs: missing autoConnect");
+    }
 
     if (setting["wui_usr"].is<String>()) wui_usr = setting["wui_usr"].as<String>();
     else {
@@ -1041,6 +1055,7 @@ void saveConfigs() {
     setting["odd"] = odd_color;
     setting["even"] = even_color;
     setting["dev"] = dev_mode;
+    setting["autoConnect"] = autoConnect;
     setting["wui_usr"] = wui_usr;
     setting["wui_pwd"] = wui_pwd;
     setting["dwn_path"] = dwn_path;
