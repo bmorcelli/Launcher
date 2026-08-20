@@ -508,7 +508,6 @@ void loop() {
             for (auto item : menuItems) {
                 if (item.contain(touchPoint.x, touchPoint.y)) {
                     resetGlobals();
-#ifndef E_PAPER_DISPLAY
                     if (i == index) {
                         item.action();
                         tft->drawPixel(0, 0, 0);
@@ -518,9 +517,7 @@ void loop() {
                         drawMainMenu(menuItems, index); // Redraw the menu to show the selected item
                         break;
                     }
-#else
-                    item.action(); // Call the action associated with the selected menu item
-#endif
+
                     returnToMenu = false;
                     redraw = true;
                     goto END;

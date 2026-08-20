@@ -232,7 +232,7 @@ void InputHandler(void) {
         rot = rotation;
     }
     touched = touch.getPoint(&t.x, &t.y, 1);
-    if ((launcherMillis() - _tmptmp) > 250 || LongPress) { // one reading each 500ms
+    if ((launcherMillis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
 
         // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
@@ -252,6 +252,7 @@ void InputHandler(void) {
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
             touched = 0;
+            touch.reset();
         }
     }
 }
