@@ -57,7 +57,25 @@
           <div class="tile" data-config-status>
             <span class="tile__value">Not connected. Click "Connect Device" and select your board's serial port.</span>
           </div>
-          <div class="config-log" data-config-log hidden></div>
+          <div class="card__actions">
+            <button class="button button--ghost" data-config-log-toggle type="button">Show console</button>
+          </div>
+          <div class="config-log" data-config-log hidden>
+            <div class="config-log__lines" data-config-log-lines></div>
+            <form class="config-log__input-row" data-config-log-form>
+              <span class="config-log__prompt" aria-hidden="true">&gt;</span>
+              <input
+                class="config-log__input"
+                type="text"
+                placeholder="Send a command..."
+                autocomplete="off"
+                spellcheck="false"
+                data-config-log-input
+                disabled
+              />
+              <button class="config-log__send" type="submit" data-config-log-send disabled>Send</button>
+            </form>
+          </div>
         </div>
       </section>
 
@@ -89,7 +107,7 @@
 
           <div class="config-inline-form" data-wifi-add-form hidden>
             <input class="catalog__search" type="text" placeholder="SSID" data-wifi-add-ssid />
-            <input class="catalog__search" type="text" placeholder="Password" data-wifi-add-pwd />
+            <span data-wifi-add-pwd-slot></span>
             <button class="button button--primary" data-wifi-add-submit type="button">Save network</button>
           </div>
 

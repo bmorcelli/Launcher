@@ -226,24 +226,81 @@ const ensureConfigStyles = () => {
   const style = document.createElement("style");
   style.id = "config-style";
   style.textContent = `
+    .config-log[hidden] {
+      display: none;
+    }
     .config-log {
       margin-top: 12px;
-      max-height: 220px;
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
       background: rgba(6, 10, 12, 0.6);
       border: 1px solid rgba(0, 221, 0, 0.18);
       border-radius: var(--radius-sm);
-      padding: 12px 14px;
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
       font-size: 0.82rem;
+      color: rgba(245, 248, 242, 0.85);
+      overflow: hidden;
+    }
+    .config-log__lines {
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 12px 14px;
       line-height: 1.5;
       white-space: pre-wrap;
       word-break: break-word;
-      color: rgba(245, 248, 242, 0.85);
     }
     .config-log__line--tx { color: var(--accent); }
     .config-log__line--rx { color: var(--text-subtle); }
     .config-log__line--err { color: #ff6f6f; }
+    .config-log__input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid rgba(0, 221, 0, 0.18);
+      background: rgba(0, 221, 0, 0.04);
+    }
+    .config-log__prompt {
+      color: var(--primary);
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+    .config-log__input {
+      flex: 1 1 auto;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 6px 4px;
+    }
+    .config-log__input::placeholder {
+      color: rgba(245, 248, 242, 0.4);
+    }
+    .config-log__input:disabled,
+    .config-log__send:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .config-log__send {
+      flex: 0 0 auto;
+      background: transparent;
+      border: 1px solid rgba(0, 221, 0, 0.35);
+      color: var(--primary);
+      border-radius: var(--radius-sm);
+      padding: 6px 16px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .config-log__send:not(:disabled):hover {
+      background: rgba(0, 221, 0, 0.12);
+      border-color: rgba(0, 221, 0, 0.6);
+    }
     .config-grid {
       display: grid;
       gap: 16px;
@@ -305,10 +362,93 @@ const ensureConfigStyles = () => {
       border-color: rgba(224, 210, 4, 0.4);
       color: var(--accent);
     }
-    .config-wifi-row__pwd {
+    .config-password-field {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .config-password-field input {
+      padding-right: 40px;
+    }
+    .config-password-field__toggle {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-subtle);
+      cursor: pointer;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+    .config-password-field__toggle:hover,
+    .config-password-field__toggle:focus-visible {
+      color: var(--primary);
+      background: rgba(0, 221, 0, 0.12);
+      outline: none;
+    }
+    .config-wifi-row__pwd input {
       width: 160px;
-      padding: 8px 12px;
+      padding-block: 8px;
       font-size: 0.9rem;
+    }
+    .config-toast-container {
+      position: fixed;
+      top: calc(var(--header-height) + 16px);
+      right: 16px;
+      z-index: 9500;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: min(360px, 92vw);
+    }
+    .config-toast {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px 36px 14px 16px;
+      border-radius: var(--radius-sm);
+      background: rgba(12, 18, 21, 0.97);
+      border: 1px solid rgba(0, 221, 0, 0.3);
+      border-left: 4px solid var(--primary);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      color: var(--text);
+      font-size: 0.9rem;
+      line-height: 1.4;
+      animation: config-toast-in 0.2s ease;
+    }
+    .config-toast--error {
+      border-color: rgba(255, 111, 111, 0.4);
+      border-left-color: #ff6f6f;
+    }
+    .config-toast__close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-subtle);
+      cursor: pointer;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    .config-toast__close:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+    @keyframes config-toast-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .config-calibration-grid {
       display: grid;
@@ -340,6 +480,81 @@ const ensureConfigStyles = () => {
 };
 
 // ---------------------------------------------------------------------------
+// Toast notifications
+// ---------------------------------------------------------------------------
+
+const ensureToastContainer = (): HTMLElement => {
+  let container = document.querySelector<HTMLElement>(".config-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "config-toast-container";
+    document.body.appendChild(container);
+  }
+  return container;
+};
+
+const showNotification = (message: string, kind: "success" | "error" = "success") => {
+  const container = ensureToastContainer();
+  const toast = document.createElement("div");
+  toast.className = `config-toast config-toast--${kind}`;
+  toast.setAttribute("role", "status");
+
+  const text = document.createElement("span");
+  text.textContent = message;
+  toast.append(text);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "config-toast__close";
+  closeBtn.setAttribute("aria-label", "Dismiss notification");
+  closeBtn.textContent = "×";
+  closeBtn.addEventListener("click", () => toast.remove());
+  toast.append(closeBtn);
+
+  container.append(toast);
+  window.setTimeout(() => toast.remove(), 8000);
+};
+
+// ---------------------------------------------------------------------------
+// Password field with a show/hide toggle
+// ---------------------------------------------------------------------------
+
+const EYE_ICON =
+  '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>';
+const EYE_OFF_ICON =
+  '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="m3.28 2.22-1.06 1.06 3.4 3.4C3.86 8.2 2.4 9.9 1 12c0 0 3 7 11 7 1.98 0 3.68-.44 5.11-1.1l3.6 3.6 1.07-1.06L3.28 2.22ZM12 17c-5.06 0-7.66-3.94-8.44-5C4.32 10.5 5.8 8.7 7.9 7.62l1.9 1.9A5 5 0 0 0 12 17a4.9 4.9 0 0 0 1.86-.37l1.5 1.5A9.6 9.6 0 0 1 12 17Zm-1.9-6.8 3.7 3.7A3 3 0 0 1 10.1 10.2ZM12 6.5c1.5 0 2.87.28 4.08.75l1.46-1.46C15.9 5.1 14.06 4.5 12 4.5c-.86 0-1.68.09-2.46.26l1.6 1.6c.28-.03.57-.05.86-.05Zm9.44 5.5c-.4.56-1.13 1.5-2.19 2.44l1.06 1.06C21.65 14.2 22.6 12.94 23 12c0 0-1.44-3.39-5.06-5.63l-1.06 1.06C19.24 8.7 20.5 10.4 21.44 12Z"/></svg>';
+
+const createPasswordField = (
+  placeholder: string,
+  extraInputClass = ""
+): { wrapper: HTMLElement; input: HTMLInputElement } => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "config-password-field";
+
+  const input = document.createElement("input");
+  input.type = "password";
+  input.className = `catalog__search ${extraInputClass}`.trim();
+  input.placeholder = placeholder;
+  input.autocomplete = "off";
+  input.spellcheck = false;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "config-password-field__toggle";
+  toggle.setAttribute("aria-label", "Show password");
+  toggle.innerHTML = EYE_ICON;
+  toggle.addEventListener("click", () => {
+    const willShow = input.type === "password";
+    input.type = willShow ? "text" : "password";
+    toggle.innerHTML = willShow ? EYE_OFF_ICON : EYE_ICON;
+    toggle.setAttribute("aria-label", willShow ? "Hide password" : "Show password");
+  });
+
+  wrapper.append(input, toggle);
+  return { wrapper, input };
+};
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -350,6 +565,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const disconnectBtn = document.querySelector<HTMLButtonElement>("[data-config-disconnect]");
   const statusTile = document.querySelector<HTMLElement>("[data-config-status]");
   const logEl = document.querySelector<HTMLElement>("[data-config-log]");
+  const logToggleBtn = document.querySelector<HTMLButtonElement>("[data-config-log-toggle]");
+  const logLinesEl = document.querySelector<HTMLElement>("[data-config-log-lines]");
+  const logForm = document.querySelector<HTMLFormElement>("[data-config-log-form]");
+  const logInput = document.querySelector<HTMLInputElement>("[data-config-log-input]");
+  const logSendBtn = document.querySelector<HTMLButtonElement>("[data-config-log-send]");
 
   const deviceSection = document.querySelector<HTMLElement>("[data-device-section]");
   const versionEl = document.querySelector<HTMLElement>("[data-config-version]");
@@ -361,7 +581,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const wifiAddToggle = document.querySelector<HTMLButtonElement>("[data-wifi-add-toggle]");
   const wifiAddForm = document.querySelector<HTMLElement>("[data-wifi-add-form]");
   const wifiAddSsid = document.querySelector<HTMLInputElement>("[data-wifi-add-ssid]");
-  const wifiAddPwd = document.querySelector<HTMLInputElement>("[data-wifi-add-pwd]");
+  const wifiAddPwdSlot = document.querySelector<HTMLElement>("[data-wifi-add-pwd-slot]");
   const wifiAddSubmit = document.querySelector<HTMLButtonElement>("[data-wifi-add-submit]");
   const wifiDelToggle = document.querySelector<HTMLButtonElement>("[data-wifi-del-toggle]");
   const wifiDelForm = document.querySelector<HTMLElement>("[data-wifi-del-form]");
@@ -386,6 +606,11 @@ document.addEventListener("DOMContentLoaded", () => {
     !disconnectBtn ||
     !statusTile ||
     !logEl ||
+    !logToggleBtn ||
+    !logLinesEl ||
+    !logForm ||
+    !logInput ||
+    !logSendBtn ||
     !deviceSection ||
     !versionEl ||
     !whoamiEl ||
@@ -395,7 +620,7 @@ document.addEventListener("DOMContentLoaded", () => {
     !wifiAddToggle ||
     !wifiAddForm ||
     !wifiAddSsid ||
-    !wifiAddPwd ||
+    !wifiAddPwdSlot ||
     !wifiAddSubmit ||
     !wifiDelToggle ||
     !wifiDelForm ||
@@ -417,19 +642,32 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
+  const wifiAddPwdField = createPasswordField("Password");
+  wifiAddPwdSlot.replaceWith(wifiAddPwdField.wrapper);
+  const wifiAddPwd = wifiAddPwdField.input;
+
   const setStatus = (message: string) => {
     statusTile.textContent = message;
   };
 
   const appendLog = (text: string, kind: "tx" | "rx" | "err" = "rx") => {
-    logEl.hidden = false;
     const time = new Date().toLocaleTimeString();
     const row = document.createElement("div");
     row.className = `config-log__line config-log__line--${kind}`;
     row.textContent = `[${time}] ${kind === "tx" ? ">>" : "<<"} ${text}`;
-    logEl.appendChild(row);
-    logEl.scrollTop = logEl.scrollHeight;
+    logLinesEl.appendChild(row);
+    logLinesEl.scrollTop = logLinesEl.scrollHeight;
   };
+
+  logToggleBtn.addEventListener("click", () => {
+    const willShow = logEl.hidden;
+    logEl.hidden = !willShow;
+    logToggleBtn.textContent = willShow ? "Hide console" : "Show console";
+    if (willShow) {
+      logLinesEl.scrollTop = logLinesEl.scrollHeight;
+      if (!logInput.disabled) logInput.focus();
+    }
+  });
 
   let session: SerialSession | null = null;
   let busy = false;
@@ -451,6 +689,8 @@ document.addEventListener("DOMContentLoaded", () => {
     busy = value;
     actionButtons.forEach((btn) => (btn.disabled = value));
     wifiList.querySelectorAll<HTMLButtonElement>("button").forEach((btn) => (btn.disabled = value));
+    logInput.disabled = value || !session;
+    logSendBtn.disabled = value || !session;
   };
 
   const logSession = (targetSession: SerialSession) => {
@@ -460,12 +700,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const runCommand = async (
     label: string,
     command: string,
-    opts?: { idleMs?: number; maxMs?: number }
+    opts?: { idleMs?: number; maxMs?: number },
+    displayCommand?: string
   ): Promise<string[]> => {
     if (!session) return [];
-    appendLog(command, "tx");
+    appendLog(displayCommand ?? command, "tx");
     const lines = await sendAndCollect(session, command, opts);
     return lines;
+  };
+
+  const PASSWORD_MASK = "********";
+
+  const notifyWifiConnectResult = (lines: string[], ssid: string) => {
+    const resultLine = lines
+      .map((l) => l.trim())
+      .find((l) => /^OK connected to/i.test(l) || /^ERR/i.test(l));
+    if (!resultLine) return;
+    const okMatch = resultLine.match(/^OK connected to (.+?),\s*ip=(\S+)/i);
+    if (okMatch) {
+      showNotification(`Connected to ${okMatch[1]} — IP ${okMatch[2]}`, "success");
+    } else {
+      showNotification(`Failed to connect to ${ssid}: ${resultLine.replace(/^ERR\s*/i, "")}`, "error");
+    }
   };
 
   // -------------------------------------------------------------------------
@@ -510,11 +766,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let pwdInput: HTMLInputElement | null = null;
       if (network.auth !== "open") {
-        pwdInput = document.createElement("input");
-        pwdInput.type = "password";
-        pwdInput.className = "catalog__search config-wifi-row__pwd";
-        pwdInput.placeholder = "Password";
-        row.append(pwdInput);
+        const field = createPasswordField("Password");
+        field.wrapper.classList.add("config-wifi-row__pwd");
+        pwdInput = field.input;
+        row.append(field.wrapper);
       }
 
       const connectNetworkBtn = document.createElement("button");
@@ -532,8 +787,18 @@ document.addEventListener("DOMContentLoaded", () => {
         setStatus(`Connecting to ${network.ssid}...`);
         const command =
           network.auth === "open" ? `wifi connect ${network.ssid}` : `wifi connect ${network.ssid} ${pwd}`;
-        const lines = await runCommand("wifi connect", command, { idleMs: 500, maxMs: 15000 });
+        const displayCommand =
+          network.auth === "open"
+            ? command
+            : `wifi connect ${network.ssid} ${PASSWORD_MASK}`;
+        const lines = await runCommand(
+          "wifi connect",
+          command,
+          { idleMs: 500, maxMs: 15000 },
+          displayCommand
+        );
         setStatus(firstNonEmptyLine(lines) || `No response connecting to ${network.ssid}.`);
+        notifyWifiConnectResult(lines, network.ssid);
         setBusy(false);
       });
       row.append(connectNetworkBtn);
@@ -591,7 +856,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     setBusy(true);
     setStatus(`Saving ${ssid}...`);
-    const lines = await runCommand("wifi add", `wifi add ${ssid} ${pwd}`, { idleMs: 400, maxMs: 4000 });
+    const lines = await runCommand(
+      "wifi add",
+      `wifi add ${ssid} ${pwd}`,
+      { idleMs: 400, maxMs: 4000 },
+      `wifi add ${ssid} ${PASSWORD_MASK}`
+    );
     setStatus(firstNonEmptyLine(lines) || `No response saving ${ssid}.`);
     setBusy(false);
   });
@@ -716,6 +986,7 @@ document.addEventListener("DOMContentLoaded", () => {
       session = null;
     }
     resetUi();
+    setBusy(false);
     setStatus('Not connected. Click "Connect Device" and select your board\'s serial port.');
   };
 
@@ -788,8 +1059,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     connectBtn.disabled = true;
     setStatus("Opening serial port...");
-    logEl.innerHTML = "";
-    logEl.hidden = false;
+    logLinesEl.innerHTML = "";
 
     const newSession = new SerialSession(port);
     try {
@@ -807,13 +1077,30 @@ document.addEventListener("DOMContentLoaded", () => {
     disconnectBtn.hidden = false;
     connectBtn.disabled = false;
 
+    setBusy(true);
     try {
       await runHandshake(newSession);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       appendLog(msg, "err");
       setStatus(`Connection failed: ${msg}`);
+    } finally {
+      setBusy(false);
     }
+  });
+
+  logForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (busy || !session) return;
+    const command = logInput.value.trim();
+    if (!command) return;
+    logInput.value = "";
+    void (async () => {
+      setBusy(true);
+      await runCommand("manual", command, { idleMs: 400, maxMs: 8000 });
+      setBusy(false);
+      logInput.focus();
+    })();
   });
 
   window.addEventListener("beforeunload", () => {
