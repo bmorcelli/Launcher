@@ -800,54 +800,34 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const buildCard = (entry: FirmwareEntry) => {
+    const hasCover = Boolean(entry.cover && entry.cover.trim().length > 0);
+
     const article = document.createElement("article");
-    article.className = "card reveal-on-scroll";
+    article.className = "card card--firmware reveal-on-scroll";
+    if (!hasCover) {
+      article.classList.add("card--firmware--no-image");
+    }
     article.classList.add("is-visible");
     article.dataset.filterValue = [entry.name, entry.author, entry.category, entry.description]
       .filter(Boolean)
       .join(" ");
     article.setAttribute("data-filter-item", "");
-    article.style.display = "grid";
-    article.style.gridTemplateColumns = "minmax(180px, 250px) 1fr";
-    article.style.alignItems = "center";
-    article.style.gap = "24px";
 
-    const figure = document.createElement("figure");
-    figure.style.margin = "0";
-    figure.style.display = "flex";
-    figure.style.alignItems = "center";
-    figure.style.justifyContent = "center";
-    figure.style.height = "100%";
+    let figure: HTMLElement | null = null;
+    if (hasCover) {
+      figure = document.createElement("figure");
+      figure.className = "card--firmware__image";
 
-    const image = document.createElement("img");
-    image.decoding = "async";
-    image.loading = "lazy";
-    image.alt = `${entry.name} cover`;
-    image.style.maxWidth = "250px";
-    image.style.width = "100%";
-    image.style.height = "auto";
-    image.style.maxHeight = "260px";
-    image.style.objectFit = "contain";
-    image.style.borderRadius = "12px";
-    image.style.border = "1px solid rgba(0, 221, 0, 0.2)";
-    registerLazyImage(image, resolveCover(entry.cover));
-    figure.append(image);
-
-    const body = document.createElement("div");
-    body.style.display = "flex";
-    body.style.flexDirection = "column";
-    body.style.gap = "12px";
-    body.style.height = "100%";
-    body.style.justifyContent = "flex-start";
+      const image = document.createElement("img");
+      image.decoding = "async";
+      image.loading = "lazy";
+      image.alt = `${entry.name} cover`;
+      registerLazyImage(image, resolveCover(entry.cover));
+      figure.append(image);
+    }
 
     const title = document.createElement("h3");
-    title.className = "card__title";
-    title.style.margin = "0";
-    title.style.textAlign = "center";
-    title.style.display = "flex";
-    title.style.alignItems = "center";
-    title.style.justifyContent = "center";
-    title.style.gap = "8px";
+    title.className = "card__title card--firmware__title";
 
     const titleText = document.createElement("span");
     titleText.textContent = entry.author ? `${entry.name} (${entry.author})` : entry.name;
@@ -887,13 +867,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const publishedDateLabel = formatPublishedDate(latestVersion?.published_at);
 
     const metaRow = document.createElement("div");
-    metaRow.style.display = "flex";
-    metaRow.style.flexWrap = "wrap";
-    metaRow.style.alignItems = "center";
-    metaRow.style.justifyContent = "center";
-    metaRow.style.gap = "10px 14px";
-    metaRow.style.fontSize = "0.9rem";
-    metaRow.style.color = "rgba(245, 248, 242, 0.78)";
+    metaRow.className = "card--firmware__meta";
 
     if ((entry.download ?? 0) > 0) {
       const downloadsMeta = document.createElement("span");
@@ -908,33 +882,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const descriptionWrapper = document.createElement("div");
-    descriptionWrapper.style.position = "relative";
-    descriptionWrapper.style.maxHeight = `${DESCRIPTION_COLLAPSED_HEIGHT}px`;
-    descriptionWrapper.style.overflow = "hidden";
+    descriptionWrapper.className = "card--firmware__desc";
+    if (hasCover) {
+      descriptionWrapper.style.maxHeight = `${DESCRIPTION_COLLAPSED_HEIGHT}px`;
+      descriptionWrapper.style.overflow = "hidden";
+    }
 
     const description = document.createElement("p");
     description.className = "card__description";
     description.textContent = entry.description;
-    description.style.margin = "0";
-    description.style.textAlign = "justify";
-    description.style.flex = "1 1 auto";
-    description.style.overflowWrap = "anywhere";
     descriptionWrapper.append(description);
 
     const readMoreButton = document.createElement("button");
     readMoreButton.type = "button";
-    readMoreButton.className = "button button--ghost";
+    readMoreButton.className = "button button--ghost card--firmware__readmore";
     readMoreButton.textContent = "Read more";
-    readMoreButton.style.alignSelf = "center";
     readMoreButton.style.display = "none";
-    readMoreButton.style.margin = "0 auto";
-    readMoreButton.style.marginTop = "4px";
 
     const controls = document.createElement("div");
-    controls.className = "card__actions";
-    controls.style.justifyContent = "center";
-    controls.style.flexWrap = "wrap";
-    controls.style.marginTop = "auto";
+    controls.className = "card__actions card--firmware__controls";
 
     const select = document.createElement("select");
     select.className = "catalog__search";
@@ -1064,7 +1030,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let expanded = false;
     const updateReadMoreState = () => {
-      const needsToggle = description.scrollHeight > DESCRIPTION_COLLAPSED_HEIGHT + 10;
+      const needsToggle = hasCover && description.scrollHeight > DESCRIPTION_COLLAPSED_HEIGHT + 10;
       if (!needsToggle) {
         descriptionWrapper.style.maxHeight = "";
         descriptionWrapper.style.overflow = "visible";
@@ -1091,8 +1057,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setTimeout(updateReadMoreState, 0);
 
-    body.append(title, metaRow, descriptionWrapper, readMoreButton, controls);
-    article.append(figure, body);
+    article.append(title, metaRow, descriptionWrapper, readMoreButton, controls);
+    if (figure) {
+      article.append(figure);
+    }
     return article;
   };
 

@@ -15,7 +15,12 @@ ready(() => {
     }
     const navToggle = document.querySelector("[data-nav-toggle]");
     const navPanel = document.querySelector("[data-nav]");
+    const navClose = document.querySelector("[data-nav-close]");
     if (navToggle && navPanel) {
+        const closeNav = () => {
+            navPanel.classList.remove("is-open");
+            navToggle.setAttribute("aria-expanded", "false");
+        };
         const toggleNav = () => {
             const isOpen = navPanel.classList.toggle("is-open");
             navToggle.setAttribute("aria-expanded", isOpen.toString());
@@ -24,12 +29,25 @@ ready(() => {
             }
         };
         navToggle.addEventListener("click", toggleNav);
+        navClose?.addEventListener("click", () => {
+            closeNav();
+            navToggle.focus();
+        });
         navPanel.addEventListener("keydown", (event) => {
             if (event.key === "Escape") {
-                navPanel.classList.remove("is-open");
-                navToggle.setAttribute("aria-expanded", "false");
+                closeNav();
                 navToggle.focus();
             }
+        });
+        document.addEventListener("click", (event) => {
+            if (!navPanel.classList.contains("is-open")) {
+                return;
+            }
+            const target = event.target;
+            if (navPanel.contains(target) || navToggle.contains(target)) {
+                return;
+            }
+            closeNav();
         });
     }
     const navLinks = Array.from(document.querySelectorAll("[data-scroll]"));

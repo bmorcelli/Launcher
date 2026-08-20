@@ -16,8 +16,14 @@ ready(() => {
 
   const navToggle = document.querySelector<HTMLButtonElement>("[data-nav-toggle]");
   const navPanel = document.querySelector<HTMLElement>("[data-nav]");
+  const navClose = document.querySelector<HTMLButtonElement>("[data-nav-close]");
 
   if (navToggle && navPanel) {
+    const closeNav = () => {
+      navPanel.classList.remove("is-open");
+      navToggle.setAttribute("aria-expanded", "false");
+    };
+
     const toggleNav = () => {
       const isOpen = navPanel.classList.toggle("is-open");
       navToggle.setAttribute("aria-expanded", isOpen.toString());
@@ -28,12 +34,27 @@ ready(() => {
 
     navToggle.addEventListener("click", toggleNav);
 
+    navClose?.addEventListener("click", () => {
+      closeNav();
+      navToggle.focus();
+    });
+
     navPanel.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        navPanel.classList.remove("is-open");
-        navToggle.setAttribute("aria-expanded", "false");
+        closeNav();
         navToggle.focus();
       }
+    });
+
+    document.addEventListener("click", (event: MouseEvent) => {
+      if (!navPanel.classList.contains("is-open")) {
+        return;
+      }
+      const target = event.target as Node;
+      if (navPanel.contains(target) || navToggle.contains(target)) {
+        return;
+      }
+      closeNav();
     });
   }
 

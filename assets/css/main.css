@@ -104,6 +104,7 @@ header {
 
 .navbar__list {
   display: flex;
+  align-items: center;
   gap: 12px;
   list-style: none;
   margin: 0;
@@ -111,9 +112,13 @@ header {
 }
 
 .navbar__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 0.95rem;
+  line-height: 1;
   color: var(--primary);
   background: transparent;
   border: 1px solid transparent;
@@ -137,6 +142,14 @@ header {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   cursor: pointer;
+}
+
+.navbar__link--icon {
+  padding: 8px;
+}
+
+.navbar__close {
+  display: none;
 }
 
 .hero {
@@ -342,6 +355,116 @@ header {
 .card__actions--center {
   justify-content: center;
   align-items: center;
+}
+
+.card--firmware {
+  display: grid;
+  grid-template-columns: minmax(180px, 250px) 1fr;
+  grid-template-areas:
+    "image title"
+    "image meta"
+    "image desc"
+    "image readmore"
+    "image controls";
+  align-items: center;
+  gap: 24px;
+}
+
+.card--firmware.card--firmware--no-image {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "title"
+    "meta"
+    "desc"
+    "controls";
+}
+
+.card--firmware__image {
+  grid-area: image;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.card--firmware__image img {
+  max-width: 250px;
+  width: 100%;
+  height: auto;
+  max-height: 260px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 221, 0, 0.2);
+}
+
+.card--firmware__title {
+  grid-area: title;
+  margin: 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.card--firmware__meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  font-size: 0.9rem;
+  color: rgba(245, 248, 242, 0.78);
+}
+
+.card--firmware__desc {
+  grid-area: desc;
+  position: relative;
+}
+
+.card--firmware__desc p {
+  margin: 0;
+  text-align: justify;
+  overflow-wrap: anywhere;
+}
+
+.card--firmware__readmore {
+  grid-area: readmore;
+  justify-self: center;
+  margin-top: 4px;
+}
+
+.card--firmware__controls {
+  grid-area: controls;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+@media (max-width: 760px) {
+  .card--firmware {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "title"
+      "image"
+      "desc"
+      "readmore"
+      "controls";
+    gap: 16px;
+  }
+
+  .card--firmware.card--firmware--no-image {
+    grid-template-areas:
+      "title"
+      "desc"
+      "controls";
+  }
+
+  .card--firmware__meta {
+    display: none;
+  }
 }
 
 .tile {
@@ -648,26 +771,58 @@ footer :focus-visible {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    position: relative;
+    z-index: 20;
   }
 
   .navbar__menu {
-    position: fixed;
-    inset: 0 0 auto auto;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: auto;
+    bottom: auto;
     margin: 0;
-    transform: translateY(-120%);
-    transition: transform 0.3s ease;
+    transform: translateY(-16px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 0.3s ease, opacity 0.3s ease, visibility 0.3s;
     background: rgba(17, 20, 23, 0.98);
-    padding: 72px 24px 24px;
+    padding: 48px 24px 24px;
     width: min(320px, 90vw);
+    max-height: 80vh;
+    overflow-y: auto;
     border-bottom-left-radius: var(--radius-lg);
     border-left: 1px solid rgba(0, 221, 0, 0.2);
     border-bottom: 1px solid rgba(0, 221, 0, 0.2);
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
+    z-index: 10;
   }
 
   .navbar__menu.is-open {
     transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .navbar__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 221, 0, 0.16);
+    border: 1px solid rgba(0, 221, 0, 0.35);
+    color: var(--text);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
   }
 
   .navbar__list {
