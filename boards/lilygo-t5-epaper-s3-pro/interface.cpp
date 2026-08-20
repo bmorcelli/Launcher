@@ -207,7 +207,7 @@ void InputHandler(void) {
     static unsigned long _tmptmp = 0;
     LTouchPointPro t;
     uint8_t touched = 0;
-    uint8_t rot = 5;
+    static uint8_t rot = 5;
     if (rot != rotation) {
         if (rotation == 1) {
             touch.setMaxCoordinates(960, 540);

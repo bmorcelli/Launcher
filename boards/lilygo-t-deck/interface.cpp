@@ -137,7 +137,7 @@ void InputHandler(void) {
     static unsigned long tm = launcherMillis();
     LTouchPointPro t;
     uint8_t touched = 0;
-    uint8_t rot = 5;
+    static uint8_t rot = 5;
 #ifdef T_DECK_PLUS
     bool isPlus = true;
 #else

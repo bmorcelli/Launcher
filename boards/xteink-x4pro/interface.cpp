@@ -1,9 +1,12 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
+#include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <esp_sleep.h>
 #include <interface.h>
 #include <xteink_panel_probe.h>
+
+TouchDrvGT911 touch;
 
 // Xteink X4 Pro — ESP32-S3, 800x480 e-paper, GT911 touch, dual frontlight.
 //
@@ -37,10 +40,6 @@
 #define GT911_ADDR 0x5D
 #define GT911_INT 10
 #define GT911_RST 4
-#define GT911_REG_STATUS 0x814E
-#define GT911_REG_POINT1 0x8150
-#define GT911_STATUS_READY 0x80
-#define GT911_STATUS_HOME 0x10 // capacitive Home pad, not a GPIO
 
 // --- CW2017 fuel gauge -----------------------------------------------------
 #define CW2017_ADDR 0x63
@@ -70,6 +69,12 @@ static const uint8_t CW2017_BATINFO[80] = {
 };
 // clang-format on
 static bool touchReady = false;
+static volatile bool homePressed = false;
+
+static void onGt911HomeButton(void *userData) {
+    (void)userData;
+    homePressed = true;
+}
 
 /*********************************************************************
 ** 8-bit register helpers (fuel gauge, RTC)
@@ -87,52 +92,6 @@ static bool i2cWriteReg8(uint8_t addr, uint8_t reg, uint8_t value) {
     Wire.beginTransmission(addr);
     Wire.write(reg);
     Wire.write(value);
-    return Wire.endTransmission() == 0;
-}
-
-/*********************************************************************
-** GT911 uses 16-bit register addresses, big endian
-**********************************************************************/
-static bool gt911Read(uint16_t reg, uint8_t *buf, size_t len) {
-    Wire.beginTransmission(GT911_ADDR);
-    Wire.write((uint8_t)(reg >> 8));
-    Wire.write((uint8_t)(reg & 0xFF));
-    if (Wire.endTransmission(false) != 0) return false;
-    if (Wire.requestFrom((uint8_t)GT911_ADDR, (uint8_t)len) < (int)len) return false;
-    for (size_t i = 0; i < len; ++i) buf[i] = Wire.read();
-    return true;
-}
-
-static bool gt911WriteStatus(uint8_t value) {
-    Wire.beginTransmission(GT911_ADDR);
-    Wire.write((uint8_t)(GT911_REG_STATUS >> 8));
-    Wire.write((uint8_t)(GT911_REG_STATUS & 0xFF));
-    Wire.write(value);
-    return Wire.endTransmission() == 0;
-}
-
-/*********************************************************************
-** Function: gt911Begin
-** The controller loads its own config from internal storage during the reset
-** dance — there is no config table to upload, in the OEM firmware or here. But
-** the load only triggers on a long enough reset: cut it short and the config
-** registers read back zero and the panel never scans, with no error anywhere.
-**********************************************************************/
-static bool gt911Begin() {
-    launcherGpioOutput(GT911_RST);
-    launcherGpioOutput(GT911_INT);
-
-    // INT is the address-select line: held low as RST rises picks 0x5D.
-    launcherGpioWrite(GT911_RST, LOW);
-    launcherGpioWrite(GT911_INT, LOW);
-    launcherDelayMs(10);
-    launcherGpioWrite(GT911_RST, HIGH);
-    launcherDelayMs(10);
-    launcherDelayMs(50);
-    pinMode(GT911_INT, INPUT);
-    launcherDelayMs(50);
-
-    Wire.beginTransmission(GT911_ADDR);
     return Wire.endTransmission() == 0;
 }
 
@@ -254,7 +213,13 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup, run after TFT and before SD card init
 ***************************************************************************************/
 void _post_setup_gpio() {
-    touchReady = gt911Begin();
+    touch.setPins(GT911_RST, GT911_INT);
+    touchReady = touch.begin(Wire, GT911_ADDR, I2C_SDA, I2C_SCL);
+    if (!touchReady) {
+        launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
+    } else {
+        touch.setHomeButtonCallback(onGt911HomeButton, nullptr);
+    }
 
     ledcAttach(FL_COOL, FL_FREQ, FL_BITS);
     ledcAttach(FL_WARM, FL_FREQ, FL_BITS);
@@ -311,36 +276,43 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
+
+    // Panel is native TFT_WIDTH x TFT_HEIGHT (800x480) landscape; re-map the
+    // touch axes to whichever of the four rotations is currently active, so
+    // touch coordinates line up with what is drawn. See the same pattern on
+    // lilygo-t5-epaper-s3-pro.
+    static uint8_t lastRot = 5;
+    if (touchReady && lastRot != rotation) {
+        if (rotation == 1) {
+            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
+            touch.setSwapXY(true);
+            touch.setMirrorXY(false, true);
+        } else if (rotation == 3) {
+            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
+            touch.setSwapXY(true);
+            touch.setMirrorXY(true, false);
+        } else if (rotation == 0) {
+            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
+            touch.setSwapXY(false);
+            touch.setMirrorXY(false, false);
+        } else if (rotation == 2) {
+            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
+            touch.setSwapXY(false);
+            touch.setMirrorXY(true, true);
+        }
+        lastRot = rotation;
+    }
+
+    int16_t tx = 0, ty = 0;
+    const uint8_t points = touchReady ? touch.getPoint(&tx, &ty, 1) : 0;
+    const bool home = homePressed;
+    homePressed = false;
+
     if (launcherMillis() - tm > 200 || LongPress) {
     } else return;
 
     const bool left = launcherGpioRead(BTN_LEFT) == LOW;
     const bool right = launcherGpioRead(BTN_RIGHT) == LOW;
-
-    uint8_t status = 0;
-    uint8_t home = 0;
-    uint8_t points = 0;
-    uint16_t tx = 0, ty = 0;
-
-    if (touchReady && gt911Read(GT911_REG_STATUS, &status, 1) && (status & GT911_STATUS_READY)) {
-        home = status & GT911_STATUS_HOME;
-        points = status & 0x0F;
-        if (points > 0) {
-            uint8_t p[8] = {0};
-            if (gt911Read(GT911_REG_POINT1, p, sizeof(p))) {
-                // X low byte first on this controller.
-                const uint16_t rawX = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-                const uint16_t rawY = (uint16_t)p[2] | ((uint16_t)p[3] << 8);
-                // The glass is mounted portrait: it reports X 0-480 / Y 0-800
-                // against an 800x480 landscape panel, so the axes swap.
-                tx = rawY;
-                ty = rawX;
-            } else {
-                points = 0;
-            }
-        }
-        gt911WriteStatus(0); // must be cleared or the controller stops reporting
-    }
 
     if (!left && !right && !home && points == 0) return;
 

@@ -1,13 +1,12 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
+#include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <interface.h>
 
-#define TOUCH_MODULES_GT911
 #define TOUCH_SDA_PIN GT911_I2C_CONFIG_SDA_IO_NUM
 #define TOUCH_SCL_PIN GT911_I2C_CONFIG_SCL_IO_NUM
-#define TOUCH_RST_PIN GT911_TOUCH_CONFIG_RST_GPIO_NUM
-#define TOUCH_ADDR GT911_SLAVE_ADDRESS1
+#define TOUCH_ADDR 0x5D // GT911 default I2C address
 // GT911's INT pin (touch controller interrupt), shared with the ESP32 as a
 // plain GPIO. Elecrow's own factory firmware holds it low across the GT911
 // power-on window on every boot -- this is what actually makes the touch
@@ -38,27 +37,8 @@
 enum ElecrowS3BoardVersion { BOARD_VER_UNKNOWN, BOARD_VER_V1_0, BOARD_VER_V1_1_PLUS };
 static ElecrowS3BoardVersion boardVersion = BOARD_VER_UNKNOWN;
 
-#include <TouchLib.h>
-
-class ElecrowTouch : public TouchLib {
-public:
-    LTouchPoint t;
-    TP_Point ti;
-    ElecrowTouch() : TouchLib(Wire, TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_ADDR, TOUCH_RST_PIN) {}
-    inline bool begin() {
-        // TouchLibGT911::init() unconditionally returns false whenever no
-        // RST pin is configured (our case -- this board has none), no
-        // matter whether the soft reset it just sent actually worked. Its
-        // return value is therefore meaningless here; check for a real ACK
-        // on the bus instead.
-        init();
-        setRotation(ROTATION);
-        Wire.beginTransmission(TOUCH_ADDR);
-        return Wire.endTransmission() == 0;
-    }
-    inline bool touched() { return read(); }
-};
-ElecrowTouch touch;
+TouchDrvGT911 touch;
+static bool touchReady = false;
 
 static bool i2cPresent(uint8_t addr) {
     Wire.beginTransmission(addr);
@@ -117,7 +97,11 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    if (!touch.begin()) {
+    // RST is not wired on this board (see the reset dance in _setup_gpio());
+    // passing -1 makes TouchDrvGT911 skip its own reset and just probe the bus.
+    touch.setPins(-1, TOUCH_INT_PIN);
+    touchReady = touch.begin(Wire, TOUCH_ADDR, TOUCH_SDA_PIN, TOUCH_SCL_PIN);
+    if (!touchReady) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
@@ -162,44 +146,48 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
-    bool touched = touch.touched(); // read every cycle to skip bad readings
+
+    // Panel is native TFT_WIDTH x TFT_HEIGHT; re-map the touch axes to
+    // whichever of the four rotations is currently active, so touch
+    // coordinates line up with what is drawn. Same pattern as
+    // lilygo-t5-epaper-s3-pro / xteink-x4pro / seeedstudio-reterminal-sticky.
+    static uint8_t lastRot = 5;
+    if (touchReady && lastRot != rotation) {
+        if (rotation == 1) {
+            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
+            touch.setSwapXY(true);
+            touch.setMirrorXY(false, true);
+        } else if (rotation == 3) {
+            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
+            touch.setSwapXY(true);
+            touch.setMirrorXY(true, false);
+        } else if (rotation == 0) {
+            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
+            touch.setSwapXY(false);
+            touch.setMirrorXY(false, false);
+        } else if (rotation == 2) {
+            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
+            touch.setSwapXY(false);
+            touch.setMirrorXY(true, true);
+        }
+        lastRot = rotation;
+    }
+
+    int16_t tx = 0, ty = 0;
+    const uint8_t touched = touchReady ? touch.getPoint(&tx, &ty, 1) : 0;
+
     if (launcherMillis() - d_tmp > 250 || LongPress) {
         if (touched) {
-            auto t = touch.getPoint(0);
-            launcherConsolePrintf(
-                "\nTouch Pressed on x=%d, y=%d, rot: %d, width=%d, height=%d",
-                t.x,
-                t.y,
-                rotation,
-                displayConfig.width,
-                displayConfig.height
-            );
             d_tmp = launcherMillis();
 
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 
-            if (rotation == 0) {
-                uint16_t tmp = t.x;
-                t.x = t.y;
-                t.y = tmp;
-            }
-
-            if (rotation == 1) { t.y = displayConfig.width - t.y; }
-
-            if (rotation == 2) {
-                uint16_t tmp = t.x;
-                t.x = displayConfig.width - t.y;
-                t.y = displayConfig.height - tmp;
-            }
-            if (rotation == 3) { t.x = displayConfig.height - t.x; }
-
-            launcherConsolePrintf("\nAfter Pressed on x=%d, y=%d", t.x, t.y);
             // Touch point global variable
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
+            touchPoint.x = tx;
+            touchPoint.y = ty;
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
         }
-    } else touch.touched(); // keep calling it to keep refreshing raw readings for when it's needed
+    }
 }
