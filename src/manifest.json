@@ -668,6 +668,16 @@
             "id": "elecrow-esp32p4-7in"
         }
     ],
+    "SeeedStudio": [
+        {
+            "display": true,
+            "name": "reTerminal Sticky",
+            "description": "",
+            "link": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html",
+            "family": "ESP32-S3",
+            "id": "seeedstudio-reterminal-sticky"
+        }
+    ],
     "Waveshare": [
         {
             "display": true,
@@ -681,7 +691,7 @@
     "xteink": [
         {
             "display": false,
-            "name": "xteink x3 and x4",
+            "name": "xteink x3 (and x4)",
             "description": "",
             "link": "https://www.xteink.com/products/xteink-x3",
             "family": "ESP32-C3",
