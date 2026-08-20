@@ -12,13 +12,14 @@ TouchDrvGT911 touch;
 //
 // Pins from the official hardware overview:
 //   https://www.seeedstudio.com/sticky/docs/en/device-guide/hardware-overview/
-// Not tested on hardware here. The touch swap/mirror combo below is a first
-// guess pending confirmation on real hardware — the doc gives pins, not
-// orientation.
-//
-// The official page documents no software power-latch GPIO: power on/off is
-// the ESP32-S3's own deep sleep, and the only physical power control besides
-// the AI/Power button is a CHIP_PU reset button hole, which is not a GPIO.
+// Cross-checked against Lukilyy's reterminal-sticky-2048-eink-game, which is
+// confirmed working on real hardware:
+//   https://github.com/Lukilyy/reterminal-sticky-2048-eink-game
+// That project's boot sequence (power_on_hold(), StickyTouch::init()) is what
+// POWER_HOLD/POWER_LOCK and the touch EN polarity/timing below are taken
+// from. The vendor doc never mentions the power-latch pins at all -- without
+// them the board's power rails are not reliably held up, which plausibly
+// explains touch/SD/button symptoms that looked unrelated.
 
 // --- buttons -----------------------------------------------------------
 // Plain digital, active low. GPIO4 is the "AI / Power" button in the vendor
@@ -28,6 +29,10 @@ TouchDrvGT911 touch;
 #define BTN_NEXT 6    // vendor doc: "Down"
 #define BTN_SEL_PWR 4 // vendor doc: "AI / Power"
 
+// --- power latch ---------------------------------------------------------
+#define POWER_HOLD 45
+#define POWER_LOCK 46
+
 // --- e-paper power enable ----------------------------------------------
 // Must be driven high before the panel is brought up.
 #define EPD_EN 47
@@ -35,10 +40,12 @@ TouchDrvGT911 touch;
 // --- GT911 touch (I2C0) -------------------------------------------------
 #define TOUCH_SDA 3
 #define TOUCH_SCL 2
-#define TOUCH_EN 42 // driven high before touch.begin(); polarity unconfirmed
+#define TOUCH_EN 42 // active HIGH, confirmed by the reference firmware
 #define TOUCH_RST 41
 #define TOUCH_INT 21
-#define TOUCH_ADDR 0x5D // GT911 default I2C address
+#define TOUCH_ADDR_L 0x5D // GT911 default I2C address
+#define TOUCH_ADDR_H 0x14 // GT911 alternate address (INT held high at reset)
+static uint8_t touchAddr = TOUCH_ADDR_L;
 
 // --- BQ27220 fuel gauge (I2C1, its own bus — not the touch bus) --------
 #define GAUGE_SDA 1
@@ -47,7 +54,52 @@ TouchDrvGT911 touch;
 #define BQ27220_ADDR 0x55
 #define BQ27220_SOC_REG 0x2C // StateOfCharge(), percent, 16-bit little endian
 
+// --- BQ25616 charger enable ---------------------------------------------
+// Active low ("EN_BAT_CHGn" in the reference firmware's pin map); left
+// undriven the charger stays disabled.
+#define BAT_CHG_EN 39
+
 static bool touchReady = false;
+
+static bool bringUpTouch() {
+    static const uint8_t addrs[2] = {TOUCH_ADDR_L, TOUCH_ADDR_H};
+
+    launcherGpioOutput(TOUCH_EN);
+    launcherGpioWrite(TOUCH_EN, HIGH);
+    launcherDelayMs(250);
+
+    for (uint8_t addr : addrs) {
+        touch.setPins(TOUCH_RST, TOUCH_INT);
+        if (touch.begin(Wire, addr, TOUCH_SDA, TOUCH_SCL)) {
+            touchAddr = addr;
+            launcherConsolePrintf("GT911 found at addr=0x%02X\n", addr);
+            return true;
+        }
+    }
+    launcherConsolePrintf(
+        "%s\n", String("Failed to find GT911 on either address - check your wiring!").c_str()
+    );
+    return false;
+}
+
+/***************************************************************************************
+** Function name: powerOnHold() / powerLockPulse()
+***************************************************************************************/
+static void powerLockPulse() {
+    launcherGpioWrite(POWER_LOCK, LOW);
+    delayMicroseconds(10);
+    launcherGpioWrite(POWER_LOCK, HIGH);
+    delayMicroseconds(10);
+    launcherGpioWrite(POWER_LOCK, LOW);
+}
+
+static void powerOnHold() {
+    launcherGpioOutput(POWER_HOLD);
+    launcherGpioOutput(POWER_LOCK);
+    gpio_hold_dis((gpio_num_t)POWER_HOLD);
+    launcherGpioWrite(POWER_HOLD, HIGH);
+    powerLockPulse();
+}
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -55,6 +107,9 @@ static bool touchReady = false;
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
+
+    powerOnHold();
+
     launcherGpioInputPullup(BTN_PREV);
     launcherGpioInputPullup(BTN_NEXT);
     launcherGpioInputPullup(BTN_SEL_PWR);
@@ -62,15 +117,20 @@ void _setup_gpio() {
     launcherGpioOutput(EPD_EN);
     launcherGpioWrite(EPD_EN, HIGH);
 
-    // The e-paper panel and the SD card share one SPI bus: park both chip
-    // selects high before it comes up, so neither answers while the other is
-    // being addressed. GXEPD2_BEGIN_SPI is not set for this board, so the
-    // DisplayDrivers backend expects SPI already running.
+    // Active low; left undriven the charger stays disabled.
+    launcherGpioOutput(BAT_CHG_EN);
+    launcherGpioWrite(BAT_CHG_EN, LOW);
+
     launcherGpioOutput(TFT_CS);
     launcherGpioWrite(TFT_CS, HIGH);
     launcherGpioOutput(SDCARD_CS);
     launcherGpioWrite(SDCARD_CS, HIGH);
     SPI.begin(TFT_SCLK, SDCARD_MISO, TFT_MOSI, TFT_CS);
+
+    pinMode(TOUCH_SDA, INPUT_PULLUP);
+    pinMode(TOUCH_SCL, INPUT_PULLUP);
+    pinMode(GAUGE_SDA, INPUT_PULLUP);
+    pinMode(GAUGE_SCL, INPUT_PULLUP);
 
     // The fuel gauge is on its own I2C bus (Wire1), separate from touch.
     Wire1.begin(GAUGE_SDA, GAUGE_SCL, GAUGE_I2C_FREQ);
@@ -83,15 +143,7 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    launcherGpioOutput(TOUCH_EN);
-    launcherGpioWrite(TOUCH_EN, HIGH);
-    launcherDelayMs(20);
-
-    touch.setPins(TOUCH_RST, TOUCH_INT);
-    touchReady = touch.begin(Wire, TOUCH_ADDR, TOUCH_SDA, TOUCH_SCL);
-    if (!touchReady) {
-        launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
-    }
+    touchReady = bringUpTouch();
     // Swap/mirror per rotation is set in InputHandler(), same as xteink-x4pro
     // (same 800x480 native panel geometry).
 }
@@ -139,27 +191,42 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
 
-    // Panel is native TFT_WIDTH x TFT_HEIGHT (800x480) landscape; re-map the
-    // touch axes to whichever of the four rotations is currently active, so
-    // touch coordinates line up with what is drawn. Same pattern as
-    // lilygo-t5-epaper-s3-pro and xteink-x4pro.
+    // GT911 on this board reports touches pre-transformed by its own factory
+    // config into a fixed 800x480 frame (confirmed by the reference firmware
+    // reading back "sensor=800x480" from the chip) -- NOT the panel's raw
+    // pixel grid, and NOT a simple axis swap of it. At the default rotation
+    // (3, portrait 480x800) the reference firmware needs no XY swap at all,
+    // only a proportional rescale (800->480 / 480->800) plus a Y-axis flip;
+    // that combination is reproduced exactly below and is hardware-confirmed.
+    // Rotations 0/1/2 follow the same 90-degree-step pattern used on the
+    // other e-paper boards, composed on top of that confirmed anchor, but are
+    // NOT hardware-tested -- revisit if touch is misaligned in a non-default
+    // rotation.
     static uint8_t lastRot = 5;
     if (touchReady && lastRot != rotation) {
-        if (rotation == 1) {
-            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(true);
+        // setResolution() feeds the scale-factor math, and swapXY is applied
+        // *before* scaling -- so when swapXY is on, the raw resolution has to
+        // be declared already-swapped too, or the scale factors get matched
+        // to the wrong axis.
+        if (rotation == 3) {
+            touch.setResolution(TFT_WIDTH, TFT_HEIGHT);
+            touch.setTargetResolution(TFT_HEIGHT, TFT_WIDTH);
+            touch.setSwapXY(false);
             touch.setMirrorXY(false, true);
-        } else if (rotation == 3) {
-            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(true);
+        } else if (rotation == 1) {
+            touch.setResolution(TFT_WIDTH, TFT_HEIGHT);
+            touch.setTargetResolution(TFT_HEIGHT, TFT_WIDTH);
+            touch.setSwapXY(false);
             touch.setMirrorXY(true, false);
         } else if (rotation == 0) {
-            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(false);
+            touch.setResolution(TFT_HEIGHT, TFT_WIDTH);
+            touch.setTargetResolution(TFT_WIDTH, TFT_HEIGHT);
+            touch.setSwapXY(true);
             touch.setMirrorXY(false, false);
         } else if (rotation == 2) {
-            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(false);
+            touch.setResolution(TFT_HEIGHT, TFT_WIDTH);
+            touch.setTargetResolution(TFT_WIDTH, TFT_HEIGHT);
+            touch.setSwapXY(true);
             touch.setMirrorXY(true, true);
         }
         lastRot = rotation;
@@ -207,6 +274,13 @@ void powerOff() {
     tft->setTextColor(FGCOLOR);
     tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight / 2, 1);
     tft->display();
+
+    // Drop the latch: on this board that is what actually cuts power, per
+    // the reference firmware's power_off(). The deep-sleep call below is a
+    // fallback in case the hardware stays alive on USB power.
+    gpio_hold_dis((gpio_num_t)POWER_HOLD);
+    launcherGpioWrite(POWER_HOLD, LOW);
+    powerLockPulse();
 
     esp_sleep_enable_ext0_wakeup((gpio_num_t)BTN_SEL_PWR, LOW);
     vTaskDelay(pdMS_TO_TICKS(200));
