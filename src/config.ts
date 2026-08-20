@@ -475,6 +475,49 @@ const ensureConfigStyles = () => {
       opacity: 0.5;
       cursor: not-allowed;
     }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .config-password-field--error input {
+      border-color: #ff6f6f;
+      box-shadow: 0 0 0 2px rgba(255, 111, 111, 0.25);
+    }
+    .config-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 10, 12, 0.75);
+      backdrop-filter: blur(6px);
+      z-index: 9600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .config-modal {
+      box-sizing: border-box;
+      background: rgba(12, 18, 21, 0.97);
+      border-radius: var(--radius-lg, 24px);
+      border: 1px solid rgba(255, 111, 111, 0.5);
+      box-shadow: 0 34px 120px rgba(0, 0, 0, 0.45);
+      color: var(--text, #f5f8f2);
+      width: min(420px, 92vw);
+      padding: 24px;
+    }
+    .config-modal__title {
+      margin: 0 0 12px;
+      color: #ff6f6f;
+      font-size: 1.15rem;
+    }
+    .config-modal__message {
+      margin: 0 0 20px;
+      color: var(--text-subtle);
+      line-height: 1.5;
+    }
+    .config-modal__actions {
+      display: flex;
+      justify-content: flex-end;
+    }
   `;
   document.head.appendChild(style);
 };
@@ -513,6 +556,52 @@ const showNotification = (message: string, kind: "success" | "error" = "success"
 
   container.append(toast);
   window.setTimeout(() => toast.remove(), 8000);
+};
+
+const showAlertModal = (title: string, message: string) => {
+  const backdrop = document.createElement("div");
+  backdrop.className = "config-modal-backdrop";
+  backdrop.setAttribute("role", "dialog");
+  backdrop.setAttribute("aria-modal", "true");
+  backdrop.setAttribute("aria-label", title);
+
+  const dialog = document.createElement("div");
+  dialog.className = "config-modal";
+
+  const heading = document.createElement("h3");
+  heading.className = "config-modal__title";
+  heading.textContent = title;
+
+  const body = document.createElement("p");
+  body.className = "config-modal__message";
+  body.textContent = message;
+
+  const actions = document.createElement("div");
+  actions.className = "config-modal__actions";
+
+  const okBtn = document.createElement("button");
+  okBtn.type = "button";
+  okBtn.className = "button button--primary";
+  okBtn.textContent = "OK";
+  actions.append(okBtn);
+
+  dialog.append(heading, body, actions);
+  backdrop.append(dialog);
+  document.body.append(backdrop);
+
+  const close = () => {
+    backdrop.remove();
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === "Escape") close();
+  };
+  okBtn.addEventListener("click", close);
+  backdrop.addEventListener("click", (event) => {
+    if (event.target === backdrop) close();
+  });
+  document.addEventListener("keydown", onKey);
+  okBtn.focus();
 };
 
 // ---------------------------------------------------------------------------
@@ -684,11 +773,18 @@ document.addEventListener("DOMContentLoaded", () => {
     calibMirrorYBtn,
     calibSwapBtn
   ];
+  // Re-run per-row validity checks (e.g. "Connect" needs 8+ char password)
+  // after a busy period ends, since re-enabling every wifi-list button
+  // unconditionally would clobber those constraints.
+  let wifiRowValidators: Array<() => void> = [];
 
   const setBusy = (value: boolean) => {
     busy = value;
     actionButtons.forEach((btn) => (btn.disabled = value));
     wifiList.querySelectorAll<HTMLButtonElement>("button").forEach((btn) => (btn.disabled = value));
+    if (!value) {
+      wifiRowValidators.forEach((fn) => fn());
+    }
     logInput.disabled = value || !session;
     logSendBtn.disabled = value || !session;
   };
@@ -730,6 +826,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const renderWifiNetworks = (networks: WifiNetwork[]) => {
     wifiList.innerHTML = "";
+    wifiRowValidators = [];
     if (networks.length === 0) {
       const empty = document.createElement("li");
       empty.className = "config-wifi-row";
@@ -764,11 +861,22 @@ document.addEventListener("DOMContentLoaded", () => {
         row.append(savedBadge);
       }
 
+      // Secured networks get a password field. Unsaved ones require it to
+      // connect at all; saved ones can leave it blank to reconnect with the
+      // stored credential, or fill it in to replace that saved password.
+      const showPasswordField = network.auth !== "open";
+      const passwordRequired = showPasswordField && !network.saved;
+      const MIN_WIFI_PASSWORD_LENGTH = 8; // shortest possible WPA/WPA2 passphrase
+
       let pwdInput: HTMLInputElement | null = null;
-      if (network.auth !== "open") {
-        const field = createPasswordField("Password");
+      let pwdWrapper: HTMLElement | null = null;
+      if (showPasswordField) {
+        const field = createPasswordField(
+          network.saved ? "New password (optional)" : "Password (min. 8 characters)"
+        );
         field.wrapper.classList.add("config-wifi-row__pwd");
         pwdInput = field.input;
+        pwdWrapper = field.wrapper;
         row.append(field.wrapper);
       }
 
@@ -776,21 +884,66 @@ document.addEventListener("DOMContentLoaded", () => {
       connectNetworkBtn.type = "button";
       connectNetworkBtn.className = "button button--ghost";
       connectNetworkBtn.textContent = "Connect";
+
+      const clearPasswordError = () => pwdWrapper?.classList.remove("config-password-field--error");
+
+      const updateConnectAvailability = () => {
+        if (!passwordRequired) {
+          connectNetworkBtn.disabled = false;
+          return;
+        }
+        const pwd = pwdInput?.value ?? "";
+        connectNetworkBtn.disabled = pwd.length < MIN_WIFI_PASSWORD_LENGTH;
+      };
+
+      if (pwdInput) {
+        pwdInput.addEventListener("input", () => {
+          clearPasswordError();
+          updateConnectAvailability();
+        });
+      }
+      updateConnectAvailability();
+      wifiRowValidators.push(updateConnectAvailability);
+
       connectNetworkBtn.addEventListener("click", async () => {
         if (busy) return;
         const pwd = pwdInput?.value.trim() ?? "";
-        if (network.auth !== "open" && !pwd) {
-          setStatus(`Enter a password for ${network.ssid} first.`);
+        if (passwordRequired && pwd.length < MIN_WIFI_PASSWORD_LENGTH) {
+          pwdWrapper?.classList.add("config-password-field--error");
+          showAlertModal(
+            "Missing Password",
+            `Enter a WiFi password of at least ${MIN_WIFI_PASSWORD_LENGTH} characters for "${network.ssid}" to connect.`
+          );
           return;
         }
+        if (network.saved && pwd.length > 0 && pwd.length < MIN_WIFI_PASSWORD_LENGTH) {
+          pwdWrapper?.classList.add("config-password-field--error");
+          showAlertModal(
+            "Missing Password",
+            `The new password for "${network.ssid}" must be at least ${MIN_WIFI_PASSWORD_LENGTH} characters, or left blank to keep the saved one.`
+          );
+          return;
+        }
+
         setBusy(true);
+
+        if (network.saved && pwd.length > 0) {
+          setStatus(`Updating saved password for ${network.ssid}...`);
+          await runCommand("wifi del", `wifi del ${network.ssid}`, { idleMs: 400, maxMs: 4000 });
+          await sleep(200);
+          await runCommand(
+            "wifi add",
+            `wifi add ${network.ssid} ${pwd}`,
+            { idleMs: 400, maxMs: 4000 },
+            `wifi add ${network.ssid} ${PASSWORD_MASK}`
+          );
+        }
+
         setStatus(`Connecting to ${network.ssid}...`);
-        const command =
-          network.auth === "open" ? `wifi connect ${network.ssid}` : `wifi connect ${network.ssid} ${pwd}`;
-        const displayCommand =
-          network.auth === "open"
-            ? command
-            : `wifi connect ${network.ssid} ${PASSWORD_MASK}`;
+        const command = passwordRequired ? `wifi connect ${network.ssid} ${pwd}` : `wifi connect ${network.ssid}`;
+        const displayCommand = passwordRequired
+          ? `wifi connect ${network.ssid} ${PASSWORD_MASK}`
+          : command;
         const lines = await runCommand(
           "wifi connect",
           command,
@@ -891,6 +1044,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const lines = await runCommand("wifi clear", "wifi clear", { idleMs: 400, maxMs: 4000 });
     setStatus(firstNonEmptyLine(lines) || "No response clearing networks.");
     wifiList.innerHTML = "";
+    wifiRowValidators = [];
     setBusy(false);
   });
 
@@ -972,6 +1126,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wifiSection.hidden = true;
     calibSection.hidden = true;
     wifiList.innerHTML = "";
+    wifiRowValidators = [];
     wifiAddForm.hidden = true;
     wifiDelForm.hidden = true;
     versionEl.textContent = "—";
