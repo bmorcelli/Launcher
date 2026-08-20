@@ -62,7 +62,7 @@ void InputHandler(void) {
             else return;
             if (rotation == 0) {
             } else if (rotation == 2) {
-                t.y = (tftHeight + 20) - t.y;
+                t.y = (tftHeight + (_fm * LH + 4)) - t.y;
                 t.x = tftWidth - t.x;
             }
             if (rotation == 3) {
@@ -73,7 +73,7 @@ void InputHandler(void) {
             if (rotation == 1) {
                 int tmp = t.x;
                 t.x = t.y;
-                t.y = (tftHeight + 20) - tmp;
+                t.y = (tftHeight + (_fm * LH + 4)) - tmp;
             }
             launcherConsolePrintf("x2=%d, y2=%d, rot=%d\n", t.x, t.y, rotation);
 

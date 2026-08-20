@@ -7,6 +7,7 @@
 #define ENCODER_INB 40
 #define ENCODER_KEY 42
 #define BTN_ACT LOW
+#define POWER_HOLD_PIN 46
 
 // Rotary encoder
 #include <RotaryEncoder.h>
@@ -19,34 +20,27 @@ IRAM_ATTR void checkPosition() { encoder->tick(); }
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    M5.begin();
-
     launcherGpioInput(ENCODER_KEY);
     encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::TWO03);
     attachInterrupt(digitalPinToInterrupt(ENCODER_INA), checkPosition, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ENCODER_INB), checkPosition, CHANGE);
 }
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
-int getBattery() {
-    int level = M5.Power.getBatteryLevel();
-    return (level < 0) ? 0 : (level >= 100) ? 100 : level;
+void _post_setup_gpio() {
+    pinMode(TFT_BL, OUTPUT);
+    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+    ledcWrite(TFT_BL, bright);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
+void _setBrightness(uint8_t brightval) {
+    int dutyCycle = (brightval * 255) / 100;
+    if (!ledcWrite(TFT_BL, dutyCycle)) {
+        ledcDetach(TFT_BL);
+        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+        ledcWrite(TFT_BL, dutyCycle);
+    }
+}
+
 void InputHandler(void) {
     static unsigned long tm = launcherMillis(); // debauce for buttons
     static int posDifference = 0;
@@ -83,9 +77,12 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
-void powerOff() { M5.Power.powerOff(); }
+void powerOff() {
+    launcherGpioOutput(POWER_HOLD_PIN);
+    for (int i = 0; i < 5; i++) {
+        launcherGpioWrite(POWER_HOLD_PIN, LOW);
+        launcherDelayMs(50);
+        launcherGpioWrite(POWER_HOLD_PIN, HIGH);
+        launcherDelayMs(50);
+    }
+}

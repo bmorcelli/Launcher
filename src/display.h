@@ -45,6 +45,11 @@ int loopOptions(
     std::vector<Option> &options, bool bright = false, uint16_t al = RED, uint16_t bg = BLACK,
     bool border = true, int index = 0
 );
+inline int loopOptions(
+    int index, std::vector<Option> &options, uint16_t al = RED, uint16_t bg = BLACK, bool border = true
+) {
+    return loopOptions(options, false, al, bg, border, index);
+}
 void loopVersions(const String &fid);
 void loopFirmware(bool isUpdate = false);
 void initDisplay(bool doAll = false); // Início da função e mostra bootscreen

@@ -26,6 +26,7 @@
 #include <cardkb2.h>
 #endif
 
+#define _CLR_(a, b) (a == b ? FGCOLOR : ALCOLOR)
 // forward declaration
 void defaultValues();
 
@@ -394,7 +395,7 @@ void settings_menu() {
         options.push_back({"Turn-off", [=]() { powerOff(); }});
 
         options.push_back({"Main Menu", [=]() { returnToMenu = true; }});
-        idx = loopOptions(options);
+        idx = loopOptions(idx, options);
     }
     tft->drawPixel(0, 0, 0);
     tft->fillScreen(BGCOLOR);
@@ -442,7 +443,6 @@ void getBrightness() {
 **  Function: gsetRotation
 **  get onlyBins from EEPROM
 **********************************************************************/
-#define DRV 1
 int gsetRotation(bool set) {
 
     const int mountRotation = displayConfig.rotation;
@@ -454,20 +454,27 @@ int gsetRotation(bool set) {
     } else result = rotation;
 
     if (set) {
+        const int DRV = (displayConfig.width < displayConfig.height) ? 1 : 0;
         const bool offerPortrait = panelWidth() >= 200 && panelHeight() >= 200;
         options = {
-            {"Default", [&]() { result = mountRotation; }}
+            {"Default (" + String(mountRotation) + ")", [&]() { result = mountRotation; }}
         };
         if (offerPortrait)
-            options.push_back({"Portrait " + String(DRV == 1 ? 0 : 1), [&]() {
-                                   result = (DRV == 1 ? 0 : 1);
-                               }});
-        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }});
+            options.push_back(
+                {"Portrait " + String(DRV == 1 ? 0 : 1),
+                 [&]() { result = (DRV == 1 ? 0 : 1); },
+                 _CLR_(rotation, (DRV == 1 ? 0 : 1))}
+            );
+        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }, _CLR_(rotation, DRV)});
         if (offerPortrait)
-            options.push_back({"Portrait " + String(DRV == 1 ? 2 : 3), [&]() {
-                                   result = (DRV == 1 ? 2 : 3);
-                               }});
-        options.push_back({"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }});
+            options.push_back(
+                {"Portrait " + String(DRV == 1 ? 2 : 3),
+                 [&]() { result = (DRV == 1 ? 2 : 3); },
+                 _CLR_(rotation, (DRV == 1 ? 2 : 3))}
+            );
+        options.push_back(
+            {"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }, _CLR_(rotation, (DRV + 2))}
+        );
         loopOptions(options);
         rotation = result;
 
@@ -520,7 +527,7 @@ void setUiColor() {
              ALCOLOR = 0xF800;
              odd_color = 0x30c5;
              even_color = 0x32e5;
-         }                 },
+         }, _CLR_(FGCOLOR, 0x07E0)},
         {"Red",
          [&]() {
              FGCOLOR = 0xF800;
@@ -528,7 +535,7 @@ void setUiColor() {
              ALCOLOR = 0xE3E0;
              odd_color = 0xFBC0;
              even_color = 0xAAC0;
-         }                 },
+         }, _CLR_(FGCOLOR, 0xF800)},
         {"Blue",
          [&]() {
              FGCOLOR = 0x94BF;
@@ -536,7 +543,7 @@ void setUiColor() {
              ALCOLOR = 0xd81f;
              odd_color = 0xd69f;
              even_color = 0x079F;
-         }                 },
+         }, _CLR_(FGCOLOR, 0x94BF)},
         {"Yellow",
          [&]() {
              FGCOLOR = 0xFFE0;
@@ -544,7 +551,7 @@ void setUiColor() {
              ALCOLOR = 0xFB80;
              odd_color = 0x9480;
              even_color = 0xbae0;
-         }                 },
+         }, _CLR_(FGCOLOR, 0xFFE0)},
         {"Purple",
          [&]() {
              FGCOLOR = 0xe01f;
@@ -552,7 +559,7 @@ void setUiColor() {
              ALCOLOR = 0xF800;
              odd_color = 0xf57f;
              even_color = 0x89d3;
-         }                 },
+         }, _CLR_(FGCOLOR, 0xe01f)},
         {"White",
          [&]() {
              FGCOLOR = 0xFFFF;
@@ -560,14 +567,15 @@ void setUiColor() {
              ALCOLOR = 0x6b6d;
              odd_color = 0x630C;
              even_color = 0x8410;
-         }                 },
-        {"Black",   [&]() {
+         }, _CLR_(FGCOLOR, 0xFFFF)},
+        {"Black",
+         [&]() {
              FGCOLOR = 0x0000;
              BGCOLOR = 0xFFFF;
              ALCOLOR = 0x6b6d;
              odd_color = 0x8c71;
              even_color = 0xb596;
-         }},
+         }, _CLR_(FGCOLOR, 0x0000)},
     };
     loopOptions(options);
     displayRedStripe("Saving...");
@@ -579,12 +587,12 @@ void setUiColor() {
 void setdimmerSet() {
     int time = 20;
     options = {
-        {"10s",     [&]() { time = 10; }},
-        {"15s",     [&]() { time = 15; }},
-        {"30s",     [&]() { time = 30; }},
-        {"45s",     [&]() { time = 45; }},
-        {"60s",     [&]() { time = 60; }},
-        {"Disable", [&]() { time = 0; } },
+        {"10s",     [&]() { time = 10; }, _CLR_(dimmerSet, 10)},
+        {"15s",     [&]() { time = 15; }, _CLR_(dimmerSet, 15)},
+        {"30s",     [&]() { time = 30; }, _CLR_(dimmerSet, 30)},
+        {"45s",     [&]() { time = 45; }, _CLR_(dimmerSet, 45)},
+        {"60s",     [&]() { time = 60; }, _CLR_(dimmerSet, 60)},
+        {"Disable", [&]() { time = 0; },  _CLR_(dimmerSet, 0) },
     };
 
     loopOptions(options);

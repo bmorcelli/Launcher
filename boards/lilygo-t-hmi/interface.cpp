@@ -72,7 +72,7 @@ void InputHandler(void) {
             launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
             launcherConsolePrintf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
             if (rotation == 3) {
-                t.y = (tftHeight + 20) - t.y;
+                t.y = (tftHeight + (_fm * LH + 4)) - t.y;
                 t.x = tftWidth - t.x;
             }
             if (rotation == 0) {
@@ -83,7 +83,7 @@ void InputHandler(void) {
             if (rotation == 2) {
                 int tmp = t.x;
                 t.x = t.y;
-                t.y = (tftHeight + 20) - tmp;
+                t.y = (tftHeight + (_fm * LH + 4)) - tmp;
             }
             launcherConsolePrintf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
             tm = launcherMillis();

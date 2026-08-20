@@ -52,7 +52,7 @@ public:
         t.y = TFT_WIDTH - ti.x;
 #else
         t.x = ti.x;
-        t.y = (tftHeight + 20) - ti.y;
+        t.y = (tftHeight + (_fm * LH + 4);) - ti.y;
 #endif
         t.pressed = true;
         TouchLib::raw_data[0] = 0; // resets the read raw reading, that triggers TouchLib::read() to true, and
@@ -199,7 +199,7 @@ void InputHandler(void) {
             d_tmp = launcherMillis();
 
             if (rotation == 3) {
-                t.y = (tftHeight + 20) - t.y;
+                t.y = (tftHeight + (_fm * LH + 4)) - t.y;
                 t.x = tftWidth - t.x;
             }
             if (rotation == 0) {
@@ -210,7 +210,7 @@ void InputHandler(void) {
             if (rotation == 2) {
                 int tmp = t.x;
                 t.x = t.y;
-                t.y = (tftHeight + 20) - tmp;
+                t.y = (tftHeight + (_fm * LH + 4)) - tmp;
             }
             launcherConsolePrintf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
             if (!wakeUpScreen()) AnyKeyPress = true;
