@@ -168,6 +168,15 @@ void initDisplay(bool doAll) {
     _x = tft->getCursorX();
     _y = tft->getCursorY();
 
+#if defined(E_PAPER_DISPLAY)
+    // On e-paper, printing one character at a time (doAll fills every cell) is far more
+    // draw calls than the panel needs — the per-character odd/even colour is not worth it
+    // here anyway, so accumulate each row and push it as a single string.
+    bool batchRow = doAll;
+    String rowBuffer;
+    int rowBufferY = _y;
+#endif
+
     while (tft->getCursorY() < (tftHeight - (LH + 4))) {
         cor = launcherRandom(0, 11);
         tft->setTextSize(_fp);
@@ -184,8 +193,18 @@ void initDisplay(bool doAll) {
             }
 
             if (_x >= (tftWidth - (LW * _fp + 4))) {
+#if defined(E_PAPER_DISPLAY)
+                if (batchRow && rowBuffer.length() > 0) {
+                    tft->setTextColor(FGCOLOR, BGCOLOR);
+                    tft->drawString(rowBuffer, 10, rowBufferY);
+                    rowBuffer = "";
+                }
+#endif
                 _x = 10;
                 _y += LH * _fp;
+#if defined(E_PAPER_DISPLAY)
+                rowBufferY = _y;
+#endif
             } else if (_x < 10) {
                 _x = 10;
             }
@@ -193,11 +212,21 @@ void initDisplay(bool doAll) {
             tft->setCursor(_x, _y);
             if (_y > (tftHeight - (LH * _fm + LH * _fp / 2)) &&
                 _x >= (tftWidth - ((LW * _fp + 4) + LW * _fp * name.length()))) {
-                tft->setTextColor(FGCOLOR);
-                tft->print(name);
+#if defined(E_PAPER_DISPLAY)
+                if (batchRow) rowBuffer += name;
+                else
+#endif
+                {
+                    tft->setTextColor(FGCOLOR);
+                    tft->print(name);
+                }
                 _x += LW * _fp * name.length();
             } else {
-                tft->print(txt);
+#if defined(E_PAPER_DISPLAY)
+                if (batchRow) rowBuffer += txt;
+                else
+#endif
+                    tft->print(txt);
                 _x += LW * _fp;
             }
         } else {
@@ -214,6 +243,12 @@ void initDisplay(bool doAll) {
         }
         tft->setCursor(_x, _y);
     }
+#if defined(E_PAPER_DISPLAY)
+    if (batchRow && rowBuffer.length() > 0) {
+        tft->setTextColor(FGCOLOR, BGCOLOR);
+        tft->drawString(rowBuffer, 10, rowBufferY);
+    }
+#endif
     tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
     // Both arms of the old #if TFT_HEIGHT > 200 here were the same line.
@@ -501,14 +536,28 @@ void progressHandler(size_t progress, size_t total) {
 ***************************************************************************************/
 Opt_Coord drawOptions(
     int idx, std::vector<Option> &opt, std::vector<MenuOptions> &t_menu, uint16_t fgcolor, uint16_t bgcolor,
-    bool border
+    bool border, bool forceFullRedraw
 ) {
+    // Cached layout of the previous call, used to tell whether this redraw only moved the
+    // selection within the same page (draw just the two changed rows) or whether the page,
+    // menu or styling changed (repaint everything). loopOptions is the sole caller and always
+    // passes forceFullRedraw=true on the first draw of a session, so stale statics from an
+    // unrelated menu can never leak into a partial redraw.
+    static int lastIndex = -1;
+    static int lastStart = -1;
+    static int lastOptionCount = -1;
+    static int lastArraySize = -1;
+    static bool lastShowPageUp = false;
+    static bool lastShowPageDown = false;
+    static bool lastBorder = false;
+    static uint16_t lastFgcolor = 0;
+    static uint16_t lastBgcolor = 0;
+    static int lastBoxX = -1;
+    static int lastBoxY = -1;
+
     int index = idx;
     uint16_t alcolor = ALCOLOR;
 #ifdef E_PAPER_DISPLAY
-#ifdef USE_EPD_PAINTER
-    if (!border) { tft->fillScreen(BGCOLOR); }
-#endif
     bgcolor = WHITE; // 0xffff
     alcolor = BLACK; // 0x0000
     fgcolor = BLACK;
@@ -637,15 +686,39 @@ Opt_Coord drawOptions(
     coord.boxW = contentWidth;
     coord.boxH = contentHeight;
 
+    // Same page, same menu, same styling, only the selected row moved: repaint just the
+    // previously- and newly-selected rows instead of the whole box. Anything structural
+    // (paging, menu identity, colors, first draw) falls back to a full repaint.
+    bool partialRedraw = !forceFullRedraw && index != lastIndex && start == lastStart &&
+                         optionCount == lastOptionCount && arraySize == lastArraySize &&
+                         showPageUp == lastShowPageUp && showPageDown == lastShowPageDown &&
+                         border == lastBorder && fgcolor == lastFgcolor && bgcolor == lastBgcolor &&
+                         boxX == lastBoxX && boxY == lastBoxY;
+    int prevIndex = lastIndex;
+
+    lastIndex = index;
+    lastStart = start;
+    lastOptionCount = optionCount;
+    lastArraySize = arraySize;
+    lastShowPageUp = showPageUp;
+    lastShowPageDown = showPageDown;
+    lastBorder = border;
+    lastFgcolor = fgcolor;
+    lastBgcolor = bgcolor;
+    lastBoxX = boxX;
+    lastBoxY = boxY;
+
     bool firstItemSelected = (optionCount > 0 && index == start);
     tft->setTextSize(_fm);
 
-    if (border) {
-        if (firstItemSelected) tft->fillRoundRect(boxX, boxY, contentWidth, contentHeight, 5, bgcolor);
-        tft->drawRoundRect(boxX, boxY, contentWidth, contentHeight, 5, fgcolor);
-    } else {
-        if (firstItemSelected) tft->fillRoundRect(3, 3, tftWidth - 6, tftHeight - 6, 5, bgcolor);
-        tft->drawRoundRect(2, 2, tftWidth - 4, tftHeight - 4, 5, fgcolor);
+    if (!partialRedraw) {
+        if (border) {
+            if (firstItemSelected) tft->fillRoundRect(boxX, boxY, contentWidth, contentHeight, 5, bgcolor);
+            tft->drawRoundRect(boxX, boxY, contentWidth, contentHeight, 5, fgcolor);
+        } else {
+            if (firstItemSelected) tft->fillRoundRect(3, 3, tftWidth - 6, tftHeight - 6, 5, bgcolor);
+            tft->drawRoundRect(2, 2, tftWidth - 4, tftHeight - 4, 5, fgcolor);
+        }
     }
 
     int lineWidth = contentWidth - paddingSide * 2;
@@ -657,14 +730,17 @@ Opt_Coord drawOptions(
     int textStartY = boxY + paddingTop;
     int rowIndex = 0;
 
-    auto addNavLine = [&](const char *text, bool isUp) {
+    auto addNavLine = [&](const char *text, bool isUp, bool paint) {
         int rowTop = textStartY + rowIndex * (lineHeight + rowSpacing);
-        int textWidth = strlen(text) * charWidth;
-        int navX = boxX + paddingSide + 0 > ((lineWidth - textWidth) / 2) ? 0 : ((lineWidth - textWidth) / 2);
-        tft->fillRect(boxX + paddingSide, rowTop, lineWidth, lineHeight, bgcolor);
-        tft->setCursor(navX, rowTop);
-        tft->setTextColor(alcolor, bgcolor);
-        tft->drawCentreString(text, tftWidth / 2, rowTop, 1);
+        if (paint) {
+            int textWidth = strlen(text) * charWidth;
+            int navX =
+                boxX + paddingSide + 0 > ((lineWidth - textWidth) / 2) ? 0 : ((lineWidth - textWidth) / 2);
+            tft->fillRect(boxX + paddingSide, rowTop, lineWidth, lineHeight, bgcolor);
+            tft->setCursor(navX, rowTop);
+            tft->setTextColor(alcolor, bgcolor);
+            tft->drawCentreString(text, tftWidth / 2, rowTop, 1);
+        }
 
         MenuOptions navItem("", isUp ? "-" : "+", nullptr, true, false);
         navItem.setCoords(boxX + paddingSide, rowTop, lineWidth, lineHeight + rowSpacing);
@@ -673,14 +749,16 @@ Opt_Coord drawOptions(
         rowIndex++;
     };
 #ifdef HAS_TOUCH
-    if (showPageUp) { addNavLine("-- Page Up --", true); }
+    if (showPageUp) { addNavLine("-- Page Up --", true, !partialRedraw); }
 #endif
     for (int i = 0; i < optionCount && (start + i) < arraySize; ++i) {
         ALIVIATE_TASK;
         int optionIndex = start + i;
         int rowTop = textStartY + rowIndex * (lineHeight + rowSpacing);
         int rowLeft = boxX + paddingSide;
-        if (i > 0) tft->fillRect(rowLeft, rowTop - rowSpacing, lineWidth, rowSpacing, bgcolor);
+        bool rowNeedsPaint = !partialRedraw || optionIndex == index || optionIndex == prevIndex;
+        if (rowNeedsPaint && i > 0)
+            tft->fillRect(rowLeft, rowTop - rowSpacing, lineWidth, rowSpacing, bgcolor);
         int prefixWidth = 0;
         int cursorX = rowLeft;
 #ifdef HAS_TOUCH
@@ -693,10 +771,12 @@ Opt_Coord drawOptions(
         }
 #endif
 
-        tft->setCursor(cursorX, rowTop);
-        tft->setTextColor(fgcolor, bgcolor);
         char indicatorChar = (optionIndex == index) ? '>' : ' ';
-        tft->print(indicatorChar);
+        if (rowNeedsPaint) {
+            tft->setCursor(cursorX, rowTop);
+            tft->setTextColor(fgcolor, bgcolor);
+            tft->print(indicatorChar);
+        }
         prefixWidth += indicatorWidth;
         cursorX += indicatorWidth;
 
@@ -714,9 +794,11 @@ Opt_Coord drawOptions(
             escWidth = strlen(escText) * charWidth;
             int escX = boxX + paddingSide + lineWidth - escWidth;
             if (escX < labelX) escX = labelX;
-            tft->setCursor(escX, rowTop);
-            tft->setTextColor(alcolor, bgcolor);
-            tft->print(escText);
+            if (rowNeedsPaint) {
+                tft->setCursor(escX, rowTop);
+                tft->setTextColor(alcolor, bgcolor);
+                tft->print(escText);
+            }
 
             MenuOptions escItem("", "ESC", nullptr, true, false);
             escItem.setCoords(
@@ -738,9 +820,11 @@ Opt_Coord drawOptions(
         char txt[labelCharLimit];
         snprintf(txt, sizeof(txt), "%-*s", labelCharLimit, opt[optionIndex].label.c_str());
 
-        tft->setCursor(labelX, rowTop);
-        tft->setTextColor(color, bgcolor);
-        tft->print(txt);
+        if (rowNeedsPaint) {
+            tft->setCursor(labelX, rowTop);
+            tft->setTextColor(color, bgcolor);
+            tft->print(txt);
+        }
 
         MenuOptions optItem(String(optionIndex), "", nullptr, true, optionIndex == index);
         optItem.setCoords(labelX, rowTop, 0 > labelWidth ? 0 : labelWidth, lineHeight + rowSpacing);
@@ -757,8 +841,12 @@ Opt_Coord drawOptions(
         rowIndex++;
     }
 #ifdef HAS_TOUCH
-    if (showPageDown) { addNavLine("-- Page Down --", false); }
+    if (showPageDown) { addNavLine("-- Page Down --", false, !partialRedraw); }
 #endif
+    if (partialRedraw) {
+        tft->display(false);
+        return coord;
+    }
     if (rowIndex < rowsForHeight) {
         int rowLeft = boxX + paddingSide;
         while (rowIndex < rowsForHeight) {
@@ -778,7 +866,12 @@ Opt_Coord drawOptions(
 ** Function name: drawMainMenu
 ** Description:   Função para desenhar e mostrar o menu principal
 ***************************************************************************************/
-void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
+void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw) {
+    // Remembers which item was drawn as selected last time, so a plain selection move only
+    // has to erase the old highlight and paint the new one instead of repainting every icon.
+    // The grid layout (position/size per item) never changes between calls in the same
+    // session, so all other icons stay pixel-identical and don't need to be touched.
+    static int lastIndex = -1;
 
     uint8_t size = opt.size();
     if (size < 1) {
@@ -793,6 +886,13 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     int h = (tftHeight - ((6 + 6 + _fp * LH + 6) + LH * _fp + 6)) / rows; // Height of each icon
 
     int maxIconTextSize = tftHeight <= 135 ? _fm : _fg;
+
+    // The carousel (compact one-line) layout reassigns every slot's item on each move, so it
+    // always needs a full repaint; the fixed grid can be updated incrementally.
+    bool fullRedraw =
+        forceFullRedraw || compactOneLine || lastIndex < 0 || lastIndex >= static_cast<int>(size);
+    int prevIndex = lastIndex;
+    lastIndex = index;
 
     for (int i = 0; i < size; ++i) opt[i].resetCoords();
 
@@ -824,6 +924,8 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
         opt[i].h = h;
         // Serial.printf("Menu Name: %s, x=%d, y=%d, w=%d, h=%d\n", opt[i].name, opt[i].x, opt[i].y, opt[i].w,
         // opt[i].h); // Debug purpose
+
+        if (!fullRedraw && i != index && i != prevIndex) continue;
 
         uint16_t itemColor = opt[i].active ? opt[i].color : DARKGREY;
         uint16_t selectedColor = opt[i].active ? opt[i].color : LIGHTGREY;
@@ -879,15 +981,17 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
 
     tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
-    // Draw the description of the selected item
+    // Draw the description of the selected item (always changes with the selection)
     tft->fillRect(10, tftHeight - (6 + LH * _fp), tftWidth - 20, LH * _fp, BGCOLOR);
     tft->drawCentreString(opt[index].text, tftWidth / 2, tftHeight - (6 + LH * _fp), 1);
-    // Draw Launcher version and battery value
-    // Short panels have no room for the version next to the battery gauge.
-    if (panelHeight() < 200) tft->drawString("Launcher", 12 + RES, 12);
-    else tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
-    tft->setTextSize(maxIconTextSize);
-    drawDeviceBorder();
+    if (fullRedraw) {
+        // Draw Launcher version and battery value
+        // Short panels have no room for the version next to the battery gauge.
+        if (panelHeight() < 200) tft->drawString("Launcher", 12 + RES, 12);
+        else tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
+        tft->setTextSize(maxIconTextSize);
+        drawDeviceBorder();
+    }
     int bat = getBattery();
     if (bat > 0) drawBatteryStatus(bat);
     drawWifiStatus(bat > 0);
@@ -1020,6 +1124,7 @@ void drawBatteryStatus(uint8_t bat) {
 int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t bg, bool border, int index) {
     bool redraw = true;
     bool exit = false;
+    bool firstDraw = true;
 #if defined(HAS_TOUCH)
     bool escRequested = false; // set only by the explicit [ESC] label (touch, border==false)
 #endif
@@ -1033,7 +1138,9 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
     while (1) {
         if (redraw) {
             list = {};
-            coord = drawOptions(index, options, list, al, bg, border);
+            bool wasFirstDraw = firstDraw;
+            coord = drawOptions(index, options, list, al, bg, border, firstDraw);
+            firstDraw = false;
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
             M5.Display.setEpdMode(epd_mode_t::epd_text);
 #endif
@@ -1050,7 +1157,8 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
             }
             if (bright) { setBrightness(100 * (numOpt - index) / numOpt, false); }
 
-            TouchFooter();
+            // Static footer text, no need to repaint it on every selection change.
+            if (wasFirstDraw) TouchFooter();
             redraw = false;
         }
         if (index >= 0 && index < static_cast<int>(options.size())) {

@@ -101,7 +101,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord);
 // uint16_t fgcolor, uint16_t bgcolor);
 Opt_Coord drawOptions(
     int index, std::vector<Option> &options, std::vector<MenuOptions> &opt, uint16_t fgcolor,
-    uint16_t bgcolor, bool border
+    uint16_t bgcolor, bool border, bool forceFullRedraw = true
 );
 
 void drawDeviceBorder();
@@ -110,7 +110,7 @@ void drawBatteryStatus(uint8_t bat);
 
 void drawWifiStatus(bool hasBattery = false);
 
-void drawMainMenu(std::vector<MenuOptions> &opt, int index);
+void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw = true);
 
 // Draws the installed-app shortcut cards at the top of the bootscreen (touch tap or
 // keyboard digit boots that app directly) and returns the total height, in pixels,

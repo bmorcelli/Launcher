@@ -491,7 +491,7 @@ void loop() {
                 dev_mode = true;
                 saveConfigs();
             }
-            drawMainMenu(menuItems, index);
+            drawMainMenu(menuItems, index, first_loop);
             TouchFooter();
             redraw = false;
             LongPress = false;
@@ -512,6 +512,7 @@ void loop() {
                         item.action();
                         tft->drawPixel(0, 0, 0);
                         tft->fillScreen(BGCOLOR);
+                        first_loop = true;
                     } else {
                         index = i;
                         drawMainMenu(menuItems, index); // Redraw the menu to show the selected item
