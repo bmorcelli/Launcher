@@ -327,11 +327,19 @@
         },
         {
             "display": true,
-            "name": "ES3C28P",
+            "name": "ES3C28P 2.8in",
             "description": "aka. Cheap Black Display",
             "link": "https://www.lcdwiki.com/2.8inch_ESP32-S3_Display",
             "family": "ESP32-S3",
             "id": "ES3C28P"
+        },
+        {
+            "display": true,
+            "name": "E32R40T 4in",
+            "description": "",
+            "link": "https://www.lcdwiki.com/4.0inch_ESP32-32E_Display",
+            "family": "ESP32",
+            "id": "ESP32-E32R40T"
         }
     ],
     "Lilygo": [
@@ -690,7 +698,7 @@
     ],
     "xteink": [
         {
-            "display": false,
+            "display": true,
             "name": "xteink x3 (and x4)",
             "description": "",
             "link": "https://www.xteink.com/products/xteink-x3",
