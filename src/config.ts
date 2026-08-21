@@ -844,6 +844,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const wifiSection = document.querySelector<HTMLElement>("[data-wifi-section]");
   const wifiScanBtn = document.querySelector<HTMLButtonElement>("[data-wifi-scan]");
+  const wifiListBtn = document.querySelector<HTMLButtonElement>("[data-wifi-list-btn]");
   const wifiList = document.querySelector<HTMLElement>("[data-wifi-list]");
   const wifiAddToggle = document.querySelector<HTMLButtonElement>("[data-wifi-add-toggle]");
   const wifiAddForm = document.querySelector<HTMLElement>("[data-wifi-add-form]");
@@ -889,6 +890,7 @@ document.addEventListener("DOMContentLoaded", () => {
     !whoamiEl ||
     !wifiSection ||
     !wifiScanBtn ||
+    !wifiListBtn ||
     !wifiList ||
     !wifiAddToggle ||
     !wifiAddForm ||
@@ -951,6 +953,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let busy = false;
   const actionButtons = [
     wifiScanBtn,
+    wifiListBtn,
     wifiAddToggle,
     wifiAddSubmit,
     wifiDelToggle,
@@ -1177,6 +1180,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const networks = parseWifiScan(lines);
     renderWifiNetworks(networks);
     setStatus(`Found ${networks.length} network(s).`);
+    setBusy(false);
+  });
+
+  wifiListBtn.addEventListener("click", async () => {
+    if (busy || !session) return;
+    setBusy(true);
+    setStatus("Listing saved WiFi networks...");
+    wifiList.innerHTML = "";
+    const lines = await runCommand("wifi list", "wifi list", { idleMs: 500, maxMs: 8000 });
+    // Every entry here is inherently saved, whether or not the device's
+    // reply happens to include the "(Saved)" suffix like "wifi scan" does.
+    const networks = parseWifiScan(lines).map((network) => ({ ...network, saved: true }));
+    renderWifiNetworks(networks);
+    setStatus(`${networks.length} saved network(s).`);
     setBusy(false);
   });
 
