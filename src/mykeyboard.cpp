@@ -564,6 +564,7 @@ String generalKeyboard(
 
                     // Return colors to normal to print the other letters
                     if (x == j && y == i) { tft->setTextColor(~BGCOLOR, BGCOLOR); }
+                    ALIVIATE_TASK;
                 }
             }
             // backup key coordinates

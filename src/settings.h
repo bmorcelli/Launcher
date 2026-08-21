@@ -2,6 +2,7 @@
 #define __SETTINGS_H
 
 #include <ArduinoJson.h>
+#include <vector>
 
 /*
 config.conf JSON structure
@@ -50,6 +51,14 @@ bool getWifiCredential(const String &ssid, String &password);
 bool setWifiCredential(const String &ssid, const String &password, bool persist = false);
 bool removeWifiCredential(const String &ssid);
 bool clearWifiCredentials();
+
+struct LauncherSavedWifiNetwork {
+    String ssid;
+    bool hasPassword;
+};
+std::vector<LauncherSavedWifiNetwork> getSavedWifiNetworks();
+void printSettingsJson();
+bool loadSettingsJson(const String &json);
 void setdimmerSet();
 void setUiColor();
 void chargeMode();

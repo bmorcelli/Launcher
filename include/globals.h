@@ -21,7 +21,11 @@
 
 #define KEY_ESCAPE 0x1B
 #define NO_COLOR 1 // color is from 0x0000 (BLACK) to 0xffff (WHITE), 1 is for checking
-
+#if SOC_CPU_CORES_NUM < 2
+#define ALIVIATE_TASK vTaskDelay(pdMS_TO_TICKS(5))
+#else
+#define ALIVIATE_TASK yield()
+#endif
 extern uint16_t FGCOLOR;
 extern uint16_t ALCOLOR;
 extern uint16_t BGCOLOR;

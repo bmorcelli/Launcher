@@ -1,14 +1,12 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
+#include <Button.h>
+#include <M5PM1.h>
 #include <Wire.h>
 #include <interface.h>
 #ifdef USE_CARDKB2
 #include <cardkb2.h>
 #endif
-
-constexpr uint32_t kBtnBDoublePressWindowMs = 270;
-constexpr uint32_t kBtnBLongPressMs = 500;
-constexpr uint32_t kBtnDebounceMs = 8;
 
 #define BTN_A_PIN 11
 #define BTN_B_PIN 12
@@ -16,74 +14,21 @@ constexpr uint32_t kBtnDebounceMs = 8;
 // --- M5PM1 power-management IC ------------------------------------------
 #define PM1_SDA 47
 #define PM1_SCL 48
-#define PM1_I2C_ADDR 0x6E
-#define PM1_REG_PWR_CFG 0x06
-#define PM1_REG_I2C_CFG 0x09
-#define PM1_REG_WDT_CNT 0x0A
-#define PM1_REG_SYS_CMD 0x0C
-#define PM1_REG_VBAT_L 0x22
-#define PM1_PWR_CFG_BOOST_EN (1 << 3)
-#define PM1_SYS_CMD_SHUTDOWN 0xA1
 
-static bool pm1WriteReg8(uint8_t reg, uint8_t val) {
-    Wire1.beginTransmission(PM1_I2C_ADDR);
-    Wire1.write(reg);
-    Wire1.write(val);
-    return Wire1.endTransmission() == 0;
-}
+static M5PM1 pm1;
 
-static bool pm1ReadReg(uint8_t reg, uint8_t *buf, size_t len) {
-    Wire1.beginTransmission(PM1_I2C_ADDR);
-    Wire1.write(reg);
-    if (Wire1.endTransmission(false) != 0) return false;
-    if (Wire1.requestFrom((int)PM1_I2C_ADDR, (int)len) != len) return false;
-    for (size_t i = 0; i < len; i++) buf[i] = Wire1.read();
-    return true;
-}
+// --- Buttons ---------------------------------------------------------------
+volatile bool nxtPress = false;
+volatile bool prvPress = false;
+volatile bool selPress = false;
+volatile bool escPress = false;
+static void onBtnANextCb(void *button_handle, void *usr_data) { nxtPress = true; }
+static void onBtnASelCb(void *button_handle, void *usr_data) { selPress = true; }
+static void onBtnBPrevCb(void *button_handle, void *usr_data) { prvPress = true; }
+static void onBtnBEscCb(void *button_handle, void *usr_data) { escPress = true; }
 
-static void pm1SetExtOutput(bool enable) {
-    uint8_t cfg = 0;
-    pm1ReadReg(PM1_REG_PWR_CFG, &cfg, 1);
-    if (enable) cfg |= PM1_PWR_CFG_BOOST_EN;
-    else cfg &= ~PM1_PWR_CFG_BOOST_EN;
-    pm1WriteReg8(PM1_REG_PWR_CFG, cfg);
-}
-
-// --- Button debounce ------------------------------------------------------
-// Stands in for M5Unified's Button_Class: same 8ms debounce, same hold/click
-// semantics InputHandler() below relies on.
-struct DebouncedButton {
-    uint8_t pin;
-    bool raw = false;
-    bool stable = false;
-    uint32_t lastChangeMs = 0;
-    uint32_t pressStartMs = 0;
-    bool wasPressedEdge = false;
-    bool wasReleasedEdge = false;
-
-    void update(uint32_t now) {
-        bool r = (launcherGpioRead(pin) == LOW);
-        if (r != raw) {
-            raw = r;
-            lastChangeMs = now;
-        }
-        wasPressedEdge = wasReleasedEdge = false;
-        if (stable != raw && (now - lastChangeMs) >= kBtnDebounceMs) {
-            stable = raw;
-            if (stable) {
-                pressStartMs = now;
-                wasPressedEdge = true;
-            } else {
-                wasReleasedEdge = true;
-            }
-        }
-    }
-
-    bool pressedFor(uint32_t ms) const { return stable && (launcherMillis() - pressStartMs) >= ms; }
-};
-
-static DebouncedButton btnA{BTN_A_PIN};
-static DebouncedButton btnB{BTN_B_PIN};
+Button *btnA;
+Button *btnB;
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -91,17 +36,26 @@ static DebouncedButton btnB{BTN_B_PIN};
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    Wire1.begin(PM1_SDA, PM1_SCL);
-    pm1WriteReg8(PM1_REG_I2C_CFG, 0x00); // disable I2C idle sleep
-    pm1WriteReg8(PM1_REG_WDT_CNT, 0x00); // disable watchdog
+    if (pm1.begin(&Wire1, M5PM1_DEFAULT_ADDR, PM1_SDA, PM1_SCL) != M5PM1_OK) {
+        launcherConsolePrintf("%s\n", String("M5PM1 init failed").c_str());
+    }
+    pm1.setChargeEnable(true);
+    launcherDelayMs(20);
+    pm1.setDcdcEnable(true);
+    launcherDelayMs(20);
+    pm1.setLdoEnable(true);
+    launcherDelayMs(20);
+
+    pm1.gpioSetFunc(M5PM1_GPIO_NUM_2, M5PM1_GPIO_FUNC_GPIO);
+    pm1.gpioSetMode(M5PM1_GPIO_NUM_2, M5PM1_GPIO_MODE_OUTPUT);
+    pm1.gpioSetDrive(M5PM1_GPIO_NUM_2, M5PM1_GPIO_DRIVE_PUSHPULL);
+    pm1.gpioSetOutput(M5PM1_GPIO_NUM_2, HIGH);
+    launcherDelayMs(20);
 
 #ifndef USE_CARDKB2
-    // Disable 5V output to external port. With CardKB2 support the rail must
-    // stay on from boot so the keyboard's MCU is booted by probe time;
-    // _post_setup_gpio() turns it off when no keyboard is found.
-    pm1SetExtOutput(false);
+    pm1.setBoostEnable(false);
 #else
-    pm1SetExtOutput(true); // CardKB2 needs Grove 5V, energized directly at boot
+    pm1.setBoostEnable(true); // CardKB2 needs Grove 5V, energized directly at boot
     delay(100);
 #endif
     /*
@@ -127,8 +81,32 @@ void _setup_gpio() {
     launcherGpioOutput(46);
     launcherGpioWrite(46, LOW); // Infrared LED Off
 
-    launcherGpioInput(BTN_A_PIN);
-    launcherGpioInput(BTN_B_PIN);
+    button_config_t cfgA = {
+        .type = BUTTON_TYPE_GPIO,
+        .long_press_time = 500,
+        .short_press_time = 120,
+        .gpio_button_config = {
+                               .gpio_num = BTN_A_PIN,
+                               .active_level = 0,
+                               },
+    };
+    button_config_t cfgB = {
+        .type = BUTTON_TYPE_GPIO,
+        .long_press_time = 500,
+        .short_press_time = 120,
+        .gpio_button_config = {
+                               .gpio_num = BTN_B_PIN,
+                               .active_level = 0,
+                               },
+    };
+
+    btnA = new Button(cfgA);
+    btnA->attachSingleClickEventCb(&onBtnANextCb, NULL);
+    btnA->attachLongPressStartEventCb(&onBtnASelCb, NULL);
+
+    btnB = new Button(cfgB);
+    btnB->attachSingleClickEventCb(&onBtnBPrevCb, NULL);
+    btnB->attachLongPressStartEventCb(&onBtnBEscCb, NULL);
 }
 
 /***************************************************************************************
@@ -145,7 +123,7 @@ void _post_setup_gpio() {
     // CardKB2 on the Grove port (G9/G10). Probing reconfigures G9 as I2C SDA,
     // so restore the RF433 anti-jam state if no keyboard is attached.
     if (!CardKB2Installed) {
-        pm1SetExtOutput(false);
+        pm1.setBoostEnable(false);
         launcherGpioOutput(9);
         launcherGpioWrite(9, LOW); // M5RF433 avoid Jamming
     }
@@ -172,10 +150,9 @@ void _setBrightness(uint8_t brightval) {
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
 int getBattery() {
-    uint8_t buf[2] = {0, 0};
-    if (!pm1ReadReg(PM1_REG_VBAT_L, buf, sizeof(buf))) return 0;
-    float mv = (float)((buf[1] << 8) | buf[0]);
-    int level = (int)((mv - 3300.0f) * 100.0f / (4150.0f - 3350.0f));
+    uint16_t mv = 0;
+    if (pm1.readVbat(&mv) != M5PM1_OK) return 0;
+    int level = (int)(((float)mv - 3300.0f) * 100.0f / (4150.0f - 3350.0f));
     return (level < 0) ? 0 : (level >= 100) ? 100 : level;
 }
 
@@ -184,57 +161,26 @@ int getBattery() {
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static uint32_t btnBFirstReleaseMs = 0;
-    static bool btnBWaitingSecondClick = false;
-    static bool btnBLongPressFired = false;
+    static unsigned long tm = launcherMillis();
+    static bool btn_pressed = false;
+    if (nxtPress || prvPress || selPress || escPress) btn_pressed = true;
 
-    uint32_t now = launcherMillis();
-    btnA.update(now);
-    btnB.update(now);
+    if (launcherMillis() - tm > 200 || LongPress) {
+        if (btn_pressed) {
+            btn_pressed = false;
+            if (!wakeUpScreen()) AnyKeyPress = true;
+            else return;
+            NextPress = nxtPress;
+            PrevPress = prvPress;
+            SelPress = selPress;
+            EscPress = escPress;
 
-    bool emitNext = false;
-    bool emitPrev = false;
-    bool emitEsc = false;
-    bool btnAActive = btnA.stable;
-    bool btnBActive = btnB.stable;
-
-    if (btnB.wasPressedEdge) btnBLongPressFired = false;
-
-    if (btnBActive && !btnBLongPressFired && btnB.pressedFor(kBtnBLongPressMs)) {
-        btnBLongPressFired = true;
-        btnBWaitingSecondClick = false;
-        emitEsc = true;
-    }
-
-    if (btnB.wasReleasedEdge) {
-        if (btnBLongPressFired) {
-            btnBLongPressFired = false;
-        } else if (btnBWaitingSecondClick && now - btnBFirstReleaseMs <= kBtnBDoublePressWindowMs) {
-            btnBWaitingSecondClick = false;
-            emitPrev = true;
-        } else {
-            btnBWaitingSecondClick = true;
-            btnBFirstReleaseMs = now;
+            nxtPress = false;
+            prvPress = false;
+            selPress = false;
+            escPress = false;
         }
     }
-
-    if (btnBWaitingSecondClick && !btnBActive && now - btnBFirstReleaseMs > kBtnBDoublePressWindowMs) {
-        btnBWaitingSecondClick = false;
-        emitNext = true;
-    }
-
-    bool btnAClicked = btnA.wasReleasedEdge;
-
-    if (btnAActive || btnBActive || btnBWaitingSecondClick || btnAClicked || emitNext || emitPrev || emitEsc)
-        AnyKeyPress = true;
-    if (!AnyKeyPress) return;
-
-    if ((btnAActive || btnBActive) && wakeUpScreen()) return;
-
-    if (btnAClicked) SelPress = true;
-    if (emitNext) NextPress = true;
-    if (emitPrev) PrevPress = true;
-    if (emitEsc) EscPress = true;
 }
 
 /*********************************************************************
@@ -242,4 +188,4 @@ void InputHandler(void) {
 ** location: mykeyboard.cpp
 ** Turns off the device (or try to)
 **********************************************************************/
-void powerOff() { pm1WriteReg8(PM1_REG_SYS_CMD, PM1_SYS_CMD_SHUTDOWN); }
+void powerOff() { pm1.shutdown(); }

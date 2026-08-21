@@ -140,6 +140,200 @@ JsonObject ensureSettingsRoot() {
     return setting;
 }
 
+String get_efuse_mac_as_string();
+
+int applySettingsFromRoot(JsonObject setting) {
+    int count = 0;
+
+    if (setting["onlyBins"].is<bool>()) onlyBins = setting["onlyBins"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing onlyBins");
+    }
+
+    if (setting["bootToApp"].is<bool>()) bootToApp = setting["bootToApp"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing bootToApp");
+    }
+
+    if (setting["noDotFiles"].is<bool>()) noDotFiles = setting["noDotFiles"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing noDotFiles");
+    }
+
+    if (setting["autoBackup"].is<bool>()) autoBackup = setting["autoBackup"].as<bool>();
+    else log_i("applySettingsFromRoot: missing autoBackup");
+
+    if (setting["askSpiffs"].is<bool>()) askSpiffs = setting["askSpiffs"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing askSpiffs");
+    }
+
+    if (setting["bright"].is<int>()) bright = setting["bright"].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing bright");
+    }
+
+    if (setting["dimmerSet"].is<int>()) dimmerSet = setting["dimmerSet"].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing dimmerSet");
+    }
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
+    if (setting[get_efuse_mac_as_string()].is<int>()) rotation = setting[get_efuse_mac_as_string()].as<int>();
+    else if (setting[rot_dev_name].is<int>()) rotation = setting[rot_dev_name].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing rotation");
+    }
+
+#ifndef E_PAPER_DISPLAY
+    if (setting["FGCOLOR"].is<uint16_t>()) FGCOLOR = setting["FGCOLOR"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing FGCOLOR");
+    }
+
+    if (setting["BGCOLOR"].is<uint16_t>()) BGCOLOR = setting["BGCOLOR"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing BGCOLOR");
+    }
+
+    if (setting["ALCOLOR"].is<uint16_t>()) ALCOLOR = setting["ALCOLOR"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing ALCOLOR");
+    }
+
+    if (setting["odd"].is<uint16_t>()) odd_color = setting["odd"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing odd");
+    }
+
+    if (setting["even"].is<uint16_t>()) even_color = setting["even"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing even");
+    }
+#endif
+
+    if (setting["dev"].is<bool>()) dev_mode = setting["dev"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing dev");
+    }
+    if (setting["autoConnect"].is<bool>()) autoConnect = setting["autoConnect"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing autoConnect");
+    }
+
+    if (setting["wui_usr"].is<String>()) wui_usr = setting["wui_usr"].as<String>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing wui_usr");
+    }
+
+    if (setting["wui_pwd"].is<String>()) wui_pwd = setting["wui_pwd"].as<String>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing wui_pwd");
+    }
+
+    if (setting["dwn_path"].is<String>()) dwn_path = setting["dwn_path"].as<String>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing dwn_path");
+    }
+
+    if (setting["wifi"].is<JsonArray>()) {
+        for (JsonObject wifiEntry : setting["wifi"].as<JsonArray>()) {
+            if (wifiEntry["secure"].as<bool>()) {
+                wifiEntry["pwd"] = wifiPwdDecrypt(wifiEntry["pwd"].as<String>());
+                wifiEntry.remove("secure");
+            } else if (!wifiEntry["ssid"].as<String>().isEmpty()) {
+                ++count; // plain-text entry — trigger re-save with encryption
+            }
+        }
+    } else {
+        ++count;
+        log_i("applySettingsFromRoot: missing wifi");
+    }
+
+    if (setting["favorite"].is<JsonArray>()) {
+        favorite = setting["favorite"].as<JsonArray>();
+    } else {
+        ++count;
+        log_i("applySettingsFromRoot: missing favorite");
+    }
+
+    return count;
+}
+
+void populateSettingsFromGlobals(JsonObject setting) {
+    if (!setting["favorite"].is<JsonArray>()) favorite = setting.createNestedArray("favorite");
+    else favorite = setting["favorite"].as<JsonArray>();
+    if (!setting["wifi"].is<JsonArray>()) setting.createNestedArray("wifi");
+
+    setting["onlyBins"] = onlyBins;
+    setting["bootToApp"] = bootToApp;
+    setting["noDotFiles"] = noDotFiles;
+    setting["autoBackup"] = autoBackup;
+    setting["askSpiffs"] = askSpiffs;
+    setting["bright"] = bright;
+    setting["dimmerSet"] = dimmerSet;
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
+    setting[rot_dev_name] = rotation;
+    setting["FGCOLOR"] = FGCOLOR;
+    setting["BGCOLOR"] = BGCOLOR;
+    setting["ALCOLOR"] = ALCOLOR;
+    setting["odd"] = odd_color;
+    setting["even"] = even_color;
+    setting["dev"] = dev_mode;
+    setting["autoConnect"] = autoConnect;
+    setting["wui_usr"] = wui_usr;
+    setting["wui_pwd"] = wui_pwd;
+    setting["dwn_path"] = dwn_path;
+}
+
+void printSettingsJson() {
+    JsonObject setting = ensureSettingsRoot();
+    if (setting.isNull()) {
+        launcherConsolePrintln("ERR failed to prepare settings");
+        return;
+    }
+    populateSettingsFromGlobals(setting);
+    String out;
+    serializeJson(setting, out);
+    launcherConsolePrintLong(out.c_str());
+}
+
+bool loadSettingsJson(const String &json) {
+    JsonDocument incoming;
+    DeserializationError error = deserializeJson(incoming, json);
+    if (error || !incoming.is<JsonObject>()) {
+        log_e("loadSettingsJson: parse error (%s)", error.c_str());
+        return false;
+    }
+
+    JsonObject setting = ensureSettingsRoot();
+    if (setting.isNull()) return false;
+
+    for (JsonPair kv : incoming.as<JsonObject>()) setting[kv.key()] = kv.value();
+
+    applySettingsFromRoot(setting);
+    setBrightness(bright);
+    if (dimmerSet > 120) dimmerSet = 10;
+    saveConfigs();
+    return true;
+}
+
 bool getWifiCredential(const String &searchSsid, String &outPwd) {
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
@@ -244,6 +438,22 @@ bool clearWifiCredentials() {
     wifiListDirty = true;
     saveConfigs();
     return true;
+}
+
+std::vector<LauncherSavedWifiNetwork> getSavedWifiNetworks() {
+    std::vector<LauncherSavedWifiNetwork> result;
+    JsonArray wifiList = ensureWifiListInternal();
+    if (wifiList.isNull()) return result;
+
+    for (JsonObject wifiEntry : wifiList) {
+        String ssid = wifiEntry["ssid"].as<String>();
+        if (ssid.isEmpty()) continue;
+        LauncherSavedWifiNetwork net;
+        net.ssid = ssid;
+        net.hasPassword = wifiEntry["pwd"].as<String>().length() > 0;
+        result.push_back(net);
+    }
+    return result;
 }
 
 bool getKeyBinding(const String &key, String &outPath) {
@@ -613,9 +823,6 @@ void chargeMode() {
     unsigned long tmp = 0;
     while (!check(SelPress)) {
         if (launcherMillis() - tmp > 5000) {
-            // The whole point of this mode is a device that goes dark on the charger,
-            // so this repaint must not restart the screen-off timer: it comes round
-            // faster than the shortest timeout and would hold the backlight forever.
             displayRedStripe(String(getBattery()) + " %", getComplementaryColor(BGCOLOR), ALCOLOR, false);
             tmp = launcherMillis();
         }
@@ -768,10 +975,6 @@ bool getFromNVS() {
         return false;
     }
     nvs_handle_t h = nvsHandle.raw();
-
-    // A key that is not there yet is expected after a firmware update adds new
-    // settings, so a miss leaves the variable at its default instead of failing the
-    // whole read. Only the namespace being unreadable falls back to defaultValues().
     lnvs::getInt(h, "dimtime", dimmerSet);
     lnvs::getInt(h, "bright", bright);
     lnvs::getBool(h, "onlyBins", onlyBins);
@@ -875,137 +1078,8 @@ void getConfigs() {
     }
 
     log_i("getConfigs: deserialized correctly");
-    int count = 0;
     JsonObject setting = settings[0];
-
-    if (setting["onlyBins"].is<bool>()) onlyBins = setting["onlyBins"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing onlyBins");
-    }
-
-    if (setting["bootToApp"].is<bool>()) bootToApp = setting["bootToApp"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing bootToApp");
-    }
-
-    if (setting["noDotFiles"].is<bool>()) noDotFiles = setting["noDotFiles"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing noDotFiles");
-    }
-
-    if (setting["autoBackup"].is<bool>()) autoBackup = setting["autoBackup"].as<bool>();
-    else log_i("getConfigs: missing autoBackup");
-
-    if (setting["askSpiffs"].is<bool>()) askSpiffs = setting["askSpiffs"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing askSpiffs");
-    }
-
-    if (setting["bright"].is<int>()) bright = setting["bright"].as<int>();
-    else {
-        count++;
-        log_i("getConfigs: missing bright");
-    }
-
-    if (setting["dimmerSet"].is<int>()) dimmerSet = setting["dimmerSet"].as<int>();
-    else {
-        count++;
-        log_i("getConfigs: missing dimmerSet");
-    }
-    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
-    if (setting[get_efuse_mac_as_string()].is<int>()) rotation = setting[get_efuse_mac_as_string()].as<int>();
-    else if (setting[rot_dev_name].is<int>()) rotation = setting[rot_dev_name].as<int>();
-    else {
-        count++;
-        log_i("getConfigs: missing rotation");
-    }
-
-#ifndef E_PAPER_DISPLAY
-    if (setting["FGCOLOR"].is<uint16_t>()) FGCOLOR = setting["FGCOLOR"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing FGCOLOR");
-    }
-
-    if (setting["BGCOLOR"].is<uint16_t>()) BGCOLOR = setting["BGCOLOR"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing BGCOLOR");
-    }
-
-    if (setting["ALCOLOR"].is<uint16_t>()) ALCOLOR = setting["ALCOLOR"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing ALCOLOR");
-    }
-
-    if (setting["odd"].is<uint16_t>()) odd_color = setting["odd"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing odd");
-    }
-
-    if (setting["even"].is<uint16_t>()) even_color = setting["even"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing even");
-    }
-#endif
-
-    if (setting["dev"].is<bool>()) dev_mode = setting["dev"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing dev");
-    }
-    if (setting["autoConnect"].is<bool>()) autoConnect = setting["autoConnect"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing autoConnect");
-    }
-
-    if (setting["wui_usr"].is<String>()) wui_usr = setting["wui_usr"].as<String>();
-    else {
-        count++;
-        log_i("getConfigs: missing wui_usr");
-    }
-
-    if (setting["wui_pwd"].is<String>()) wui_pwd = setting["wui_pwd"].as<String>();
-    else {
-        count++;
-        log_i("getConfigs: missing wui_pwd");
-    }
-
-    if (setting["dwn_path"].is<String>()) dwn_path = setting["dwn_path"].as<String>();
-    else {
-        count++;
-        log_i("getConfigs: missing dwn_path");
-    }
-
-    if (setting["wifi"].is<JsonArray>()) {
-        for (JsonObject wifiEntry : setting["wifi"].as<JsonArray>()) {
-            if (wifiEntry["secure"].as<bool>()) {
-                wifiEntry["pwd"] = wifiPwdDecrypt(wifiEntry["pwd"].as<String>());
-                wifiEntry.remove("secure");
-            } else if (!wifiEntry["ssid"].as<String>().isEmpty()) {
-                ++count; // plain-text entry — trigger re-save with encryption
-            }
-        }
-    } else {
-        ++count;
-        log_i("getConfigs: missing wifi");
-    }
-
-    if (setting["favorite"].is<JsonArray>()) {
-        favorite = setting["favorite"].as<JsonArray>();
-    } else {
-        ++count;
-        log_i("getConfigs: missing favorite");
-    }
-
+    int count = applySettingsFromRoot(setting);
     if (count > 0) saveConfigs();
 
     log_i("Brightness: %d", bright);
@@ -1032,13 +1106,10 @@ void saveConfigs() {
         return;
     }
 
-    // Ensure favorite array exists
-    if (!setting["favorite"].is<JsonArray>()) favorite = setting.createNestedArray("favorite");
-    else favorite = setting["favorite"].as<JsonArray>();
+    populateSettingsFromGlobals(setting);
 
     // Ensure wifi array has at least a placeholder entry
     JsonArray wifiList = setting["wifi"].as<JsonArray>();
-    if (wifiList.isNull()) wifiList = setting.createNestedArray("wifi");
     if (!wifiList.isNull() && wifiList.size() == 0) {
         JsonObject wifiObj = wifiList.add<JsonObject>();
         if (!wifiObj.isNull()) {
@@ -1046,27 +1117,6 @@ void saveConfigs() {
             wifiObj["pwd"] = pwd.length() == 0 ? "myNetPwd" : pwd;
         }
     }
-
-    // Update known settings keys (unknown keys are untouched)
-    setting["onlyBins"] = onlyBins;
-    setting["bootToApp"] = bootToApp;
-    setting["noDotFiles"] = noDotFiles;
-    setting["autoBackup"] = autoBackup;
-    setting["askSpiffs"] = askSpiffs;
-    setting["bright"] = bright;
-    setting["dimmerSet"] = dimmerSet;
-    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
-    setting[rot_dev_name] = rotation;
-    setting["FGCOLOR"] = FGCOLOR;
-    setting["BGCOLOR"] = BGCOLOR;
-    setting["ALCOLOR"] = ALCOLOR;
-    setting["odd"] = odd_color;
-    setting["even"] = even_color;
-    setting["dev"] = dev_mode;
-    setting["autoConnect"] = autoConnect;
-    setting["wui_usr"] = wui_usr;
-    setting["wui_pwd"] = wui_pwd;
-    setting["dwn_path"] = dwn_path;
 
     // Encrypt wifi passwords before writing to SD
     {
@@ -1119,7 +1169,6 @@ void saveConfigs() {
 #if defined(HAS_RESISTIVE_TOUCH)
 #include <CYD28_TouchscreenR.h>
 
-namespace {
 constexpr const char *TOUCH_CAL_NAMESPACE = "touch_cal";
 
 bool validTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1) {
@@ -1144,12 +1193,7 @@ esp_err_t readTouchCalibrationItems(
     err |= nvs_get_u8(handle, "r", &rot);
     return err;
 }
-} // namespace
 
-// Reads the raw calibration values from NVS namespace "touch_cal" without
-// applying them to the live touch driver. Used by loadTouchCalibration() and by
-// the "calibrate show/mirror/swapXY" serial commands, which need to inspect or
-// tweak what's persisted without necessarily re-running the wizard.
 bool getTouchCalibration(uint16_t &x0, uint16_t &x1, uint16_t &y0, uint16_t &y1, uint8_t &rot) {
     x0 = 0;
     x1 = 0;

@@ -3,8 +3,7 @@
 #include <M5Unified.h>
 #include <interface.h>
 
-constexpr uint32_t kBtnBDoublePressWindowMs = 270;
-constexpr uint32_t kBtnBLongPressMs = 500;
+constexpr uint32_t kBtnLongPressMs = 500;
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -15,7 +14,8 @@ void _setup_gpio() {
     M5.begin(); // Need to test if SDCard inits with the new setup
     M5.BtnA.setDebounceThresh(8);
     M5.BtnB.setDebounceThresh(8);
-    M5.BtnB.setHoldThresh(kBtnBLongPressMs);
+    M5.BtnA.setHoldThresh(kBtnLongPressMs);
+    M5.BtnB.setHoldThresh(kBtnLongPressMs);
 }
 
 /***************************************************************************************
@@ -42,16 +42,18 @@ void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
-    static uint32_t btnBFirstReleaseMs = 0;
-    static bool btnBWaitingSecondClick = false;
+    static bool btnALongPressFired = false;
     static bool btnBLongPressFired = false;
     if (millis() - tm < 200 && !LongPress) return;
+    vTaskDelay(pdMS_TO_TICKS(50));
     M5.update();
 
+    // Standard launcher 2-button pattern: short click on BtnA -> Next, its
+    // long press -> Sel; short click on BtnB -> Prev, its long press -> Esc.
     bool emitNext = false;
+    bool emitSel = false;
     bool emitPrev = false;
     bool emitEsc = false;
-    uint32_t now = millis();
 
     auto t = M5.Touch.getDetail();
     if (t.isPressed() || t.isHolding()) {
@@ -68,39 +70,27 @@ void InputHandler(void) {
     bool btnAActive = M5.BtnA.isPressed() || M5.BtnA.isHolding();
     bool btnBActive = M5.BtnB.isPressed() || M5.BtnB.isHolding();
 
-    if (M5.BtnB.wasPressed()) btnBLongPressFired = false;
+    if (M5.BtnA.wasPressed()) btnALongPressFired = false;
+    if (btnAActive && !btnALongPressFired && M5.BtnA.pressedFor(kBtnLongPressMs)) {
+        btnALongPressFired = true;
+        emitSel = true;
+    }
+    if (M5.BtnA.wasReleased() && !btnALongPressFired) emitNext = true;
 
-    if (btnBActive && !btnBLongPressFired && M5.BtnB.pressedFor(kBtnBLongPressMs)) {
+    if (M5.BtnB.wasPressed()) btnBLongPressFired = false;
+    if (btnBActive && !btnBLongPressFired && M5.BtnB.pressedFor(kBtnLongPressMs)) {
         btnBLongPressFired = true;
-        btnBWaitingSecondClick = false;
         emitEsc = true;
     }
+    if (M5.BtnB.wasReleased() && !btnBLongPressFired) emitPrev = true;
 
-    if (M5.BtnB.wasReleased()) {
-        if (btnBLongPressFired) {
-            btnBLongPressFired = false;
-        } else if (btnBWaitingSecondClick && now - btnBFirstReleaseMs <= kBtnBDoublePressWindowMs) {
-            btnBWaitingSecondClick = false;
-            emitPrev = true;
-        } else {
-            btnBWaitingSecondClick = true;
-            btnBFirstReleaseMs = now;
-        }
-    }
-
-    if (btnBWaitingSecondClick && !btnBActive && now - btnBFirstReleaseMs > kBtnBDoublePressWindowMs) {
-        btnBWaitingSecondClick = false;
-        emitNext = true;
-    }
-
-    AnyKeyPress = btnAActive || btnBActive || btnBWaitingSecondClick || M5.BtnA.wasClicked() || emitNext ||
-                  emitPrev || emitEsc;
+    AnyKeyPress = btnAActive || btnBActive || emitNext || emitSel || emitPrev || emitEsc;
     if (!AnyKeyPress) return;
 
     if ((btnAActive || btnBActive) && wakeUpScreen()) return;
 
-    if (M5.BtnA.wasClicked()) SelPress = true;
     if (emitNext) NextPress = true;
+    if (emitSel) SelPress = true;
     if (emitPrev) PrevPress = true;
     if (emitEsc) EscPress = true;
 }

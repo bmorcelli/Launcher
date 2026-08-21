@@ -209,6 +209,7 @@ void initDisplay(bool doAll) {
             if (_x >= (tftWidth - (LW * _fp + 4))) {
                 _x = 10;
                 _y += LH * _fp;
+                ALIVIATE_TASK;
             }
         }
         tft->setCursor(_x, _y);
@@ -675,6 +676,7 @@ Opt_Coord drawOptions(
     if (showPageUp) { addNavLine("-- Page Up --", true); }
 #endif
     for (int i = 0; i < optionCount && (start + i) < arraySize; ++i) {
+        ALIVIATE_TASK;
         int optionIndex = start + i;
         int rowTop = textStartY + rowIndex * (lineHeight + rowSpacing);
         int rowLeft = boxX + paddingSide;
@@ -795,6 +797,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index) {
     for (int i = 0; i < size; ++i) opt[i].resetCoords();
 
     for (int slot = 0; slot < visibleItems; ++slot) {
+        ALIVIATE_TASK;
         int i = slot;
         if (compactOneLine && size > cols) {
             int centerSlot = cols / 2;
