@@ -267,7 +267,6 @@ void setup() {
     // Gets the config.conf from SD Card and fill out the settings JSON
     getConfigs();
     RAM_LOG("after-getConfigs");
-    TouchFooter2();
 
     launcherInputLockInit();
     xTaskCreate(
@@ -492,7 +491,6 @@ void loop() {
                 saveConfigs();
             }
             drawMainMenu(menuItems, index, first_loop);
-            TouchFooter();
             redraw = false;
             LongPress = false;
             returnToMenu = false;

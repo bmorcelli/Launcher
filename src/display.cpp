@@ -265,9 +265,7 @@ void initDisplay(bool doAll) {
         tft->drawCentreString(" " + selectedAppName + " ", tftWidth / 2, appTextY, 1);
     }
 
-#ifdef E_PAPER_DISPLAY // epaper display draws only once
-    TouchFooter2();
-#endif
+    if (doAll) TouchFooter2();
     tft->display(false);
     vTaskDelay(50 / portTICK_PERIOD_MS);
 #endif
@@ -858,6 +856,7 @@ Opt_Coord drawOptions(
             rowIndex++;
         }
     }
+    TouchFooter(FGCOLOR);
     tft->display(false);
 
     return coord;
@@ -991,6 +990,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
         else tft->drawString("Launcher " + String(LAUNCHER), 12 + RES, 12);
         tft->setTextSize(maxIconTextSize);
         drawDeviceBorder();
+        TouchFooter();
     }
     int bat = getBattery();
     if (bat > 0) drawBatteryStatus(bat);
@@ -1157,8 +1157,6 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
             }
             if (bright) { setBrightness(100 * (numOpt - index) / numOpt, false); }
 
-            // Static footer text, no need to repaint it on every selection change.
-            if (wasFirstDraw) TouchFooter();
             redraw = false;
         }
         if (index >= 0 && index < static_cast<int>(options.size())) {
@@ -1267,8 +1265,6 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
         if (check(EscPress) || returnToMenu || exit) return -1;
 #endif
     }
-
-    TouchFooter(FGCOLOR);
 
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
     M5.Display.setEpdMode(epd_mode_t::epd_quality);
