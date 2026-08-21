@@ -515,7 +515,8 @@ void loop() {
                         first_loop = true;
                     } else {
                         index = i;
-                        drawMainMenu(menuItems, index); // Redraw the menu to show the selected item
+                        // Just a selection move: only the old/new icon need repainting.
+                        drawMainMenu(menuItems, index, false);
                         break;
                     }
 
