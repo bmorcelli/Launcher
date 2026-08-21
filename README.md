@@ -102,12 +102,13 @@ Things that need to be done in future updates
 * 2.9.0:
      * [x] Port to [T-Display P4](https://lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO)
      * [x] Port to [T-Display C5](https://lilygo.cc/products/t-display-c5?bg_ref=sDI8Bh4HmO)
-     * [x] Port to [ES3C28P](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display) aka `Cheap Black Display`, thanks to @AlexeOnTheShip
+     * [x] Port to [ESP32-S3 ES3C28P 2.8"](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display) aka `Cheap Black Display`, thanks to @AlexeOnTheShip
      * [x] Port to [Elecrow Crowpanel Advance ESP32-S3 5.0in](https://www.elecrow.com/crowpanel-advance-5-0-hmi-esp32-ai-display-800x480-ips-artificial-intelligent-touch-screen.html)
      * [x] Port to [Elecrow Crowpanel Advance ESP32-P4 7.0in](https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html)
      * [x] Port to [XTeink X3](https://www.xteink.com/products/xteink-x3)
      * [x] **BETA**: Port to [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) - Need validating touchscreen and display
-     * [x] **BETA**:Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html)
+     * [x] **BETA**: Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html)
+     * [x] **BETA**: Port to [ESP32 E32R40T 4"](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display)
      * [x] **ATENTION**: Arduino Nesso N1 and M5Stack StickS3 Navigation has changed, Front button short press to move Next and Long press to Select, Side button short press to mode Previous an long press to Escape.. on Keyboard, holding Escape will change the moviment from Left/Up to Right/Down, so typing will be easier to handle (after you master it).
      * [x] Added option to opt-out from Automatically connect to a known Network.
      * [x] Moved display drivers handling to [DisplayDrivers](https://github.com/bmorcelli/DisplayDrivers) lib, using its superclass to handle all display drivers used by Launcher. This removed `tft.h`/`tft_inits.h` and the Arduino_GFX DSI patch scripts from the project.

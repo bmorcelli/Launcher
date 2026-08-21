@@ -79,6 +79,7 @@
             - { env: "CYD-2432S032R"              }
             - { env: "CYD-3248S035R"              }
             - { env: "CYD-3248S035C"              }
+            - { env: "ESP32-E32R40T"              }
             - { env: "CYD-8048S043C"              }
             - { env: "CYD-8048W550C"              }
             - { env: "NM-CYD-C5"                  }
