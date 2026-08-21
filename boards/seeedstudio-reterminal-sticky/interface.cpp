@@ -37,6 +37,13 @@ TouchDrvGT911 touch;
 // Must be driven high before the panel is brought up.
 #define EPD_EN 47
 
+// --- microSD power enable -----------------------------------------------
+// Confirmed by Seeed support: must be driven high and given ~100ms to settle
+// before the card is touched. Both this pin and TFT/SD CS live on the same
+// SPI2 bus as the e-paper, so SPI.begin() (below) stays shared and is never
+// torn down after SD access -- the panel still needs it for refresh.
+#define SD_PWR_EN 10
+
 // --- GT911 touch (I2C0) -------------------------------------------------
 #define TOUCH_SDA 3
 #define TOUCH_SCL 2
@@ -63,10 +70,6 @@ static bool touchReady = false;
 
 static bool bringUpTouch() {
     static const uint8_t addrs[2] = {TOUCH_ADDR_L, TOUCH_ADDR_H};
-
-    launcherGpioOutput(TOUCH_EN);
-    launcherGpioWrite(TOUCH_EN, HIGH);
-    launcherDelayMs(250);
 
     for (uint8_t addr : addrs) {
         touch.setPins(TOUCH_RST, TOUCH_INT);
@@ -110,31 +113,43 @@ void _setup_gpio() {
 
     powerOnHold();
 
-    launcherGpioInputPullup(BTN_PREV);
-    launcherGpioInputPullup(BTN_NEXT);
-    launcherGpioInputPullup(BTN_SEL_PWR);
-
+    // Powered up here, well ahead of the first setupSdCard() call later in
+    // boot, so the confirmed 100ms settle time is already spent by then.
+    launcherGpioOutput(TOUCH_EN);
+    launcherGpioWrite(TOUCH_EN, HIGH);
+    launcherGpioOutput(SD_PWR_EN);
+    launcherGpioWrite(SD_PWR_EN, HIGH);
     launcherGpioOutput(EPD_EN);
     launcherGpioWrite(EPD_EN, HIGH);
-
-    // Active low; left undriven the charger stays disabled.
     launcherGpioOutput(BAT_CHG_EN);
-    launcherGpioWrite(BAT_CHG_EN, LOW);
-
+    launcherGpioWrite(BAT_CHG_EN, LOW); // Active low; left undriven the charger stays disabled.
+    // Drive CS Pins High
     launcherGpioOutput(TFT_CS);
     launcherGpioWrite(TFT_CS, HIGH);
     launcherGpioOutput(SDCARD_CS);
     launcherGpioWrite(SDCARD_CS, HIGH);
+
+    // Setup Inputs
+    launcherGpioInputPullup(BTN_PREV);
+    launcherGpioInputPullup(BTN_NEXT);
+    launcherGpioInputPullup(BTN_SEL_PWR);
+
+    // Start SPI interface
     SPI.begin(TFT_SCLK, SDCARD_MISO, TFT_MOSI, TFT_CS);
 
+    // Restart Wire on the pinouts
+    Wire.end();
     pinMode(TOUCH_SDA, INPUT_PULLUP);
     pinMode(TOUCH_SCL, INPUT_PULLUP);
+    if (!Wire.begin(TOUCH_SDA, TOUCH_SCL)) launcherConsolePrintln("Fail Starting Wire");
+    // The fuel gauge is on its own I2C bus (Wire1), separate from touch.
     pinMode(GAUGE_SDA, INPUT_PULLUP);
     pinMode(GAUGE_SCL, INPUT_PULLUP);
-
-    // The fuel gauge is on its own I2C bus (Wire1), separate from touch.
-    Wire1.begin(GAUGE_SDA, GAUGE_SCL, GAUGE_I2C_FREQ);
+    if (!Wire1.begin(GAUGE_SDA, GAUGE_SCL, GAUGE_I2C_FREQ)) launcherConsolePrintln("Fail Starting Wire1");
     Wire1.setTimeOut(4);
+
+    // Time to raise 3.3V rails on SDCard/TFT/Touch
+    launcherDelayMs(250);
 }
 
 /***************************************************************************************
@@ -285,42 +300,4 @@ void powerOff() {
     esp_sleep_enable_ext0_wakeup((gpio_num_t)BTN_SEL_PWR, LOW);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
-}
-
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to turn off the device (name is odd btw)
-**********************************************************************/
-void checkReboot() {
-    if (launcherGpioRead(BTN_SEL_PWR) != LOW) return;
-
-    const uint32_t start = launcherMillis();
-    int lastCountDown = -1;
-    while (launcherGpioRead(BTN_SEL_PWR) == LOW) {
-        if (launcherMillis() - start > 500) {
-            const int countDown = (launcherMillis() - start) / 1000 + 1;
-            if (countDown < 3) {
-                // One refresh per second at most: this panel cannot repaint
-                // per frame.
-                if (countDown != lastCountDown) {
-                    lastCountDown = countDown;
-                    tft->setTextSize(1);
-                    tft->setTextColor(FGCOLOR, BGCOLOR);
-                    tft->drawCentreString("PWR OFF IN " + String(countDown) + "/2", tftWidth / 2, 12, 1);
-                    tft->display();
-                }
-            } else {
-                tft->fillScreen(BGCOLOR);
-                tft->display();
-                powerOff();
-            }
-        }
-        launcherDelayMs(10);
-    }
-
-    if (lastCountDown >= 0) {
-        tft->fillRect(0, 12, tftWidth, LH, BGCOLOR);
-        tft->display();
-    }
 }

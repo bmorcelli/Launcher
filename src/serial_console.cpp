@@ -183,6 +183,10 @@ static void handleNavCommand(const String &target) {
         SelPress = true;
     } else if (target.equalsIgnoreCase("EscPress") || target.equalsIgnoreCase("esc")) {
         EscPress = true;
+    } else if (target.equalsIgnoreCase("UpPress") || target.equalsIgnoreCase("up")) {
+        UpPress = true;
+    } else if (target.equalsIgnoreCase("DownPress") || target.equalsIgnoreCase("down")) {
+        DownPress = true;
     } else {
         launcherConsolePrintln("ERR unknown nav target");
         return;
