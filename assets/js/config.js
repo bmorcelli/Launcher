@@ -179,6 +179,85 @@ const parseCalibration = (lines) => {
     return null;
 };
 const firstNonEmptyLine = (lines) => lines.map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+const SETTINGS_NON_EDITABLE_KEYS = new Set(["wifi", "favorite"]);
+// Matches "aa:bb:cc:dd:ee:ff" or "aa:bb:cc:dd:ee:ff-Device Name".
+const ROTATION_KEY_RE = /^([0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2}(-.*)?$/;
+const isRotationKey = (key) => ROTATION_KEY_RE.test(key);
+const SETTINGS_BOOL_FIELDS = [
+    { key: "onlyBins", label: "Only show .bin files", help: "Filter the file browser to firmware binaries only." },
+    {
+        key: "bootToApp",
+        label: "Boot straight into queued app",
+        help: "Skip the Launcher menu and auto-boot the last installed app."
+    },
+    { key: "noDotFiles", label: "Hide dotfiles", help: "Hide files/folders starting with a dot in the file browser." },
+    { key: "autoBackup", label: "Auto backup" },
+    { key: "askSpiffs", label: "Ask before using SPIFFS", help: "Prompt before formatting/using the SPIFFS partition." },
+    { key: "dev", label: "Developer mode" },
+    { key: "autoConnect", label: "Auto-connect WiFi", help: "Automatically connect to a known network on boot." }
+];
+const SETTINGS_NUMBER_FIELDS = [
+    { key: "bright", label: "Brightness (%)", min: 0, max: 100 },
+    { key: "dimmerSet", label: "Dimmer timeout (seconds)", min: 0 }
+];
+const SETTINGS_STRING_FIELDS = [
+    { key: "wui_usr", label: "Web UI username" },
+    { key: "wui_pwd", label: "Web UI password", password: true },
+    { key: "dwn_path", label: "Download path" }
+];
+const SETTINGS_COLOR_FIELDS = [
+    { key: "FGCOLOR", label: "Foreground color" },
+    { key: "BGCOLOR", label: "Background color" },
+    { key: "ALCOLOR", label: "Accent/alert color" },
+    { key: "odd", label: "List row color (odd)" },
+    { key: "even", label: "List row color (even)" }
+];
+// RGB565 <-> #rrggbb. round(n * 255 / max) is bit-exact reversible for both
+// the 5-bit and 6-bit channels, so a color nobody touches survives unchanged.
+const rgb565ToHex = (value) => {
+    const r5 = (value >> 11) & 0x1f;
+    const g6 = (value >> 5) & 0x3f;
+    const b5 = value & 0x1f;
+    const toHex = (n) => n.toString(16).padStart(2, "0");
+    return `#${toHex(Math.round((r5 * 255) / 31))}${toHex(Math.round((g6 * 255) / 63))}${toHex(Math.round((b5 * 255) / 31))}`;
+};
+const hexToRgb565 = (hex) => {
+    const clean = hex.replace("#", "");
+    const r8 = parseInt(clean.slice(0, 2), 16) || 0;
+    const g8 = parseInt(clean.slice(2, 4), 16) || 0;
+    const b8 = parseInt(clean.slice(4, 6), 16) || 0;
+    const r5 = Math.round((r8 * 31) / 255);
+    const g6 = Math.round((g8 * 63) / 255);
+    const b5 = Math.round((b8 * 31) / 255);
+    return ((r5 & 0x1f) << 11) | ((g6 & 0x3f) << 5) | (b5 & 0x1f);
+};
+// "settings get" can come back truncated on a busy link; only trust a
+// response that actually parses as a JSON object.
+const parseSettingsJson = (lines) => {
+    const text = lines.join("").trim();
+    if (!text)
+        return null;
+    try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed;
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
+};
+const settingsWifiSsids = (settings) => {
+    const wifi = settings.wifi;
+    if (!Array.isArray(wifi))
+        return [];
+    return wifi
+        .map((entry) => (entry && typeof entry === "object" ? entry.ssid : null))
+        .filter((ssid) => typeof ssid === "string")
+        .sort();
+};
+const sameSsidSet = (a, b) => a.length === b.length && a.every((ssid, i) => ssid === b[i]);
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
@@ -432,6 +511,80 @@ const ensureConfigStyles = () => {
       letter-spacing: normal;
       padding: 10px 12px;
     }
+    .config-settings-meta {
+      color: var(--text-subtle);
+      font-size: 0.85rem;
+      margin: 4px 0 0;
+    }
+    .config-settings-group {
+      margin-top: 20px;
+    }
+    .config-settings-group__title {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      color: var(--accent);
+    }
+    .config-settings-toggles {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .config-settings-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(0, 221, 0, 0.05);
+      border: 1px solid rgba(0, 221, 0, 0.14);
+      cursor: pointer;
+    }
+    .config-settings-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .config-settings-toggle__text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .config-settings-toggle__help {
+      font-size: 0.78rem;
+      color: var(--text-subtle);
+    }
+    .config-settings-fields {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .config-settings-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--text-subtle);
+    }
+    .config-settings-field input[type="color"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      height: 40px;
+      padding: 3px;
+      border: 1px solid rgba(0, 221, 0, 0.35);
+      border-radius: var(--radius-sm);
+      background: rgba(0, 221, 0, 0.08);
+      cursor: pointer;
+    }
+    .config-settings-field input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 6px;
+    }
+    .config-settings-field input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
     [data-config-connect]:disabled,
     [data-config-disconnect]:disabled {
       opacity: 0.5;
@@ -622,6 +775,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const calibMirrorXBtn = document.querySelector("[data-calib-mirror-x]");
     const calibMirrorYBtn = document.querySelector("[data-calib-mirror-y]");
     const calibSwapBtn = document.querySelector("[data-calib-swap]");
+    const settingsSection = document.querySelector("[data-settings-section]");
+    const settingsRefreshBtn = document.querySelector("[data-settings-refresh]");
+    const settingsSaveBtn = document.querySelector("[data-settings-save]");
+    const settingsMetaEl = document.querySelector("[data-settings-meta]");
+    const settingsFormEl = document.querySelector("[data-settings-form]");
     if (!connectBtn ||
         !disconnectBtn ||
         !statusTile ||
@@ -657,7 +815,12 @@ document.addEventListener("DOMContentLoaded", () => {
         !calibSetBtn ||
         !calibMirrorXBtn ||
         !calibMirrorYBtn ||
-        !calibSwapBtn) {
+        !calibSwapBtn ||
+        !settingsSection ||
+        !settingsRefreshBtn ||
+        !settingsSaveBtn ||
+        !settingsMetaEl ||
+        !settingsFormEl) {
         return;
     }
     const wifiAddPwdField = createPasswordField("Password");
@@ -697,7 +860,9 @@ document.addEventListener("DOMContentLoaded", () => {
         calibSetBtn,
         calibMirrorXBtn,
         calibMirrorYBtn,
-        calibSwapBtn
+        calibSwapBtn,
+        settingsRefreshBtn,
+        settingsSaveBtn
     ];
     // Re-run per-row validity checks (e.g. "Connect" needs 8+ char password)
     // after a busy period ends, since re-enabling every wifi-list button
@@ -992,12 +1157,284 @@ document.addEventListener("DOMContentLoaded", () => {
     bindCalibrationToggle(calibMirrorYBtn, "calibrate mirror Y", "Mirror Y");
     bindCalibrationToggle(calibSwapBtn, "calibrate swapXY", "Swap XY");
     // -------------------------------------------------------------------------
+    // Device settings ("settings get" / "settings set <json>")
+    // -------------------------------------------------------------------------
+    let settingsSnapshot = null;
+    let settingsEditableKeys = [];
+    const fetchSettingsWithRetry = async (maxAttempts = 5) => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            setStatus(`Reading device settings (attempt ${attempt}/${maxAttempts})...`);
+            const lines = await runCommand("settings get", "settings get", { idleMs: 500, maxMs: 6000 });
+            const parsed = parseSettingsJson(lines);
+            if (parsed)
+                return parsed;
+            if (attempt < maxAttempts)
+                await sleep(300);
+        }
+        return null;
+    };
+    const addSettingsGroup = (title) => {
+        const group = document.createElement("div");
+        group.className = "config-settings-group";
+        const heading = document.createElement("h3");
+        heading.className = "config-settings-group__title";
+        heading.textContent = title;
+        const grid = document.createElement("div");
+        group.append(heading, grid);
+        settingsFormEl.append(group);
+        return { group, grid };
+    };
+    const renderSettingsForm = (settings) => {
+        settingsFormEl.innerHTML = "";
+        settingsEditableKeys = [];
+        const boolFields = SETTINGS_BOOL_FIELDS.filter((f) => typeof settings[f.key] === "boolean");
+        if (boolFields.length > 0) {
+            const { grid } = addSettingsGroup("Behavior");
+            grid.className = "config-settings-toggles";
+            boolFields.forEach((field) => {
+                const label = document.createElement("label");
+                label.className = "config-settings-toggle";
+                const input = document.createElement("input");
+                input.type = "checkbox";
+                input.checked = Boolean(settings[field.key]);
+                input.addEventListener("change", () => {
+                    settings[field.key] = input.checked;
+                });
+                const text = document.createElement("span");
+                text.className = "config-settings-toggle__text";
+                const titleEl = document.createElement("span");
+                titleEl.textContent = field.label;
+                text.append(titleEl);
+                if (field.help) {
+                    const help = document.createElement("span");
+                    help.className = "config-settings-toggle__help";
+                    help.textContent = field.help;
+                    text.append(help);
+                }
+                label.append(input, text);
+                grid.append(label);
+                settingsEditableKeys.push(field.key);
+            });
+        }
+        const numberFields = SETTINGS_NUMBER_FIELDS.filter((f) => typeof settings[f.key] === "number");
+        if (numberFields.length > 0) {
+            const { grid } = addSettingsGroup("Display");
+            grid.className = "config-settings-fields";
+            numberFields.forEach((field) => {
+                const wrapper = document.createElement("label");
+                wrapper.className = "config-settings-field";
+                const labelText = document.createElement("span");
+                labelText.textContent = field.label;
+                const input = document.createElement("input");
+                input.className = "catalog__search";
+                input.type = "number";
+                if (field.min !== undefined)
+                    input.min = String(field.min);
+                if (field.max !== undefined)
+                    input.max = String(field.max);
+                input.value = String(settings[field.key]);
+                input.addEventListener("input", () => {
+                    const n = Number(input.value);
+                    if (!Number.isNaN(n))
+                        settings[field.key] = n;
+                });
+                wrapper.append(labelText, input);
+                grid.append(wrapper);
+                settingsEditableKeys.push(field.key);
+            });
+        }
+        const colorFields = SETTINGS_COLOR_FIELDS.filter((f) => typeof settings[f.key] === "number");
+        if (colorFields.length > 0) {
+            const { grid } = addSettingsGroup("Colors");
+            grid.className = "config-settings-fields";
+            colorFields.forEach((field) => {
+                const wrapper = document.createElement("label");
+                wrapper.className = "config-settings-field";
+                const labelText = document.createElement("span");
+                labelText.textContent = field.label;
+                const input = document.createElement("input");
+                input.type = "color";
+                input.value = rgb565ToHex(settings[field.key]);
+                input.addEventListener("input", () => {
+                    settings[field.key] = hexToRgb565(input.value);
+                });
+                wrapper.append(labelText, input);
+                grid.append(wrapper);
+                settingsEditableKeys.push(field.key);
+            });
+        }
+        const stringFields = SETTINGS_STRING_FIELDS.filter((f) => typeof settings[f.key] === "string");
+        if (stringFields.length > 0) {
+            const { grid } = addSettingsGroup("Web UI");
+            grid.className = "config-settings-fields";
+            stringFields.forEach((field) => {
+                const wrapper = document.createElement("label");
+                wrapper.className = "config-settings-field";
+                const labelText = document.createElement("span");
+                labelText.textContent = field.label;
+                wrapper.append(labelText);
+                if (field.password) {
+                    const pf = createPasswordField(field.label);
+                    pf.input.value = String(settings[field.key]);
+                    pf.input.addEventListener("input", () => {
+                        settings[field.key] = pf.input.value;
+                    });
+                    wrapper.append(pf.wrapper);
+                }
+                else {
+                    const input = document.createElement("input");
+                    input.className = "catalog__search";
+                    input.type = "text";
+                    input.value = String(settings[field.key]);
+                    input.addEventListener("input", () => {
+                        settings[field.key] = input.value;
+                    });
+                    wrapper.append(input);
+                }
+                grid.append(wrapper);
+                settingsEditableKeys.push(field.key);
+            });
+        }
+        const rotationKeys = Object.keys(settings).filter((k) => isRotationKey(k) && typeof settings[k] === "number");
+        if (rotationKeys.length > 0) {
+            const { grid } = addSettingsGroup("Per-device screen rotation");
+            grid.className = "config-settings-fields";
+            rotationKeys.forEach((key) => {
+                const wrapper = document.createElement("label");
+                wrapper.className = "config-settings-field";
+                const labelText = document.createElement("span");
+                labelText.textContent = key;
+                const input = document.createElement("input");
+                input.className = "catalog__search";
+                input.type = "number";
+                input.min = "0";
+                input.max = "7";
+                input.value = String(settings[key]);
+                input.addEventListener("input", () => {
+                    const n = Number(input.value);
+                    if (!Number.isNaN(n))
+                        settings[key] = n;
+                });
+                wrapper.append(labelText, input);
+                grid.append(wrapper);
+                settingsEditableKeys.push(key);
+            });
+        }
+        const knownKeys = new Set([
+            ...SETTINGS_BOOL_FIELDS.map((f) => f.key),
+            ...SETTINGS_NUMBER_FIELDS.map((f) => f.key),
+            ...SETTINGS_COLOR_FIELDS.map((f) => f.key),
+            ...SETTINGS_STRING_FIELDS.map((f) => f.key),
+            ...rotationKeys
+        ]);
+        const otherKeys = Object.keys(settings).filter((k) => !SETTINGS_NON_EDITABLE_KEYS.has(k) && !knownKeys.has(k) && !isRotationKey(k));
+        const editableOtherKeys = otherKeys.filter((k) => {
+            const v = settings[k];
+            return typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+        });
+        if (editableOtherKeys.length > 0) {
+            const { grid } = addSettingsGroup("Other");
+            grid.className = "config-settings-fields";
+            editableOtherKeys.forEach((key) => {
+                const value = settings[key];
+                const wrapper = document.createElement("label");
+                wrapper.className = "config-settings-field";
+                const labelText = document.createElement("span");
+                labelText.textContent = key;
+                wrapper.append(labelText);
+                if (typeof value === "boolean") {
+                    const input = document.createElement("input");
+                    input.type = "checkbox";
+                    input.checked = value;
+                    input.addEventListener("change", () => {
+                        settings[key] = input.checked;
+                    });
+                    wrapper.append(input);
+                }
+                else {
+                    const input = document.createElement("input");
+                    input.className = "catalog__search";
+                    input.type = typeof value === "number" ? "number" : "text";
+                    input.value = String(value);
+                    input.addEventListener("input", () => {
+                        settings[key] = typeof value === "number" ? Number(input.value) : input.value;
+                    });
+                    wrapper.append(input);
+                }
+                grid.append(wrapper);
+                settingsEditableKeys.push(key);
+            });
+        }
+        const wifiCount = Array.isArray(settings.wifi) ? settings.wifi.length : 0;
+        const favoriteCount = Array.isArray(settings.favorite) ? settings.favorite.length : 0;
+        settingsMetaEl.textContent = `${wifiCount} saved WiFi network(s), ${favoriteCount} favorite(s) — not editable here.`;
+    };
+    settingsRefreshBtn.addEventListener("click", async () => {
+        if (busy || !session)
+            return;
+        setBusy(true);
+        const settings = await fetchSettingsWithRetry();
+        if (!settings) {
+            setStatus("Could not read a valid settings JSON from the device.");
+            showAlertModal("Settings unavailable", "The device did not return a complete settings JSON after several attempts. Try again.");
+            setBusy(false);
+            return;
+        }
+        settingsSnapshot = settings;
+        renderSettingsForm(settingsSnapshot);
+        setStatus("Device settings loaded.");
+        setBusy(false);
+    });
+    settingsSaveBtn.addEventListener("click", async () => {
+        if (busy || !session || !settingsSnapshot)
+            return;
+        setBusy(true);
+        setStatus("Checking the current WiFi list before saving...");
+        const listLines = await runCommand("wifi list", "wifi list", { idleMs: 500, maxMs: 6000 });
+        const currentSsids = parseWifiScan(listLines)
+            .map((n) => n.ssid)
+            .sort();
+        const loadedSsids = settingsWifiSsids(settingsSnapshot);
+        if (!sameSsidSet(currentSsids, loadedSsids)) {
+            showNotification("Saved WiFi networks changed on the device since settings were loaded — keeping the device's current list.", "error");
+        }
+        setStatus("Refreshing settings before saving...");
+        const fresh = await fetchSettingsWithRetry();
+        if (!fresh) {
+            showAlertModal("Save failed", "Could not read the current settings from the device to merge your changes into. Nothing was saved.");
+            setBusy(false);
+            return;
+        }
+        // Always write wifi/favorite exactly as freshly read — never the possibly
+        // stale copy from when the form was loaded — and only overlay the keys
+        // this form actually has editors for.
+        const payload = { ...fresh };
+        settingsEditableKeys.forEach((key) => {
+            payload[key] = settingsSnapshot[key];
+        });
+        setStatus("Saving settings...");
+        const lines = await runCommand("settings set", `settings set ${JSON.stringify(payload)}`, {
+            idleMs: 500,
+            maxMs: 6000
+        });
+        settingsSnapshot = payload;
+        renderSettingsForm(settingsSnapshot);
+        setStatus(firstNonEmptyLine(lines) || "Settings saved.");
+        showNotification("Device settings saved.", "success");
+        setBusy(false);
+    });
+    // -------------------------------------------------------------------------
     // Connect / handshake
     // -------------------------------------------------------------------------
     const resetUi = () => {
         deviceSection.hidden = true;
         wifiSection.hidden = true;
         calibSection.hidden = true;
+        settingsSection.hidden = true;
+        settingsSnapshot = null;
+        settingsEditableKeys = [];
+        settingsFormEl.innerHTML = "";
+        settingsMetaEl.textContent = "";
         wifiList.innerHTML = "";
         wifiRowValidators = [];
         wifiAddForm.hidden = true;
@@ -1038,6 +1475,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const helpLines = await sendAndCollect(activeSession, "help", { idleMs: 500, maxMs: 5000 });
         appendLog("help", "tx");
         const hasCalibration = helpLines.some((line) => /calibrate/i.test(line));
+        const hasSettings = helpLines.some((line) => /settings\s+get/i.test(line));
         versionEl.textContent = version || "Unknown";
         whoamiEl.textContent = whoami || "Unknown";
         deviceSection.hidden = false;
@@ -1049,6 +1487,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (calibration) {
                 applyCalibrationToFields(calibration);
                 calibSection.hidden = false;
+            }
+        }
+        if (hasSettings) {
+            const settings = await fetchSettingsWithRetry();
+            if (settings) {
+                settingsSnapshot = settings;
+                renderSettingsForm(settingsSnapshot);
+                settingsSection.hidden = false;
             }
         }
         setStatus(`Connected to ${whoami || "device"} (${version || "unknown version"}).`);
@@ -1114,6 +1560,36 @@ document.addEventListener("DOMContentLoaded", () => {
             setBusy(false);
             logInput.focus();
         })();
+    });
+    // -------------------------------------------------------------------------
+    // Remote control: arrow keys / Enter / Esc drive the device's InputHandler
+    // via "nav <target>", mirroring its physical buttons.
+    // -------------------------------------------------------------------------
+    const NAV_KEY_TARGETS = {
+        ArrowUp: "UpPress",
+        ArrowDown: "DownPress",
+        ArrowLeft: "PrevPress",
+        ArrowRight: "NextPress",
+        Enter: "SelPress",
+        Escape: "EscPress"
+    };
+    const isEditableTarget = (target) => {
+        if (!(target instanceof HTMLElement))
+            return false;
+        if (target.isContentEditable)
+            return true;
+        return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT";
+    };
+    document.addEventListener("keydown", (event) => {
+        if (!session || isEditableTarget(event.target))
+            return;
+        const navTarget = NAV_KEY_TARGETS[event.key];
+        if (!navTarget)
+            return;
+        event.preventDefault();
+        const command = `nav ${navTarget}`;
+        appendLog(command, "tx");
+        void session.writeLine(command);
     });
     window.addEventListener("beforeunload", () => {
         if (session)

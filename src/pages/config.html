@@ -92,6 +92,9 @@
               <span class="tile__value" data-config-whoami>&mdash;</span>
             </div>
           </div>
+          <p class="config-settings-meta">
+            Remote control: with this page focused (not typing in a field), use the arrow keys to navigate, Enter to select, and Esc to go back.
+          </p>
         </div>
       </section>
 
@@ -142,6 +145,21 @@
             <button class="button button--ghost" data-calib-mirror-y type="button">Mirror Y</button>
             <button class="button button--ghost" data-calib-swap type="button">Swap XY</button>
           </div>
+        </div>
+      </section>
+
+      <section class="section section--compact reveal-on-scroll" tabindex="-1" data-settings-section hidden>
+        <h2 class="section__heading">Device settings</h2>
+        <div class="card card--compact">
+          <p class="card__description">
+            Raw settings stored on the device. Saved WiFi networks and favorites are read fresh from the device right before saving and are never edited here.
+          </p>
+          <div class="card__actions">
+            <button class="button button--ghost" data-settings-refresh type="button">Refresh settings</button>
+            <button class="button button--primary" data-settings-save type="button">Save settings</button>
+          </div>
+          <p class="tile__label" data-settings-meta></p>
+          <div data-settings-form></div>
         </div>
       </section>
     </main>
