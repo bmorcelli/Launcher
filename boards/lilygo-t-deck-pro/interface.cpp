@@ -80,7 +80,7 @@ void detectBoardVariantAndPrepareDisplay(bool preDisplayInit) {
                 io.digitalWrite(9, LOW);
                 delay(20);
                 io.digitalWrite(9, HIGH);
-                delay(50);
+                delay(100);
             } else {
                 launcherConsolePrintf("%s\n", String("Initializing expander failed").c_str());
             }
@@ -97,7 +97,7 @@ void detectBoardVariantAndPrepareDisplay(bool preDisplayInit) {
         digitalWrite(TOUCH_RST2, LOW);
         launcherDelayMs(10);
         digitalWrite(TOUCH_RST2, HIGH);
-        delay(50);
+        delay(100);
     } else {
         // T-Deck Pro 1.0 has no distinct probe in this path, so once MAX and 1.1
         // are ruled out we treat the board as 1.0.
@@ -107,7 +107,7 @@ void detectBoardVariantAndPrepareDisplay(bool preDisplayInit) {
         digitalWrite(TOUCH_RST, LOW);
         launcherDelayMs(10);
         digitalWrite(TOUCH_RST, HIGH);
-        delay(50);
+        delay(100);
     }
 }
 } // namespace
@@ -415,26 +415,24 @@ void InputHandler(void) {
 
     LTouchPointPro t;
     uint8_t touched = 0;
+    vTaskDelay(pdMS_TO_TICKS(5));
     touched = touch.getPoint(&t.x, &t.y, 1);
-    if ((launcherMillis() - _tmptmp) > 250 || LongPress) { // one reading each 500ms
+    if ((launcherMillis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
         if (launcherGpioRead(0) == LOW) NextPress = true;
 
         // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
             touch.reset();
 
-            launcherConsolePrintf(
-                "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
-                t.x,
-                t.y,
-                rotation,
-                launcherMillis(),
-                _tmptmp
-            );
+            // launcherConsolePrintf(
+            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
+            //     t.x,
+            //     t.y,
+            //     rotation,
+            //     launcherMillis(),
+            //     _tmptmp
+            // );
             _tmptmp = launcherMillis();
-
-            // if(!wakeUpScreen()) AnyKeyPress = true;
-            // else goto END;
 
             // Touch point global variable
             touchPoint.x = t.x;
@@ -443,8 +441,6 @@ void InputHandler(void) {
             touchHeatMap(touchPoint);
             touched = 0;
         }
-    END:
-        yield();
     }
 
     bool nextPulse = false;
@@ -456,6 +452,7 @@ void InputHandler(void) {
     bool keyPulse = false;
     keyStroke pendingKey;
 
+    vTaskDelay(pdMS_TO_TICKS(5));
     while (keyboard->available() > 0) {
         int keyValue = keyboard->getEvent();
         int state = -1;

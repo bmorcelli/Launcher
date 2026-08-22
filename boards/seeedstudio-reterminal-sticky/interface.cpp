@@ -1,12 +1,9 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SPI.h>
-#include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <esp_sleep.h>
 #include <interface.h>
-
-TouchDrvGT911 touch;
 
 // Seeed reTerminal Sticky.
 //
@@ -21,10 +18,6 @@ TouchDrvGT911 touch;
 // them the board's power rails are not reliably held up, which plausibly
 // explains touch/SD/button symptoms that looked unrelated.
 
-// --- buttons -----------------------------------------------------------
-// Plain digital, active low. GPIO4 is the "AI / Power" button in the vendor
-// doc — this launcher repurposes it as Select, with a long hold to power off
-// (see checkReboot()).
 #define BTN_PREV 5    // vendor doc: "Up"
 #define BTN_NEXT 6    // vendor doc: "Down"
 #define BTN_SEL_PWR 4 // vendor doc: "AI / Power"
@@ -38,10 +31,6 @@ TouchDrvGT911 touch;
 #define EPD_EN 47
 
 // --- microSD power enable -----------------------------------------------
-// Confirmed by Seeed support: must be driven high and given ~100ms to settle
-// before the card is touched. Both this pin and TFT/SD CS live on the same
-// SPI2 bus as the e-paper, so SPI.begin() (below) stays shared and is never
-// torn down after SD access -- the panel still needs it for refresh.
 #define SD_PWR_EN 10
 
 // --- GT911 touch (I2C0) -------------------------------------------------
@@ -50,9 +39,13 @@ TouchDrvGT911 touch;
 #define TOUCH_EN 42 // active HIGH, confirmed by the reference firmware
 #define TOUCH_RST 41
 #define TOUCH_INT 21
-#define TOUCH_ADDR_L 0x5D // GT911 default I2C address
-#define TOUCH_ADDR_H 0x14 // GT911 alternate address (INT held high at reset)
-static uint8_t touchAddr = TOUCH_ADDR_L;
+#define TOUCH_ADDR_L 0x5D // GT911 address selected by INT low during reset
+#define TOUCH_ADDR_H 0x14 // GT911 address selected by INT high during reset
+#define GT911_REG_ID 0x8140
+#define GT911_REG_COORD_RES 0x8146
+#define GT911_REG_STATUS 0x814E
+#define GT911_REG_POINTS 0x8150
+static uint8_t touchAddr = TOUCH_ADDR_H;
 
 // --- BQ27220 fuel gauge (I2C1, its own bus — not the touch bus) --------
 #define GAUGE_SDA 1
@@ -67,15 +60,79 @@ static uint8_t touchAddr = TOUCH_ADDR_L;
 #define BAT_CHG_EN 39
 
 static bool touchReady = false;
+static uint16_t touchNativeWidth = TFT_WIDTH;
+static uint16_t touchNativeHeight = TFT_HEIGHT;
+
+static bool gt911WriteReg(uint16_t reg, uint8_t value) {
+    Wire.beginTransmission(touchAddr);
+    Wire.write((uint8_t)(reg >> 8));
+    Wire.write((uint8_t)(reg & 0xFF));
+    Wire.write(value);
+    return Wire.endTransmission() == 0;
+}
+
+static bool gt911ReadRegs(uint16_t reg, uint8_t *buf, uint8_t len) {
+    Wire.beginTransmission(touchAddr);
+    Wire.write((uint8_t)(reg >> 8));
+    Wire.write((uint8_t)(reg & 0xFF));
+    if (Wire.endTransmission(false) != 0) return false;
+
+    if (Wire.requestFrom((int)touchAddr, (int)len) != len) return false;
+    for (uint8_t i = 0; i < len; ++i) buf[i] = Wire.read();
+    return true;
+}
+
+static void gt911ResetForAddress(uint8_t addr) {
+    // GT911 samples INT while RST rises: INT low selects 0x5D, INT high selects
+    // 0x14. Timings follow Seeed's ESP-IDF peripheral demo.
+    const int intLevel = (addr == TOUCH_ADDR_L) ? LOW : HIGH;
+
+    gpio_hold_dis((gpio_num_t)TOUCH_RST);
+    gpio_hold_dis((gpio_num_t)TOUCH_INT);
+    launcherGpioOutput(TOUCH_RST);
+    launcherGpioOutput(TOUCH_INT);
+    launcherGpioWrite(TOUCH_RST, LOW);
+    launcherGpioWrite(TOUCH_INT, intLevel);
+    launcherDelayMs(20);
+    launcherGpioWrite(TOUCH_RST, HIGH);
+    launcherDelayMs(20);
+    launcherGpioInput(TOUCH_INT);
+    launcherDelayMs(80);
+}
+
+static bool gt911ProbeAddress(uint8_t addr) {
+    touchAddr = addr;
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() != 0) return false;
+
+    uint8_t id[4] = {};
+    if (!gt911ReadRegs(GT911_REG_ID, id, sizeof(id))) return false;
+    return id[0] == '9' && id[1] == '1' && id[2] == '1';
+}
+
+static void gt911ReadResolution() {
+    uint8_t buf[4] = {};
+    if (!gt911ReadRegs(GT911_REG_COORD_RES, buf, sizeof(buf))) return;
+
+    const uint16_t width = (uint16_t)buf[0] | ((uint16_t)buf[1] << 8);
+    const uint16_t height = (uint16_t)buf[2] | ((uint16_t)buf[3] << 8);
+    if (width != 0) touchNativeWidth = width;
+    if (height != 0) touchNativeHeight = height;
+}
 
 static bool bringUpTouch() {
-    static const uint8_t addrs[2] = {TOUCH_ADDR_L, TOUCH_ADDR_H};
+    static const uint8_t addrs[2] = {TOUCH_ADDR_H, TOUCH_ADDR_L};
 
     for (uint8_t addr : addrs) {
-        touch.setPins(TOUCH_RST, TOUCH_INT);
-        if (touch.begin(Wire, addr, TOUCH_SDA, TOUCH_SCL)) {
+        for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+            gt911ResetForAddress(addr);
+            if (!gt911ProbeAddress(addr)) continue;
             touchAddr = addr;
-            launcherConsolePrintf("GT911 found at addr=0x%02X\n", addr);
+            gt911ReadResolution();
+            gt911WriteReg(GT911_REG_STATUS, 0);
+            launcherConsolePrintf(
+                "GT911 found at addr=0x%02X sensor=%ux%u\n", addr, touchNativeWidth, touchNativeHeight
+            );
             return true;
         }
     }
@@ -83,6 +140,51 @@ static bool bringUpTouch() {
         "%s\n", String("Failed to find GT911 on either address - check your wiring!").c_str()
     );
     return false;
+}
+
+static uint16_t scaleTouchCoordinate(uint16_t value, uint16_t sourceMax, uint16_t targetMax) {
+    if (sourceMax == 0 || targetMax == 0) return 0;
+    if (value > sourceMax) value = sourceMax;
+    return (uint16_t)(((uint32_t)value * targetMax + sourceMax / 2U) / sourceMax);
+}
+
+static uint8_t readTouchPoint(int16_t *x, int16_t *y) {
+    uint8_t status = 0;
+    if (!gt911ReadRegs(GT911_REG_STATUS, &status, 1)) return 0;
+    if ((status & 0x80) == 0) return 0;
+
+    const uint8_t count = status & 0x0F;
+    if (count == 0 || count > 5) {
+        gt911WriteReg(GT911_REG_STATUS, 0);
+        return 0;
+    }
+
+    uint8_t point[8] = {};
+    const bool readOk = gt911ReadRegs(GT911_REG_POINTS, point, sizeof(point));
+    gt911WriteReg(GT911_REG_STATUS, 0);
+    if (!readOk) return 0;
+
+    const uint16_t rawX = (uint16_t)point[0] | ((uint16_t)point[1] << 8);
+    const uint16_t rawY = (uint16_t)point[2] | ((uint16_t)point[3] << 8);
+
+    if (rotation == 3) {
+        *x = scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
+        *y = scaleTouchCoordinate(
+            touchNativeHeight - (rawY > touchNativeHeight ? touchNativeHeight : rawY),
+            touchNativeHeight,
+            TFT_WIDTH - 1
+        );
+    } else if (rotation == 1) {
+        *x = (TFT_HEIGHT - 1) - scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
+        *y = scaleTouchCoordinate(rawY, touchNativeHeight, TFT_WIDTH - 1);
+    } else if (rotation == 0) {
+        *x = scaleTouchCoordinate(rawY, touchNativeHeight, TFT_WIDTH - 1);
+        *y = scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
+    } else {
+        *x = (TFT_WIDTH - 1) - scaleTouchCoordinate(rawY, touchNativeHeight, TFT_WIDTH - 1);
+        *y = (TFT_HEIGHT - 1) - scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
+    }
+    return 1;
 }
 
 /***************************************************************************************
@@ -206,49 +308,8 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
 
-    // GT911 on this board reports touches pre-transformed by its own factory
-    // config into a fixed 800x480 frame (confirmed by the reference firmware
-    // reading back "sensor=800x480" from the chip) -- NOT the panel's raw
-    // pixel grid, and NOT a simple axis swap of it. At the default rotation
-    // (3, portrait 480x800) the reference firmware needs no XY swap at all,
-    // only a proportional rescale (800->480 / 480->800) plus a Y-axis flip;
-    // that combination is reproduced exactly below and is hardware-confirmed.
-    // Rotations 0/1/2 follow the same 90-degree-step pattern used on the
-    // other e-paper boards, composed on top of that confirmed anchor, but are
-    // NOT hardware-tested -- revisit if touch is misaligned in a non-default
-    // rotation.
-    static uint8_t lastRot = 5;
-    if (touchReady && lastRot != rotation) {
-        // setResolution() feeds the scale-factor math, and swapXY is applied
-        // *before* scaling -- so when swapXY is on, the raw resolution has to
-        // be declared already-swapped too, or the scale factors get matched
-        // to the wrong axis.
-        if (rotation == 3) {
-            touch.setResolution(TFT_WIDTH, TFT_HEIGHT);
-            touch.setTargetResolution(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(false, true);
-        } else if (rotation == 1) {
-            touch.setResolution(TFT_WIDTH, TFT_HEIGHT);
-            touch.setTargetResolution(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(true, false);
-        } else if (rotation == 0) {
-            touch.setResolution(TFT_HEIGHT, TFT_WIDTH);
-            touch.setTargetResolution(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(false, false);
-        } else if (rotation == 2) {
-            touch.setResolution(TFT_HEIGHT, TFT_WIDTH);
-            touch.setTargetResolution(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(true, true);
-        }
-        lastRot = rotation;
-    }
-
     int16_t tx = 0, ty = 0;
-    const uint8_t touched = touchReady ? touch.getPoint(&tx, &ty, 1) : 0;
+    const uint8_t touched = touchReady ? readTouchPoint(&tx, &ty) : 0;
 
     if (launcherMillis() - tm > 200 || LongPress) {
     } else return;
@@ -290,9 +351,6 @@ void powerOff() {
     tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight / 2, 1);
     tft->display();
 
-    // Drop the latch: on this board that is what actually cuts power, per
-    // the reference firmware's power_off(). The deep-sleep call below is a
-    // fallback in case the hardware stays alive on USB power.
     gpio_hold_dis((gpio_num_t)POWER_HOLD);
     launcherGpioWrite(POWER_HOLD, LOW);
     powerLockPulse();
