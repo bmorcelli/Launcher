@@ -64,7 +64,7 @@ volatile bool AnyKeyPress = false;
 LTouchPoint touchPoint;
 keyStroke KeyStroke;
 
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
 volatile uint16_t tftHeight = TFT_WIDTH - (_fm * LH + 4);
 #else
 volatile uint16_t tftHeight = TFT_WIDTH;
@@ -235,14 +235,14 @@ void setup() {
     tft->setTextColor(FGCOLOR, BGCOLOR);
 
     if (rotation & 0b1) {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
         tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
         tftHeight = displayConfig.width;
 #endif
         tftWidth = displayConfig.height;
     } else {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
         tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
         tftHeight = displayConfig.height;

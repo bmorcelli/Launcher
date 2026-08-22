@@ -103,7 +103,7 @@ void setTftDisplay(int x, int y, uint16_t fc, int size, uint16_t bg) {
 ** Description:   Draw touch screen footer
 ***************************************************************************************/
 void TouchFooter(uint16_t color) {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
     tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (_fm * LH + 4), 5, color);
     tft->setTextColor(color);
     tft->setTextSize(_fm);
@@ -118,7 +118,7 @@ void TouchFooter(uint16_t color) {
 ** Description:   Draw touch screen footer
 ***************************************************************************************/
 void TouchFooter2(uint16_t color) {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
     tft->drawRoundRect(5 + RES, tftHeight + 2, tftWidth - 10 - 2 * RES, (_fm * LH + 4), 5, color);
     tft->setTextColor(color);
     tft->setTextSize(_fm);
