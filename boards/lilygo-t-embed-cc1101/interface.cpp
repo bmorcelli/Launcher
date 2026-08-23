@@ -8,14 +8,13 @@ RotaryEncoder *encoder = nullptr;
 IRAM_ATTR void checkPosition() { encoder->tick(); }
 
 #include <Wire.h>
-// Charger chip, CC1101 board only
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-XPowersPPM PPM;
+// Charger chip + fuel gauge, CC1101 board only
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 
 #define BATTERY_DESIGN_CAPACITY 1300
-#include <bq27220.h>
-BQ27220 bq;
 
 // ---------------------------------------------------------------------------
 // Which T-Embed is this?
@@ -39,6 +38,7 @@ static TEmbedVariant tEmbed = T_EMBED_CC1101;
 
 #define TE_I2C_SDA 8
 #define TE_I2C_SCL 18
+#define TE_BQ25896_ADDRESS 0x6B
 // Asserted before the probe: power enable on the CC1101, backlight on the plain
 // board. Harmless as an output on either.
 #define TE_SHARED_POWER_PIN 15
@@ -79,7 +79,7 @@ static void _detect_variant() {
     launcherGpioWrite(TE_SHARED_POWER_PIN, HIGH);
 
     Wire.begin(TE_I2C_SDA, TE_I2C_SCL);
-    Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
+    Wire.beginTransmission(TE_BQ25896_ADDRESS);
     tEmbed = (Wire.endTransmission() == 0) ? T_EMBED_CC1101 : T_EMBED_PLAIN;
 
     if (tEmbed == T_EMBED_PLAIN) {
@@ -139,21 +139,13 @@ void _setup_gpio() {
         launcherGpioWrite(44, HIGH);        // nrf24
 
         // Wire is already up: _detect_variant() started it to find this chip.
-        if (PPM.init(Wire, TE_I2C_SDA, TE_I2C_SCL, BQ25896_SLAVE_ADDRESS)) {
-            PPM.setSysPowerDownVoltage(3300);
-            PPM.setInputCurrentLimit(3250);
-            launcherConsolePrintf("getInputCurrentLimit: %d mA\n", (int)PPM.getInputCurrentLimit());
-            PPM.disableCurrentLimitPin();
-            PPM.setChargeTargetVoltage(4208);
-            PPM.setPrechargeCurr(64);
-            PPM.setChargerConstantCurr(832);
-            PPM.getChargerConstantCurr();
-            launcherConsolePrintf("getChargerConstantCurr: %d mA\n", (int)PPM.getChargerConstantCurr());
-            PPM.enableMeasure(PowersBQ25896::CONTINUOUS);
-            PPM.disableOTG();
-            PPM.enableCharge();
-        }
-        if (bq.getDesignCap() != BATTERY_DESIGN_CAPACITY) { bq.setDesignCap(BATTERY_DESIGN_CAPACITY); }
+        DevicePmic pmicCfg{TE_I2C_SDA, TE_I2C_SCL, TE_BQ25896_ADDRESS};
+
+        if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
+
+        DeviceGauge gaugeCfg{};
+        gaugeCfg.design_capacity_mah = BATTERY_DESIGN_CAPACITY;
+        hal_gauge_init(gaugeCfg);
 
         launcherGpioInput(pinBack);
     }
@@ -184,10 +176,7 @@ void _setBrightness(uint8_t brightval) {
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
 int getBattery() {
-    if (tEmbed == T_EMBED_CC1101) {
-        int percent = bq.getChargePcnt();
-        return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-    }
+    if (tEmbed == T_EMBED_CC1101) { return hal_gauge_get_percent(); }
 
     // Plain T-Embed: no gauge, just a 1:2 divider on an ADC.
     static bool adcInitialized = false;
@@ -208,7 +197,7 @@ int getBattery() {
 ** Function name: isCharging()
 ** Description:   Determines if the device is charging
 ***************************************************************************************/
-bool isCharging() { return tEmbed == T_EMBED_CC1101 ? bq.getIsCharging() : false; }
+bool isCharging() { return tEmbed == T_EMBED_CC1101 ? hal_gauge_is_charging() : false; }
 
 /*********************************************************************
 ** Function: InputHandler
@@ -278,7 +267,7 @@ void powerOff() {
                  displayRedStripe("Shutting down in " + String(i));
                  launcherDelayMs(1000);
              }
-             PPM.shutdown();
+             hal_pmic_shutdown();
              tft->fillScreen(BLACK);
              displayRedStripe("Unplug USB to power off");
              while (true) launcherDelayMs(100);

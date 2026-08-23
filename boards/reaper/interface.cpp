@@ -15,17 +15,7 @@
 #define NRF24_SS_PIN 13
 #define LORA_CS 4
 
-#define XPOWERS_CHIP_BQ25896
-#define USE_BQ27220_VIA_I2C
-#define BQ27220_I2C_ADDRESS 0x55
-#ifdef BQ27220_I2C_SDA
-#undef BQ27220_I2C_SDA
-#endif
-#ifdef BQ27220_I2C_SCL
-#undef BQ27220_I2C_SCL
-#endif
-#define BQ27220_I2C_SDA GROVE_SDA
-#define BQ27220_I2C_SCL GROVE_SCL
+#define REAPER_BQ25896_ADDRESS 0x6B
 
 // IO EXPANDER
 #define USE_IO_EXPANDER
@@ -35,29 +25,23 @@
 #define IO_EXP_CC_RX 9
 #define IO_EXP_CC_TX 10
 #define IO_EXP_LOGO 0
-
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <bq27220.h>
 #include <globals.h>
 #include <interface.h>
 
 #include <Wire.h>
-// Power handler for battery detection
-#include <Wire.h>
-#include <XPowersLib.h>
-// Charger chip
 
-XPowersPPM PPM;
+#define BATTERY_DESIGN_CAPACITY 1000
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
 ** Description:   initial setup for the device
 ***************************************************************************************/
-
-// BATTERY GAUGE
-#define BATTERY_DESIGN_CAPACITY 1000
-#include <bq27220.h>
-BQ27220 bq;
 
 void _setup_gpio() {
 
@@ -89,26 +73,12 @@ void _setup_gpio() {
     // bruceConfig.irTx = LED;
     Wire.begin(GROVE_SDA, GROVE_SCL);
 
-    bool pmu_ret = false;
-    pmu_ret = PPM.init(Wire, GROVE_SDA, GROVE_SCL, BQ25896_SLAVE_ADDRESS);
-    if (pmu_ret) {
+    DevicePmic pmicCfg{GROVE_SDA, GROVE_SCL, REAPER_BQ25896_ADDRESS};
+    if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
 
-        PPM.setSysPowerDownVoltage(3300);
-        PPM.setInputCurrentLimit(2000);
-        Serial.printf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        PPM.disableCurrentLimitPin();
-        PPM.setChargeTargetVoltage(4208);
-        PPM.setPrechargeCurr(64);
-        PPM.setChargerConstantCurr(832);
-        PPM.getChargerConstantCurr();
-        Serial.printf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure(PowersBQ25896::CONTINUOUS);
-
-        PPM.disableOTG();
-        // PPM.enableInputDetection();
-        PPM.enableCharge();
-    }
-    if (bq.getDesignCap() != BATTERY_DESIGN_CAPACITY) { bq.setDesignCap(BATTERY_DESIGN_CAPACITY); }
+    DeviceGauge gaugeCfg{};
+    gaugeCfg.design_capacity_mah = BATTERY_DESIGN_CAPACITY;
+    hal_gauge_init(gaugeCfg);
 }
 
 /***************************************************************************************
@@ -117,15 +87,9 @@ void _setup_gpio() {
 
 ** Description:   Delivers the battery value from 1-100+
 ***************************************************************************************/
-int getBattery() {
-    int percent = 0;
-    percent = bq.getChargePcnt();
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
+int getBattery() { return hal_gauge_get_percent(); }
 
-bool isCharging() {
-    return bq.getIsCharging(); // Return the charging status from BQ27220
-}
+bool isCharging() { return hal_gauge_is_charging(); }
 
 /*********************************************************************
 ** Function: InputHandler
@@ -159,7 +123,7 @@ void InputHandler(void) {
 ** location: mykeyboard.cpp
 ** Turns off the device (or try to)
 **********************************************************************/
-void powerOff() { PPM.shutdown(); }
+void powerOff() { hal_pmic_shutdown(); }
 
 /*********************************************************************
 ** Function: checkReboot

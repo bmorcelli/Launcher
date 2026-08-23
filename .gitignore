@@ -6,4 +6,4 @@ checksum.sha256
 build
 node_modules
 __pycache__
-
+docs

@@ -6,14 +6,14 @@
 
 TouchDrvGT911 touch;
 
-#include <bq27220.h>
-BQ27220 bq;
-
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-XPowersPPM PPM;
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 
 bool isH752_1 = false;
+
+#define T5EPAPER_BQ25896_ADDRESS 0x6B
 
 #define BOARD_I2C_SDA 6
 #define BOARD_I2C_SCL 5
@@ -86,34 +86,15 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
     launcherConsolePrintf("%s\n", String("Started Touchscreen poll...").c_str());
 
     // BQ25896 --- 0x6B
-    wire->beginTransmission(0x6B);
+    wire->beginTransmission(T5EPAPER_BQ25896_ADDRESS);
     if (wire->endTransmission() == 0) {
         // Reuse the EPD_Painter I2C bus through callbacks so XPowers does not
         // call TwoWire::begin() again on an already-initialized bus.
-        if (!PPM.begin(BQ25896_SLAVE_ADDRESS, pmicReadReg, pmicWriteReg)) {
+        if (!hal_pmic_init_via_callbacks(T5EPAPER_BQ25896_ADDRESS, pmicReadReg, pmicWriteReg)) {
             launcherConsolePrintf("%s\n", String("Failed to initialize XPowers PPM").c_str());
             return false;
         }
-        // Set the minimum operating voltage. Below this voltage, the PPM will protect
-        PPM.setSysPowerDownVoltage(3300);
-        // Set input current limit, default is 500mA
-        PPM.setInputCurrentLimit(3250);
-        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        // Disable current limit pin
-        PPM.disableCurrentLimitPin();
-        // Set the charging target voltage, Range:3840 ~ 4608mV ,step:16 mV
-        PPM.setChargeTargetVoltage(4208);
-        // Set the precharge current , Range: 64mA ~ 1024mA ,step:64mA
-        PPM.setPrechargeCurr(64);
-        // The premise is that Limit Pin is disabled, or it will only follow the maximum charging current set
-        // by Limi tPin. Set the charging current , Range:0~5056mA ,step:64mA
-        PPM.setChargerConstantCurr(832);
-        // Get the set charging current
-        PPM.getChargerConstantCurr();
-        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure();
-        PPM.enableCharge();
-        PPM.disableOTG();
+        hal_gauge_init(DeviceGauge{});
     }
 
     return true;
@@ -164,12 +145,7 @@ void _post_setup_gpio() {
 ** location: display.cpp
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
-int getBattery() {
-    int percent = 0;
-    percent = bq.getChargePcnt();
-
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
+int getBattery() { return hal_gauge_get_percent(); }
 
 /*********************************************************************
 ** Function: setBrightness
@@ -270,6 +246,6 @@ void powerOff() {
     tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
     tft->display();
     launcherDelayMs(1000);
-    PPM.shutdown();
+    hal_pmic_shutdown();
     while (1) launcherDelayMs(100);
 }

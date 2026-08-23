@@ -9,12 +9,10 @@ TouchDrvCSTXXX touch;
 #include <ExtensionIOXL9555.hpp>
 ExtensionIOXL9555 io;
 
-#include <bq27220.h>
-BQ27220 bq;
-
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-XPowersPPM PPM;
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 
 #include <Adafruit_TCA8418.h>
 #define BOARD_I2C_ADDR_KEYBOARD 0x34
@@ -35,6 +33,8 @@ constexpr unsigned long TCA8418_REPEAT_MS = 150;
 #define TOUCH_RST 45
 #define TOUCH_RST2 38
 #define BOARD_I2C_ADDR_TOUCH 0x1A
+
+#define TDECKPRO_BQ25896_ADDRESS 0x6B
 
 #define BOARD_EPD_CS 34
 #define BOARD_LORA_CS 3
@@ -154,21 +154,12 @@ void _setup_gpio() {
     detectBoardVariantAndPrepareDisplay(true);
 
     // BQ25896 --- 0x6B
-    Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
+    Wire.beginTransmission(TDECKPRO_BQ25896_ADDRESS);
     if (Wire.endTransmission() == 0) {
-        PPM.init(Wire, BOARD_SDA, BOARD_SCL, BQ25896_SLAVE_ADDRESS);
-        PPM.setSysPowerDownVoltage(3300);
-        PPM.setInputCurrentLimit(3250);
-        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        PPM.disableCurrentLimitPin();
-        PPM.setChargeTargetVoltage(4208);
-        PPM.setPrechargeCurr(64);
-        PPM.setChargerConstantCurr(832);
-        PPM.getChargerConstantCurr();
-        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure();
-        PPM.enableCharge();
-        PPM.disableOTG();
+        DevicePmic pmicCfg{BOARD_SDA, BOARD_SCL, TDECKPRO_BQ25896_ADDRESS};
+        if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
+
+        hal_gauge_init(DeviceGauge{});
     }
 }
 
@@ -258,12 +249,7 @@ void _post_setup_gpio() {
 ** location: display.cpp
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
-int getBattery() {
-    int percent = 0;
-    percent = bq.getChargePcnt();
-
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
+int getBattery() { return hal_gauge_get_percent(); }
 
 /*********************************************************************
 ** Function: setBrightness
@@ -576,6 +562,6 @@ void powerOff() {
     tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
     tft->display();
     launcherDelayMs(1000);
-    PPM.shutdown();
+    hal_pmic_shutdown();
     while (1) launcherDelayMs(100);
 }

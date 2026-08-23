@@ -1,3 +1,5 @@
+#include "hal/device.h"
+#include "hal/power/pmic.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 
@@ -11,6 +13,7 @@
 #define NRF24_SS_PIN 14
 #define GROVE_SDA 47
 #define GROVE_SCL 48
+#define SMOOCHIEE_BQ25896_ADDRESS 0x6B
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -18,11 +21,9 @@
 ** Description:   initial setup for the device
 ***************************************************************************************/
 
-// Power handler for battery detection
+// Power handler for battery detection -- no separate fuel gauge on this
+// board, battery% comes from the PMIC's own system voltage reading.
 #include <Wire.h>
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-XPowersPPM PPM;
 
 void _setup_gpio() {
 
@@ -41,24 +42,9 @@ void _setup_gpio() {
     launcherGpioWrite(NRF24_SS_PIN, HIGH);
     // Starts SPI instance for CC1101 and NRF24 with CS pins blocking communication at start
 
-    bool pmu_ret = false;
     Wire.begin(GROVE_SDA, GROVE_SCL);
-    pmu_ret = PPM.init(Wire, GROVE_SDA, GROVE_SCL, BQ25896_SLAVE_ADDRESS);
-    if (pmu_ret) {
-        PPM.setSysPowerDownVoltage(3300);
-        PPM.setInputCurrentLimit(3250);
-        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        PPM.disableCurrentLimitPin();
-        PPM.setChargeTargetVoltage(4208);
-        PPM.setPrechargeCurr(64);
-        PPM.setChargerConstantCurr(832);
-        PPM.getChargerConstantCurr();
-        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure();
-        PPM.enableCharge();
-        PPM.enableOTG();
-        PPM.disableOTG();
-    }
+    DevicePmic pmicCfg{GROVE_SDA, GROVE_SCL, SMOOCHIEE_BQ25896_ADDRESS};
+    if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
 }
 
 /***************************************************************************************
@@ -67,9 +53,7 @@ void _setup_gpio() {
 ** Description:   Delivers the battery value from 1-100+
 ***************************************************************************************/
 int getBattery() {
-    uint8_t percent = 0;
-    percent = (PPM.getSystemVoltage() - 3300) * 100 / (float)(4150 - 3350);
-
+    uint8_t percent = (hal_pmic_get_system_voltage_mv() - 3300) * 100 / (float)(4150 - 3350);
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 

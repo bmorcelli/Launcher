@@ -2,12 +2,32 @@
 #include "powerSave.h"
 #include <interface.h>
 
+// If PMIC_BQ25896 / GAUGE_BQ27220 is set in platformio.ini:
+// #include "hal/device.h"
+// #include "hal/power/gauge.h"
+// #include "hal/power/pmic.h"
+
 /***************************************************************************************
 ** Function:    _setup_gpio()
 ** Location:    main.cpp
 ** Description: initial setup for the device
 ***************************************************************************************/
-void _setup_gpio() {}
+void _setup_gpio() {
+    // Power HAL example (only if PMIC_BQ25896/GAUGE_BQ27220 are set -- Wire
+    // must already be begun):
+    // DevicePmic pmicCfg{SDA, SCL, 0x6B};
+    // hal_pmic_init(pmicCfg); // input current limit defaults to 3250mA;
+    //                         // pass a second arg to override (e.g. 2000)
+    //
+    // If the PMIC must share an I2C bus another driver already began (no
+    // second Wire.begin()), use the callback-based entry point instead:
+    // hal_pmic_init_via_callbacks(0x6B, myReadReg, myWriteReg);
+    //
+    // DeviceGauge gaugeCfg{};
+    // gaugeCfg.design_capacity_mah = 1300; // leave at 0 (default) to skip
+    //                                      // setDesignCap() entirely
+    // hal_gauge_init(gaugeCfg);
+}
 
 /***************************************************************************************
 ** Function:    _post_setup_gpio()
@@ -28,7 +48,10 @@ void _late_setup_gpio() {}
 ** location: display.cpp
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
-int getBattery() { return 0; }
+int getBattery() {
+    // With GAUGE_BQ27220 set: return hal_gauge_get_percent();
+    return 0;
+}
 
 /*********************************************************************
 ** Function: setBrightness
@@ -74,8 +97,8 @@ void powerOff() {
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
-    // or PMIC shutdown if available
-    // PPM.shutdown();
+    // or PMIC shutdown if available (PMIC_BQ25896 set):
+    // hal_pmic_shutdown();
 }
 
 /*********************************************************************

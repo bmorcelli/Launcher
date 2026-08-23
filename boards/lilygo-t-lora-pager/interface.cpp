@@ -43,15 +43,12 @@ ExtensionIOXL9555 io;
 RotaryEncoder *encoder = nullptr;
 IRAM_ATTR void checkPosition() { encoder->tick(); }
 
-// Battery
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-PowersBQ25896 PPM;
-
-// Fuel gauge
-#include <bq27220.h>
+// Battery: charger + fuel gauge
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 #define BATTERY_DESIGN_CAPACITY 1500
-BQ27220 bq;
 
 // Keyboard
 #include <Adafruit_TCA8418.h>
@@ -153,26 +150,13 @@ void _setup_gpio() {
     launcherGpioOutput(SDCARD_CS);
     launcherGpioWrite(SDCARD_CS, HIGH);
 
-    bool pmu_ret = false;
-    pmu_ret = PPM.init(Wire, SDA, SCL, BQ25896_I2C_ADDRESS);
-    if (pmu_ret) {
-        PPM.setSysPowerDownVoltage(3300);
-        PPM.setInputCurrentLimit(3250);
-        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        PPM.disableCurrentLimitPin();
-        PPM.setChargeTargetVoltage(4208);
-        PPM.setPrechargeCurr(64);
-        PPM.setChargerConstantCurr(832);
-        PPM.getChargerConstantCurr();
-        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure();
-        PPM.enableCharge();
-        PPM.enableOTG();
-        PPM.disableOTG();
-    }
+    DevicePmic pmicCfg{SDA, SCL, BQ25896_I2C_ADDRESS};
+    if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
 
     // Battery gauge
-    if (bq.getDesignCap() != BATTERY_DESIGN_CAPACITY) { bq.setDesignCap(BATTERY_DESIGN_CAPACITY); }
+    DeviceGauge gaugeCfg{};
+    gaugeCfg.design_capacity_mah = BATTERY_DESIGN_CAPACITY;
+    hal_gauge_init(gaugeCfg);
 
     if (io.begin(Wire, 0x20)) {
         const uint8_t expands[] = {
@@ -213,11 +197,7 @@ void _setup_gpio() {
 ** Function name: getBattery()
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
-int getBattery() {
-    int percent = bq.getChargePcnt();
-    if (percent == 65535) return -1;
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
+int getBattery() { return hal_gauge_get_percent(); }
 
 /*********************************************************************
 **  Function: setBrightness
@@ -384,4 +364,4 @@ END:
         tm = launcherMillis();
 }
 
-void powerOff() { PPM.shutdown(); }
+void powerOff() { hal_pmic_shutdown(); }
