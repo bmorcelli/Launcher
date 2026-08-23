@@ -385,5 +385,3 @@ END:
 }
 
 void powerOff() { PPM.shutdown(); }
-
-void checkReboot() {}

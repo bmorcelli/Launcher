@@ -489,6 +489,7 @@ void loop() {
                 displayMsg("Dev mode Activated");
                 dev_mode = true;
                 saveConfigs();
+                first_loop = 1;
             }
             drawMainMenu(menuItems, index, first_loop);
             redraw = false;

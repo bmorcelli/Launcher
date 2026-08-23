@@ -456,7 +456,13 @@ void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bo
 void displayError(String txt, bool waitKeyPress) {
     displayRedStripe(txt);
     Serial.println("ERR: " + txt);
-    if (!waitKeyPress) vTaskDelay(pdMS_TO_TICKS(2000));
+    if (!waitKeyPress) {
+        const uint32_t tmp = launcherMillis() + 2000;
+        while (launcherMillis() < tmp) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            if (check(AnyKeyPress)) break;
+        }
+    }
     while (waitKeyPress && !check(AnyKeyPress)) vTaskDelay(pdMS_TO_TICKS(10));
 }
 
@@ -513,7 +519,7 @@ void progressHandler(size_t progress, size_t total) {
     if (prog_handler == 1) tft->fillRect(20, tftHeight - 26, barWidth, 13, ALCOLOR);
     else tft->fillRect(20, tftHeight - 45, barWidth, 13, FGCOLOR);
 
-#if defined(E_PAPER_DISPLAY) && (defined(USE_GXEPD2) || defined(USE_M5GFX))
+#if defined(E_PAPER_DISPLAY)
     if (launcherMillis() - lastUpdate > 2000) {
         tft->display();
         lastUpdate = launcherMillis();
@@ -871,6 +877,8 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
     // The grid layout (position/size per item) never changes between calls in the same
     // session, so all other icons stay pixel-identical and don't need to be touched.
     static int lastIndex = -1;
+    static int bat = 0;
+    static bool wifi = false;
 
     uint8_t size = opt.size();
     if (size < 1) {
@@ -991,10 +999,17 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
         tft->setTextSize(maxIconTextSize);
         drawDeviceBorder();
         TouchFooter();
+        bat = 0;
+        wifi = false;
     }
-    int bat = getBattery();
-    if (bat > 0) drawBatteryStatus(bat);
-    drawWifiStatus(bat > 0);
+    int _bat = getBattery();
+    if (bat != _bat && _bat > 0) {
+        drawBatteryStatus(_bat);
+        bat = _bat;
+    }
+    bool _wifi = launcherWifiIsConnected();
+    if (_wifi && wifi != _wifi) drawWifiStatus(bat > 0);
+    wifi = _wifi;
     tft->display(false);
 }
 /***************************************************************************************
@@ -1088,7 +1103,6 @@ void drawWifiStatus(bool hasBattery) {
     int cx = batteryLeft - gap - 3 * u;
     int by = 7 + (_fp * LH + 9) / 2 + u;
     int dot = u < 2 ? 2 : u;
-    if (!launcherWifiIsConnected()) return;
     tft->fillRect(cx - 3 * u - 1, 6, 6 * u + 3, 4 * u + dot + 2, BGCOLOR);
     int thick = size / 8;
     if (thick < 1) thick = 1;

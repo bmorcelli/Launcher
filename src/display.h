@@ -33,6 +33,14 @@
 #define PINK TFT_PINK
 #define PALERED 0xF9A0
 
+#if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
+#define NATIVE_BGCOLOR WHITE
+#elif defined(E_PAPER_DISPLAY)
+#define NATIVE_BGCOLOR WHITE
+#else
+#define NATIVE_BGCOLOR BLACK
+#endif
+
 inline int16_t panelWidth() { return displayConfig.width; }
 inline int16_t panelHeight() { return displayConfig.height; }
 
@@ -42,11 +50,11 @@ extern tft_display *tft;
 #define FREE_TFT delete tft;
 
 int loopOptions(
-    std::vector<Option> &options, bool bright = false, uint16_t al = RED, uint16_t bg = BLACK,
+    std::vector<Option> &options, bool bright = false, uint16_t al = ALCOLOR, uint16_t bg = BGCOLOR,
     bool border = true, int index = 0
 );
 inline int loopOptions(
-    int index, std::vector<Option> &options, uint16_t al = RED, uint16_t bg = BLACK, bool border = true
+    int index, std::vector<Option> &options, uint16_t al = ALCOLOR, uint16_t bg = BGCOLOR, bool border = true
 ) {
     return loopOptions(options, false, al, bg, border, index);
 }

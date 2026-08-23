@@ -189,10 +189,3 @@ void powerOff() {
     neopixelWrite(RGB_LED_PIN, 0, 0, 0);
     esp_deep_sleep_start();
 }
-
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to turn off the device (name is odd btw)
-**********************************************************************/
-void checkReboot() { /* No dedicated reboot button on ES3C28P */ }

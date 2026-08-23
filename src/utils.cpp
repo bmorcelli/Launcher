@@ -108,6 +108,7 @@ bool releaseHeapObjectsAndReboot(void) {
     static volatile bool rebootInProgress = false;
     if (rebootInProgress) {
         reboot();
+        ESP.restart(); // just in case
         return true;
     }
     rebootInProgress = true;
@@ -135,7 +136,10 @@ bool releaseHeapObjectsAndReboot(void) {
     wui_pwd = "";
     dwn_path = "";
     lastInstalledApp = "";
+    tft->fillScreen(NATIVE_BGCOLOR);
+    tft->display(true);
     FREE_TFT
     reboot();
+    ESP.restart(); // just in case
     return true;
 }

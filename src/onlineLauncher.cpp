@@ -45,6 +45,7 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
     Retry:
         if (!found || wrongPass) {
             if (encryptation > 0) {
+                resetGlobals(); // Reset in case user presses Sel during error msg
                 pwd = keyboard(pwd, 63, "Network Password:");
                 if (pwd == String(KEY_ESCAPE)) {
                     returnToMenu = true;
