@@ -315,7 +315,7 @@ void InputHandler(void) {
     int16_t tx = 0, ty = 0;
     uint8_t touched = 0;
 
-    if (launcherMillis() - ready_tm > 5000 && !touchReady) {
+    if (launcherMillis() - ready_tm > 500 && !touchReady) {
         if (!Wire.begin(TOUCH_SDA, TOUCH_SCL)) launcherConsolePrintln("Fail Starting Wire");
         touchReady = bringUpTouch();
         ready_tm = launcherMillis();
