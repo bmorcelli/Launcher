@@ -307,13 +307,24 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
+    static unsigned long pool_tm = launcherMillis();
+    static unsigned long ready_tm = launcherMillis();
+
+    if (launcherMillis() - tm <= 200 && !LongPress) return;
 
     int16_t tx = 0, ty = 0;
-    const uint8_t touched = touchReady ? readTouchPoint(&tx, &ty) : 0;
+    uint8_t touched = 0;
 
-    if (launcherMillis() - tm > 200 || LongPress) {
-    } else return;
+    if (launcherMillis() - ready_tm > 5000 && !touchReady) {
+        if (!Wire.begin(TOUCH_SDA, TOUCH_SCL)) launcherConsolePrintln("Fail Starting Wire");
+        touchReady = bringUpTouch();
+        ready_tm = launcherMillis();
+    }
 
+    if (launcherMillis() - pool_tm > 100) {
+        touched = touchReady ? readTouchPoint(&tx, &ty) : 0;
+        pool_tm = launcherMillis();
+    }
     const bool prev = launcherGpioRead(BTN_PREV) == LOW;
     const bool next = launcherGpioRead(BTN_NEXT) == LOW;
     const bool sel = launcherGpioRead(BTN_SEL_PWR) == LOW;
@@ -321,8 +332,7 @@ void InputHandler(void) {
     if (!prev && !next && !sel && !touched) return;
 
     tm = launcherMillis();
-    if (!wakeUpScreen()) AnyKeyPress = true;
-    else return;
+    AnyKeyPress = true;
 
     if (prev) PrevPress = true;
     if (next) NextPress = true;
