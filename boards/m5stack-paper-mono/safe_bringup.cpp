@@ -11,10 +11,11 @@ void setup() {
     HWCDCSerial.begin(115200);
 
     const uint32_t serialWaitStarted = millis();
-    while (!HWCDCSerial && (millis() - serialWaitStarted < 2000U)) { delay(10); }
+    while (!HWCDCSerial && (millis() - serialWaitStarted < 8000U)) { delay(20); }
+    if (HWCDCSerial) { delay(250); }
 
     HWCDCSerial.println();
-    HWCDCSerial.println("PAPERMONO SAFE BRING-UP STAGE 1");
+    HWCDCSerial.println("PAPERMONO SAFE BRING-UP STAGE 1.1");
     HWCDCSerial.printf("Chip model: %s\r\n", ESP.getChipModel());
     HWCDCSerial.printf("Chip revision: %u\r\n", ESP.getChipRevision());
     HWCDCSerial.printf("CPU frequency: %lu MHz\r\n", static_cast<unsigned long>(ESP.getCpuFreqMHz()));
@@ -30,5 +31,7 @@ void setup() {
 }
 
 void loop() {
-    for (;;) { ulTaskNotifyTake(pdTRUE, portMAX_DELAY); }
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    HWCDCSerial.println("PAPERMONO SAFE HEARTBEAT");
+    HWCDCSerial.flush();
 }
