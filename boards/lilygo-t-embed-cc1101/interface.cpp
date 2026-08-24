@@ -2,14 +2,11 @@
 #include "powerSave.h"
 #include <globals.h>
 #include <interface.h>
-// Rotary encoder
-#include <RotaryEncoder.h>
-RotaryEncoder *encoder = nullptr;
-IRAM_ATTR void checkPosition() { encoder->tick(); }
 
 #include <Wire.h>
-// Charger chip + fuel gauge, CC1101 board only
+// Charger chip + fuel gauge, CC1101 board only; encoder on both variants
 #include "hal/device.h"
+#include "hal/inputs/encoder.h"
 #include "hal/power/gauge.h"
 #include "hal/power/pmic.h"
 #include "idf/launcher_platform.h"
@@ -70,6 +67,15 @@ static gpio_num_t pinWakeup = GPIO_NUM_6;
 #define TE_PLAIN_SD_MISO 38
 #define TE_PLAIN_SD_MOSI 41
 
+static DeviceEncoder encoderCfg() {
+    DeviceEncoder cfg;
+    cfg.pin_a = pinEncA;
+    cfg.pin_b = pinEncB;
+    cfg.pin_sel = SEL_BTN;
+    cfg.pin_esc = pinBack; // -1 on the plain variant (no back button)
+    return cfg;
+}
+
 /***************************************************************************************
 ** Function name: _detect_variant()
 ** Description:   ask I2C which board this is, and move everything that follows
@@ -120,7 +126,6 @@ void _setup_gpio() {
 
     launcherGpioOutput(pinPowerOn);
     launcherGpioWrite(pinPowerOn, HIGH);
-    launcherGpioInput(SEL_BTN);
 
     if (tEmbed == T_EMBED_CC1101) {
         // The CC1101 board has an antenna circuit tuned per frequency band,
@@ -146,13 +151,9 @@ void _setup_gpio() {
         DeviceGauge gaugeCfg{};
         gaugeCfg.design_capacity_mah = BATTERY_DESIGN_CAPACITY;
         hal_gauge_init(gaugeCfg);
-
-        launcherGpioInput(pinBack);
     }
 
-    encoder = new RotaryEncoder(pinEncA, pinEncB, RotaryEncoder::LatchMode::TWO03);
-    attachInterrupt(digitalPinToInterrupt(pinEncA), checkPosition, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(pinEncB), checkPosition, CHANGE);
+    hal_encoder_init(encoderCfg());
 }
 
 /*********************************************************************
@@ -203,47 +204,7 @@ bool isCharging() { return tEmbed == T_EMBED_CC1101 ? hal_gauge_is_charging() : 
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = launcherMillis(); // debauce for buttons
-    static int posDifference = 0;
-    static int lastPos = 0;
-    bool sel = !BTN_ACT;
-    bool esc = !BTN_ACT;
-
-    int newPos = encoder->getPosition();
-    if (newPos != lastPos) {
-        posDifference += (newPos - lastPos);
-        lastPos = newPos;
-    }
-
-    if (launcherMillis() - tm < 200 && !LongPress) return;
-
-    sel = launcherGpioRead(SEL_BTN);
-    if (pinBack >= 0) esc = launcherGpioRead(pinBack);
-
-    if (posDifference != 0 || sel == BTN_ACT || esc == BTN_ACT) {
-        if (!wakeUpScreen()) AnyKeyPress = true;
-        else return;
-    }
-    if (posDifference > 0) {
-        PrevPress = true;
-        posDifference--;
-    }
-    if (posDifference < 0) {
-        NextPress = true;
-        posDifference++;
-    }
-
-    if (sel == BTN_ACT) {
-        posDifference = 0;
-        SelPress = true;
-        tm = launcherMillis();
-    }
-    if (esc == BTN_ACT) {
-        EscPress = true;
-        tm = launcherMillis();
-    }
-}
+void InputHandler(void) { hal_encoder_poll(encoderCfg()); }
 
 void powerOff() {
     if (tEmbed == T_EMBED_PLAIN) {

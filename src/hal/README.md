@@ -15,8 +15,8 @@ duplication. See `docs/plan.md` for the migration plan this follows.
 - `power/gauge.*` — fuel gauge IC (BQ27220, MAX17048)
 - `bright/bright.*` — backlight PWM curve
 - `device.h` — pure-data structs (`DeviceButtons`, `DeviceTouch`,
-  `DevicePmic`, `DeviceGauge`) a board fills in `_setup_gpio()` and hands to
-  the `hal_*` functions below.
+  `DeviceEncoder`, `DevicePmic`, `DeviceGauge`) a board fills in
+  `_setup_gpio()` and hands to the `hal_*` functions below.
 
 ## Conventions
 
@@ -85,6 +85,18 @@ duplication. See `docs/plan.md` for the migration plan this follows.
     `lilygo-t-watch-s3`'s `Wire1`. `void*` rather than `TwoWire*` so
     `device.h` — included by every board regardless of what sensors it
     has — stays Arduino-free.
+- `inputs/encoder.*` (Etapa 5) -- `HAS_ENCODER`, `RotaryEncoder` lib, all
+  migrated boards use `hal_encoder_init`/`hal_encoder_poll`:
+  `lilygo-t-embed-cc1101` (both variants, `pin_esc=-1` on the plain one
+  since it has no back button), `m5stack-dinmeter`, `marauder-v4og`'s
+  `WaveSentry-R1` env (all three `LatchMode::TWO03`), and
+  `lilygo-t-lora-pager` (`LatchMode::FOUR3`, encoder entangled with the
+  TCA8418 keyboard in the same `InputHandler()` -- `encoderCfg()` swaps
+  `pin_a`/`pin_b` to correct a Next/Prev direction inverted relative to the
+  other three boards, since `hal_encoder_poll()` itself has no invert flag;
+  see `docs/etapa_5.md`). `encoder.cpp` is guarded end-to-end by `#if
+  defined(HAS_ENCODER)` (stubs otherwise) so PlatformIO's LDF doesn't need
+  `RotaryEncoder` in `lib_deps` for boards without it.
   - Not migrated, documented in `docs/etapa_3.md`/`docs/etapa_4.md`:
     `CYD-2432S028`'s GT911/CST816S/AXS15231B branches (different lib,
     `TouchLib`/`bb_captouch`, not `SensorLib`), `lilygo-t5-epaper-s3-pro`

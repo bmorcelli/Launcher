@@ -20,13 +20,19 @@ static DeviceTouch touchCfg() {
 }
 
 #ifdef WAVESENTRY
-#include <RotaryEncoder.h>
+#include "hal/inputs/encoder.h"
 #define ENCODER_INA 2
 #define ENCODER_INB 14
 #define ENCODER_KEY 0
-#define BTN_ACT LOW
-RotaryEncoder *encoder = nullptr;
-IRAM_ATTR void checkPosition() { encoder->tick(); }
+
+static DeviceEncoder encoderCfg() {
+    DeviceEncoder cfg;
+    cfg.pin_a = ENCODER_INA;
+    cfg.pin_b = ENCODER_INB;
+    cfg.pin_sel = ENCODER_KEY;
+    cfg.pullup = true;
+    return cfg;
+}
 #endif
 
 /***************************************************************************************
@@ -42,10 +48,7 @@ void _setup_gpio() {
     digitalWrite(TOUCH_CS, HIGH);
     digitalWrite(TFT_CS, HIGH);
 #ifdef WAVESENTRY
-    launcherGpioInputPullup(ENCODER_KEY);
-    encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::TWO03);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INA), checkPosition, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INB), checkPosition, CHANGE);
+    hal_encoder_init(encoderCfg());
 #endif
 }
 
@@ -108,38 +111,7 @@ void InputHandler(void) {
     }
 
 #ifdef WAVESENTRY
-    static int posDifference = 0;
-    static int lastPos = 0;
-    bool sel = !BTN_ACT;
-
-    int newPos = encoder->getPosition();
-    if (newPos != lastPos) {
-        posDifference += (newPos - lastPos);
-        lastPos = newPos;
-    }
-
-    if (launcherMillis() - tm < 200 && !LongPress) return;
-
-    sel = launcherGpioRead(ENCODER_KEY);
-
-    if (posDifference != 0 || sel == BTN_ACT) {
-        if (!wakeUpScreen()) AnyKeyPress = true;
-        else return;
-    }
-    if (posDifference > 0) {
-        PrevPress = true;
-        posDifference--;
-    }
-    if (posDifference < 0) {
-        NextPress = true;
-        posDifference++;
-    }
-
-    if (sel == BTN_ACT) {
-        posDifference = 0;
-        SelPress = true;
-        tm = launcherMillis();
-    }
+    hal_encoder_poll(encoderCfg());
 #endif
 }
 

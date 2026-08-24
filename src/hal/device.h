@@ -32,6 +32,14 @@ struct DeviceTouch {
     void *i2c_bus = nullptr;
 };
 
+struct DeviceEncoder {
+    int8_t pin_a = -1;
+    int8_t pin_b = -1;
+    int8_t pin_sel = -1;
+    int8_t pin_esc = -1; // -1 if there's no dedicated esc button (only the encoder + pin_sel)
+    bool pullup = false; // internal pull-up on pin_sel/pin_esc
+};
+
 struct DevicePmic {
     int8_t pin_sda = -1;
     int8_t pin_scl = -1;

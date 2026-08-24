@@ -13,6 +13,8 @@
 #define KEY_BACKSPACE 0x1d
 #define KEY_ENTER 0x13
 // Pinouts definitions
+#define KEYBOARD_SDA 3
+#define KEYBOARD_SCL 2
 #define KEYBOARD_BL 46
 #define ENCODER_INA 40
 #define ENCODER_INB 41
@@ -39,9 +41,21 @@
 ExtensionIOXL9555 io;
 
 // Rotary encoder
-#include <RotaryEncoder.h>
-RotaryEncoder *encoder = nullptr;
-IRAM_ATTR void checkPosition() { encoder->tick(); }
+#include "hal/inputs/encoder.h"
+
+static DeviceEncoder encoderCfg() {
+    DeviceEncoder cfg;
+    // A/B swapped on purpose: this board's physical wiring reports rotation
+    // opposite to lilygo-t-embed-cc1101/m5stack-dinmeter for the Next/Prev
+    // mapping hal_encoder_poll() assumes -- swapping the quadrature pins
+    // flips the sign RotaryEncoder reports, correcting for it without
+    // touching hal_encoder_poll()'s logic.
+    cfg.pin_a = ENCODER_INB;
+    cfg.pin_b = ENCODER_INA;
+    cfg.pin_sel = SEL_BTN;
+    cfg.pin_esc = BK_BTN;
+    return cfg;
+}
 
 // Battery: charger + fuel gauge
 #include "hal/device.h"
@@ -139,7 +153,7 @@ int handleSpecialKeys(uint8_t k, bool pressed) {
 ***************************************************************************************/
 void _setup_gpio() {
 
-    Wire.begin(SDA, SCL);
+    Wire.begin(KEYBOARD_SDA, KEYBOARD_SCL);
 
     launcherGpioInput(SEL_BTN);
     launcherGpioInput(BK_BTN);
@@ -174,12 +188,7 @@ void _setup_gpio() {
         launcherConsolePrintf("%s\n", String("Initializing expander failed").c_str());
     }
 
-    launcherGpioInput(ENCODER_KEY);
-    encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::FOUR3);
-
-    // register interrupt routine
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INA), checkPosition, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INB), checkPosition, CHANGE);
+    hal_encoder_init(encoderCfg(), EncoderLatchMode::FOUR3);
 
     // Initalise keyboard
     bool res = keyboard.begin(KB_I2C_ADDRESS, &Wire);
@@ -223,7 +232,6 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
 
-    static unsigned long tm = launcherMillis();
     static unsigned long nextRepeatTime = 0;
     static unsigned long prevRepeatTime = 0;
     static unsigned long upRepeatTime = 0;
@@ -232,19 +240,6 @@ void InputHandler(void) {
     static bool prevHeld = false;
     static bool upHeld = false;
     static bool downHeld = false;
-    static int posDifference = 0;
-    static int lastPos = 0;
-    bool sel = !BTN_ACT;
-    bool esc = !BTN_ACT;
-
-    int newPos = encoder->getPosition();
-    if (newPos != lastPos) {
-        posDifference += (newPos - lastPos);
-        lastPos = newPos;
-    }
-
-    sel = launcherGpioRead(SEL_BTN);
-    esc = launcherGpioRead(BK_BTN);
 
     bool nextPulse = false;
     bool prevPulse = false;
@@ -335,33 +330,7 @@ void InputHandler(void) {
         EscPress = escPulse;
     }
 
-    if (launcherMillis() - tm < 500) {
-        if (nextPulse || prevPulse || upPulse || downPulse || selPulse || escPulse || keyPulse)
-            tm = launcherMillis();
-        return;
-    }
-
-    if (posDifference != 0 || sel == BTN_ACT || esc == BTN_ACT) {
-        if (!wakeUpScreen()) {
-            AnyKeyPress = true;
-
-            if (posDifference < 0) {
-                PrevPress = true;
-                posDifference++;
-            }
-            if (posDifference > 0) {
-                NextPress = true;
-                posDifference--;
-            }
-            if (sel == BTN_ACT) SelPress = true;
-            if (esc == BTN_ACT) EscPress = true;
-        } else goto END;
-    }
-
-END:
-    if (sel == BTN_ACT || esc == BTN_ACT || nextPulse || prevPulse || upPulse || downPulse || selPulse ||
-        escPulse || keyPulse)
-        tm = launcherMillis();
+    hal_encoder_poll(encoderCfg());
 }
 
 void powerOff() { hal_pmic_shutdown(); }

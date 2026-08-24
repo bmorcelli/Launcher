@@ -27,6 +27,22 @@
 // call hal_buttons_init_2(DeviceButtons{BTN1, BTN2}, 600) from _setup_gpio()
 // and hal_buttons_poll_2() from InputHandler() -- see hal/inputs/buttons.h
 
+// For HAS_ENCODER (needs lib_deps = mathertel/RotaryEncoder in platformio.ini):
+// #include "hal/device.h"
+// #include "hal/inputs/encoder.h"
+// static DeviceEncoder encoderCfg() {
+//     DeviceEncoder cfg;
+//     cfg.pin_a = ENCODER_A;
+//     cfg.pin_b = ENCODER_B;
+//     cfg.pin_sel = ENCODER_SEL;
+//     cfg.pin_esc = -1; // a real pin if there's a separate dedicated esc button
+//     return cfg;
+// }
+// call hal_encoder_init(encoderCfg()) from _setup_gpio() (default LatchMode
+// is TWO03 -- pass EncoderLatchMode::FOUR3 as a second arg for a board wired
+// that way, e.g. lilygo-t-lora-pager), then hal_encoder_poll(encoderCfg())
+// every InputHandler() cycle.
+
 // For HAS_TOUCH with TOUCH_CTRL_XPT2046 or TOUCH_CTRL_GT911 set:
 // #include "hal/device.h"
 // #include "hal/inputs/touch.h"
