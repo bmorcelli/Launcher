@@ -1,5 +1,6 @@
 #include <Arduino.h>
-#include <esp_system.h>
+#include <esp_rom_uart.h>
+#include <esp_rom_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -7,29 +8,18 @@
 #error "safe_bringup.cpp must only be built with PAPERMONO_SAFE_BRINGUP enabled"
 #endif
 
+static void romUsbPuts(const char *text) {
+    while (*text != '\0') { esp_rom_output_putc(*text++); }
+}
+
 void setup() {
-    HWCDCSerial.begin(115200);
-
-    const uint32_t serialWaitStarted = millis();
-    while (!HWCDCSerial && (millis() - serialWaitStarted < 8000U)) { delay(20); }
-    if (HWCDCSerial) { delay(250); }
-
-    HWCDCSerial.println();
-    HWCDCSerial.println("PAPERMONO SAFE BRING-UP STAGE 1.1");
-    HWCDCSerial.printf("Chip model: %s\r\n", ESP.getChipModel());
-    HWCDCSerial.printf("Chip revision: %u\r\n", ESP.getChipRevision());
-    HWCDCSerial.printf("CPU frequency: %lu MHz\r\n", static_cast<unsigned long>(ESP.getCpuFreqMHz()));
-    HWCDCSerial.printf("Flash size: %lu bytes\r\n", static_cast<unsigned long>(ESP.getFlashChipSize()));
-    HWCDCSerial.printf("PSRAM size: %lu bytes\r\n", static_cast<unsigned long>(ESP.getPsramSize()));
-    HWCDCSerial.printf("Free heap: %lu bytes\r\n", static_cast<unsigned long>(ESP.getFreeHeap()));
-    HWCDCSerial.printf("Reset reason: %d\r\n", static_cast<int>(esp_reset_reason()));
-    HWCDCSerial.println("NO M5Unified INIT");
-    HWCDCSerial.println("NO DISPLAY INIT");
-    HWCDCSerial.println("NO SD INIT");
-    HWCDCSerial.println("NO PMIC/IOE1 COMMANDS");
+    delay(1000);
+    esp_rom_output_set_as_console(ESP_ROM_USB_SERIAL_DEVICE_NUM);
+    romUsbPuts("PAPERMONO ROM USB SAFE BRING-UP\r\n");
+    romUsbPuts("NO PAPERMONO PERIPHERALS INITIALIZED\r\n");
 }
 
 void loop() {
     vTaskDelay(pdMS_TO_TICKS(5000));
-    HWCDCSerial.println("PAPERMONO SAFE HEARTBEAT");
+    romUsbPuts("PAPERMONO ROM USB HEARTBEAT\r\n");
 }
