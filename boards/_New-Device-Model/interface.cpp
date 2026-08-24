@@ -27,6 +27,35 @@
 // call hal_buttons_init_2(DeviceButtons{BTN1, BTN2}, 600) from _setup_gpio()
 // and hal_buttons_poll_2() from InputHandler() -- see hal/inputs/buttons.h
 
+// For HAS_TOUCH with TOUCH_CTRL_XPT2046 or TOUCH_CTRL_GT911 set:
+// #include "hal/device.h"
+// #include "hal/inputs/touch.h"
+// static DeviceTouch touchCfg() {
+//     DeviceTouch cfg;
+//     // TOUCH_CTRL_GT911 only -- ignored for TOUCH_CTRL_XPT2046 (pins are
+//     // compile-time macros from CYD28_TouchscreenR.h instead, see the
+//     // Touch build_flags below):
+//     cfg.pin_sda = -1; // -1 if Wire.begin() is already called elsewhere
+//     cfg.pin_scl = -1;
+//     cfg.pin_rst = -1;
+//     cfg.pin_irq = TOUCH_INT;
+//     // MirrorX/MirrorY/SwapXY are indexed by the display's current
+//     // rotation (0-3) -- copy the values from a similar already-migrated
+//     // board (see src/hal/inputs/touch.h) rather than guessing; they only
+//     // become obvious once you can touch the 4 corners on real hardware.
+//     return cfg;
+// }
+// call hal_touch_init(touchCfg()) from _setup_gpio() (or _post_setup_gpio()
+// if the panel/bus needs to come up first), then each InputHandler() cycle:
+// LTouchPoint t;
+// if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+//     // hal_touch_apply() wakes the screen (swallowing this press as the
+//     // wake-up tap, same convention as every other input source) and
+//     // publishes the point to touchPoint/touchHeatMap() -- returns false
+//     // if InputHandler() should return immediately instead.
+//     if (!hal_touch_apply(t)) return;
+// }
+
 /***************************************************************************************
 ** Function:    _setup_gpio()
 ** Location:    main.cpp

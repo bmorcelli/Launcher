@@ -1,4 +1,5 @@
-#include "TouchDrvGT911.hpp"
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
@@ -11,13 +12,6 @@
 #define R_BTN 1
 #define BTN_ACT LOW
 #define PIN_POWER_ON 10
-
-TouchDrvGT911 touch;
-
-struct LTouchPointPro {
-    int16_t x = 0;
-    int16_t y = 0;
-};
 
 // Setup for Trackball
 void IRAM_ATTR ISR_up();
@@ -67,6 +61,26 @@ void ISR_rst() {
 #define PIN_POWER_ON 10
 #define BOARD_TOUCH_INT 16
 
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_irq = BOARD_TOUCH_INT;
+#ifdef T_DECK_PLUS
+    constexpr bool isPlus = true;
+#else
+    constexpr bool isPlus = false;
+#endif
+    // rotation:          0         1        2         3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, !isPlus, true, isPlus};
+    bool mirrorY[4] = {!isPlus, true, isPlus, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
@@ -81,8 +95,7 @@ void _setup_gpio() {
     launcherGpioWrite(PIN_POWER_ON, HIGH);
     launcherGpioInput(SEL_BTN);
     launcherGpioInput(BOARD_TOUCH_INT);
-    touch.setPins(-1, BOARD_TOUCH_INT);
-    if (!touch.begin(Wire, GT911_SLAVE_ADDRESS_L)) {
+    if (!hal_touch_init(touchCfg())) {
         launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
     }
 
@@ -135,38 +148,8 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     char keyValue = 0;
     static unsigned long tm = launcherMillis();
-    LTouchPointPro t;
-    uint8_t touched = 0;
-    static uint8_t rot = 5;
-#ifdef T_DECK_PLUS
-    bool isPlus = true;
-#else
-    bool isPlus = false;
-#endif
-    if (rot != rotation) {
-        if (rotation == 1) {
-            touch.setMaxCoordinates(320, 240);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(!isPlus, true);
-        }
-        if (rotation == 3) {
-            touch.setMaxCoordinates(320, 240);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(isPlus, false);
-        }
-        if (rotation == 0) {
-            touch.setMaxCoordinates(240, 320);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(false, !isPlus);
-        }
-        if (rotation == 2) {
-            touch.setMaxCoordinates(240, 320);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(true, isPlus);
-        }
-        rot = rotation;
-    }
-    touched = touch.getPoint(&t.x, &t.y, 1);
+    LTouchPoint t;
+    bool touched = hal_touch_read(touchCfg(), tftWidth, tftHeight, t);
     launcherDelayMs(2);
     Wire.requestFrom(LILYGO_KB_SLAVE_ADDRESS, 1);
     while (Wire.available() > 0) {
@@ -246,15 +229,7 @@ void InputHandler(void) {
 
             // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d", t.x, t.y, rotation);
             tm = launcherMillis();
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
+            if (!hal_touch_apply(t)) return;
             touched = 0;
             return;
         }

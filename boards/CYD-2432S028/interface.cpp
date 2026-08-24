@@ -104,7 +104,7 @@ public:
 CYD_Touch touch;
 
 #else
-#include "CYD28_TouchscreenR.h"
+#include "CYD28_TouchscreenR.h" // also defines CYD28_TouchR_MOSI, used below to detect a shared SPI bus
 #ifndef CYD28_DISPLAY_HOR_RES_MAX
 #define CYD28_DISPLAY_HOR_RES_MAX 320
 #endif
@@ -112,7 +112,25 @@ CYD_Touch touch;
 #ifndef CYD28_DISPLAY_VER_RES_MAX
 #define CYD28_DISPLAY_VER_RES_MAX 240
 #endif
+#if defined(TOUCH_CTRL_XPT2046)
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {true, false, true, false};
+    bool mirrorX[4] = {true, false, false, true};
+    bool mirrorY[4] = {false, false, true, true};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
+#else
 CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
+#endif
 #endif
 
 /***************************************************************************************
@@ -143,14 +161,18 @@ void _post_setup_gpio() {
     ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
     ledcWrite(TFT_BL, bright);
 
-    if (!touch.begin(
+#if defined(TOUCH_CTRL_XPT2046)
+    bool touchOk = hal_touch_init(touchCfg(), 0x5D, TFT_MOSI == CYD28_TouchR_MOSI);
+#else
+    bool touchOk = touch.begin(
 #ifdef CYD28_TouchR_MOSI
 #if TFT_MOSI == CYD28_TouchR_MOSI
-            &SPI
+        &SPI
 #endif
 #endif
-
-        )) {
+    );
+#endif
+    if (!touchOk) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
@@ -185,6 +207,15 @@ void _setBrightness(uint8_t brightval) {
 **********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
+#if defined(TOUCH_CTRL_XPT2046)
+    if (launcherMillis() - d_tmp > 250 || LongPress) {
+        LTouchPoint t;
+        if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+            d_tmp = launcherMillis();
+            if (!hal_touch_apply(t)) return;
+        }
+    }
+#else
     bool touched = touch.touched();                    // read every cycle to skip bad readings
     if (launcherMillis() - d_tmp > 250 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
@@ -226,6 +257,7 @@ void InputHandler(void) {
 #ifdef TOUCH_GT911_I2C
     else
         touch.touched(); // keep calling it to keep refreshing raw readings for when needed it will be ok
+#endif
 #endif
 }
 

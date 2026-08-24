@@ -1,17 +1,24 @@
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
 #include <interface.h>
 
 // NM-CYD-C5 uses XPT2046 resistive touch on the shared SPI bus
-#include "CYD28_TouchscreenR.h"
-#ifndef CYD28_DISPLAY_HOR_RES_MAX
-#define CYD28_DISPLAY_HOR_RES_MAX 320
-#endif
-#ifndef CYD28_DISPLAY_VER_RES_MAX
-#define CYD28_DISPLAY_VER_RES_MAX 240
-#endif
-CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {true, false, true, false};
+    bool mirrorX[4] = {true, false, false, true};
+    bool mirrorY[4] = {false, false, true, true};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -37,7 +44,7 @@ void _post_setup_gpio() {
     ledcWrite(TFT_BL, bright);
 
     // Display and touch share the same SPI bus; pass &SPI so the driver reuses it
-    if (!touch.begin(&SPI)) {
+    if (!hal_touch_init(touchCfg())) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
@@ -75,36 +82,9 @@ void InputHandler(void) {
     if (launcherMillis() - tm > 200 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;
-        if (touch.touched()) {
+        if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
             tm = launcherMillis();
-            auto t = touch.getPointScaled();
-            auto t2 = touch.getPointRaw();
-            // launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d, rot: %d", t2.x, t2.y, rotation);
-            // launcherConsolePrintf("\nBEF: Touch Pressed on x=%d, y=%d, rot: %d", t.x, t.y, rotation);
-            if (rotation == 3) {
-                t.y = (tftHeight + (_fm * LH + 4)) - t.y;
-                t.x = tftWidth - t.x;
-            }
-            if (rotation == 0) {
-                int tmp = t.x;
-                t.x = tftWidth - t.y;
-                t.y = tmp;
-            }
-            if (rotation == 2) {
-                int tmp = t.x;
-                t.x = t.y;
-                t.y = (tftHeight + (_fm * LH + 4)) - tmp;
-            }
-            // launcherConsolePrintf("\nAFT: Touch Pressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
-            tm = launcherMillis();
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
+            if (!hal_touch_apply(t)) return;
         }
     }
 }

@@ -48,3 +48,24 @@ duplication. See `docs/plan.md` for the migration plan this follows.
     (`BUTTONS_IDF_COMPONENT=1`), backed by the ESP-IDF `Button` component
     (interrupt callbacks) instead of raw GPIO polling like 1/3/5/6 buttons
     — see `docs/etapa_2.md`.
+  - `TOUCH_CTRL_XPT2046`: `phantom`, `CYD-2432S028`-family default branch
+    (`CYD-2432S028`, `CYD-2-USB`, `CYD-2432S024R`, `CYD-2432S032R`,
+    `CYD-2432W328R`, `CYD-3248S035R`, `CYD-4827S043R`, `ESP32-E32R40T` —
+    the GT911/CST816S/AXS15231B branches of that same shared
+    `interface.cpp` are NOT migrated, see below), `lilygo-t-hmi`, `elecrow`
+    (`-24B`/`-28B`/`-35B`/`-35Bv2_2`), `marauder-v4og`
+    (`Marauder-v4-OG`/`Marauder-v61`/`Awok-Touch`/`WaveSentry-R1`),
+    `marauder-v8`, `NM-CYD-C5`.
+  - `TOUCH_CTRL_GT911`: `lilygo-t-deck`/`lilygo-t-deck-plus`,
+    `elecrow-esp32p4-7in`, `elecrow-esp32s3-5in`.
+  - `settings.cpp`'s touch calibration screen (`HAS_RESISTIVE_TOUCH`)
+    still reaches the XPT2046 driver via `extern CYD28_TouchR touch;`,
+    which `hal/inputs/touch.cpp` now defines with external linkage
+    precisely so that keeps working unchanged, both for migrated and
+    not-yet-migrated boards.
+  - Not migrated, documented in `docs/etapa_3.md`: `CYD-2432S028`'s
+    GT911/CST816S/AXS15231B branches (different lib, `TouchLib`/
+    `bb_captouch`, not `SensorLib`), `lilygo-t5-epaper-s3-pro` (GT911 on a
+    driver-owned `TwoWire`, not the global `Wire` the HAL assumes),
+    `xteink-x4pro` and `seeedstudio-reterminal-sticky` (touch + buttons
+    combo, Etapa 7).
