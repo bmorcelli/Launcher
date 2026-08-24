@@ -1,6 +1,7 @@
+#include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <Button.h>
 #include <M5PM1.h>
 #include <Wire.h>
 #include <interface.h>
@@ -16,19 +17,6 @@
 #define PM1_SCL 48
 
 static M5PM1 pm1;
-
-// --- Buttons ---------------------------------------------------------------
-volatile bool nxtPress = false;
-volatile bool prvPress = false;
-volatile bool selPress = false;
-volatile bool escPress = false;
-static void onBtnANextCb(void *button_handle, void *usr_data) { nxtPress = true; }
-static void onBtnASelCb(void *button_handle, void *usr_data) { selPress = true; }
-static void onBtnBPrevCb(void *button_handle, void *usr_data) { prvPress = true; }
-static void onBtnBEscCb(void *button_handle, void *usr_data) { escPress = true; }
-
-Button *btnA;
-Button *btnB;
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -81,32 +69,7 @@ void _setup_gpio() {
     launcherGpioOutput(46);
     launcherGpioWrite(46, LOW); // Infrared LED Off
 
-    button_config_t cfgA = {
-        .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 500,
-        .short_press_time = 120,
-        .gpio_button_config = {
-                               .gpio_num = BTN_A_PIN,
-                               .active_level = 0,
-                               },
-    };
-    button_config_t cfgB = {
-        .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 500,
-        .short_press_time = 120,
-        .gpio_button_config = {
-                               .gpio_num = BTN_B_PIN,
-                               .active_level = 0,
-                               },
-    };
-
-    btnA = new Button(cfgA);
-    btnA->attachSingleClickEventCb(&onBtnANextCb, NULL);
-    btnA->attachLongPressStartEventCb(&onBtnASelCb, NULL);
-
-    btnB = new Button(cfgB);
-    btnB->attachSingleClickEventCb(&onBtnBPrevCb, NULL);
-    btnB->attachLongPressStartEventCb(&onBtnBEscCb, NULL);
+    hal_buttons_init_2(DeviceButtons{BTN_A_PIN, BTN_B_PIN}, 600);
 }
 
 /***************************************************************************************
@@ -160,28 +123,7 @@ int getBattery() {
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = launcherMillis();
-    static bool btn_pressed = false;
-    if (nxtPress || prvPress || selPress || escPress) btn_pressed = true;
-
-    if (launcherMillis() - tm > 200 || LongPress) {
-        if (btn_pressed) {
-            btn_pressed = false;
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-            NextPress = nxtPress;
-            PrevPress = prvPress;
-            SelPress = selPress;
-            EscPress = escPress;
-
-            nxtPress = false;
-            prvPress = false;
-            selPress = false;
-            escPress = false;
-        }
-    }
-}
+void InputHandler(void) { hal_buttons_poll_2(); }
 
 /*********************************************************************
 ** Function: powerOff

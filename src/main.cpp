@@ -210,7 +210,9 @@ void setup() {
 #endif
 #endif
 
+    RAM_LOG("before-setup-gpio");
     _setup_gpio();
+    RAM_LOG("after-setup-gpio");
 
     // Get Configuration from NVS partition
     getFromNVS();
@@ -225,7 +227,9 @@ void setup() {
 // Init Display
 #if !defined(HEADLESS)
     // tft->setAttribute(PSRAM_ENABLE,true);
+    RAM_LOG("before-tft-begin");
     tft->begin();
+    RAM_LOG("after-tft-begin");
 #ifdef TFT_INVERSION_ON
     tft->invertDisplay(true);
 #endif

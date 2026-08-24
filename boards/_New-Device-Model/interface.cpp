@@ -7,6 +7,26 @@
 // #include "hal/power/gauge.h"
 // #include "hal/power/pmic.h"
 
+// For raw-GPIO buttons (HAS_1_BUTTON, HAS_3_BUTTON, HAS_5_BUTTON,
+// HAS_6_BUTTON -- no build flag needed, just call the HAL directly with the
+// button count):
+// #include "hal/device.h"
+// #include "hal/inputs/buttons.h"
+// static DeviceButtons buttonsCfg() {
+//     // 1 button: {Sel}. 3: {Prev, Next, Sel}. 5: {Prev, Next, Up, Down,
+//     // Sel}. 6: {Prev, Next, Up, Down, Sel, Esc} -- see hal/inputs/buttons.h
+//     DeviceButtons cfg{PREV_BTN, NEXT_BTN, SEL_BTN};
+//     cfg.pullup = false; // only if the board has no internal/external pull-up
+//     return cfg;
+// }
+
+// For HAS_2_BUTTONS with BUTTONS_IDF_COMPONENT=1 set (needs
+// lib_deps = https://github.com/bmorcelli/ESP32_Button):
+// #include "hal/device.h"
+// #include "hal/inputs/buttons.h"
+// call hal_buttons_init_2(DeviceButtons{BTN1, BTN2}, 600) from _setup_gpio()
+// and hal_buttons_poll_2() from InputHandler() -- see hal/inputs/buttons.h
+
 /***************************************************************************************
 ** Function:    _setup_gpio()
 ** Location:    main.cpp
@@ -27,6 +47,8 @@ void _setup_gpio() {
     // gaugeCfg.design_capacity_mah = 1300; // leave at 0 (default) to skip
     //                                      // setDesignCap() entirely
     // hal_gauge_init(gaugeCfg);
+
+    // hal_buttons_init(buttonsCfg(), 3); // 1, 3, 5 or 6
 }
 
 /***************************************************************************************
@@ -65,6 +87,14 @@ void _setBrightness(uint8_t brightval) {}
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
+    // For raw-GPIO buttons, skip everything below and use the HAL instead:
+    // hal_buttons_poll_3(buttonsCfg()); // or _poll_1/_poll_5/_poll_6
+    // return;
+    //
+    // For HAS_2_BUTTONS (BUTTONS_IDF_COMPONENT=1):
+    // hal_buttons_poll_2();
+    // return;
+
     checkPowerSaveTime();
     PrevPress = false;
     NextPress = false;

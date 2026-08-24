@@ -1,6 +1,7 @@
+#include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <Button.h>
 #include <GaugeAXP2602.hpp>
 #include <SD_MMC.h>
 #include <Wire.h>
@@ -11,60 +12,15 @@
 
 GaugeAXP2602 gauge;
 
-volatile bool nxtPress = false;
-volatile bool prvPress = false;
-volatile bool ecPress = false;
-volatile bool slPress = false;
-static void onButtonSingleClickCb1(void *button_handle, void *usr_data) { nxtPress = true; }
-static void onButtonDoubleClickCb1(void *button_handle, void *usr_data) { slPress = true; }
-static void onButtonHoldCb1(void *button_handle, void *usr_data) { slPress = true; }
-
-static void onButtonSingleClickCb2(void *button_handle, void *usr_data) { prvPress = true; }
-static void onButtonDoubleClickCb2(void *button_handle, void *usr_data) { ecPress = true; }
-static void onButtonHoldCb2(void *button_handle, void *usr_data) { ecPress = true; }
-
-Button *btn1;
-Button *btn2;
-
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
 ** Description:   initial setup for the device
 ***************************************************************************************/
 void _setup_gpio() {
-    // setup buttons
-    button_config_t bt1 = {
-        .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 600,
-        .short_press_time = 120,
-        .gpio_button_config = {
-                               .gpio_num = DW_BTN,
-                               .active_level = 0,
-                               },
-    };
-    button_config_t bt2 = {
-        .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 600,
-        .short_press_time = 120,
-        .gpio_button_config = {
-                               .gpio_num = SEL_BTN,
-                               .active_level = 0,
-                               },
-    };
-
-    btn1 = new Button(bt1);
-
-    // btn->attachPressDownEventCb(&onButtonPressDownCb, NULL);
-    btn1->attachSingleClickEventCb(&onButtonSingleClickCb1, NULL);
-    btn1->attachDoubleClickEventCb(&onButtonDoubleClickCb1, NULL);
-    btn1->attachLongPressStartEventCb(&onButtonHoldCb1, NULL);
-
-    btn2 = new Button(bt2);
-
-    // btn->attachPressDownEventCb(&onButtonPressDownCb, NULL);
-    btn2->attachSingleClickEventCb(&onButtonSingleClickCb2, NULL);
-    btn2->attachDoubleClickEventCb(&onButtonDoubleClickCb2, NULL);
-    btn2->attachLongPressStartEventCb(&onButtonHoldCb2, NULL);
+    // DW_BTN -> Next (single click) / Sel (600ms hold)
+    // SEL_BTN -> Prev (single click) / Esc (600ms hold)
+    hal_buttons_init_2(DeviceButtons{DW_BTN, SEL_BTN}, 600);
 
     if (!gauge.begin(Wire, 2, 3)) { Serial.println("Failed to AXP2602 - check your wiring!"); }
 }
@@ -109,26 +65,4 @@ int getBattery() {
     }
 }
 
-void InputHandler(void) {
-    static long tm = launcherMillis();
-    static long tm2 = launcherMillis();
-    static bool btn_pressed = false;
-    if (nxtPress || prvPress || ecPress || slPress) btn_pressed = true;
-
-    if (launcherMillis() - tm > 200 || LongPress) {
-        if (btn_pressed) {
-            btn_pressed = false;
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-            SelPress = slPress;
-            EscPress = ecPress;
-            NextPress = nxtPress;
-            PrevPress = prvPress;
-
-            nxtPress = false;
-            prvPress = false;
-            ecPress = false;
-            slPress = false;
-        }
-    }
-}
+void InputHandler(void) { hal_buttons_poll_2(); }

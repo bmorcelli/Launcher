@@ -1,11 +1,13 @@
+#include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <interface.h>
 #ifdef CONFIG_IDF_TARGET_ESP32C5
-#define SEL_BTN 0
-#else
 #define SEL_BTN 28
+#else
+#define SEL_BTN 0
 #endif
 
 /***************************************************************************************
@@ -35,7 +37,7 @@ void _setup_gpio() {
     launcherGpioWrite(5, LOW);
 #endif
 
-    launcherGpioInputPullup(SEL_BTN);
+    hal_buttons_init(DeviceButtons{SEL_BTN}, 1);
 }
 
 /***************************************************************************************
@@ -84,96 +86,4 @@ void _setBrightness(uint8_t brightval) {
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = 0;
-    constexpr unsigned long kInputDebounceMs = 75;
-    if (launcherMillis() - tm < kInputDebounceMs && !LongPress) return;
-
-    checkPowerSaveTime();
-
-    static bool buttonWasDown = false;
-    static unsigned long buttonDownAt = 0;
-    static uint8_t drawn = 2;
-    constexpr unsigned long kSelectPressMs = 550;
-    constexpr unsigned long kBackPressMs = 1200;
-    constexpr unsigned long kDoublePressIntervalMs = 300;
-
-    // Variables for double press detection
-    static unsigned long lastButtonReleaseTime = 0;
-    static int clickCount = 0;
-    static bool pendingNextPress = false;
-    static unsigned long pendingTime = 0;
-
-    // Check for pending NextPress timeout
-    if (pendingNextPress && launcherMillis() - pendingTime > kDoublePressIntervalMs) {
-        NextPress = true;
-        pendingNextPress = false;
-    }
-
-    bool buttonDown = (launcherGpioRead(SEL_BTN) == LOW);
-
-    if (buttonDown && !buttonWasDown) {
-        buttonWasDown = true;
-        buttonDownAt = launcherMillis();
-        tm = launcherMillis();
-        AnyKeyPress = true;
-        LongPress = false;
-        if (wakeUpScreen()) return;
-    }
-
-    if (buttonDown) {
-        AnyKeyPress = true;
-        if (launcherMillis() - buttonDownAt >= kSelectPressMs) {
-            LongPress = true;
-            if (drawn > 1) {
-                tft->fillRect(tftWidth - 3, 0, 3, tftHeight, GREENYELLOW);
-                tft->fillRect(0, tftHeight - 3, tftWidth, 3, GREENYELLOW);
-                drawn = 1;
-            }
-        }
-        if (launcherMillis() - buttonDownAt >= kBackPressMs && drawn > 0) {
-            tft->fillRect(tftWidth - 3, 0, 3, tftHeight, RED);
-            tft->fillRect(0, tftHeight - 3, tftWidth, 3, RED);
-            drawn = 0;
-        }
-        return;
-    }
-
-    if (buttonWasDown) {
-        buttonWasDown = false;
-        unsigned long heldMs = launcherMillis() - buttonDownAt;
-        tft->fillRect(tftWidth - 3, 0, 3, tftHeight, BGCOLOR);
-        tft->fillRect(0, tftHeight - 3, tftWidth, 3, BGCOLOR);
-        drawn = 2;
-
-        // Reset click count if more than 300ms has passed since last release
-        if (launcherMillis() - lastButtonReleaseTime > kDoublePressIntervalMs) { clickCount = 0; }
-
-        if (heldMs >= kBackPressMs) {
-            EscPress = true;
-            pendingNextPress = false; // Cancel any pending actions
-        } else if (heldMs >= kSelectPressMs) {
-            SelPress = true;
-            pendingNextPress = false; // Cancel any pending actions
-        } else {
-            // Short click - handle double press detection
-            clickCount++;
-            lastButtonReleaseTime = launcherMillis();
-
-            if (clickCount >= 2) {
-                PrevPress = true;
-                clickCount = 0;
-                pendingNextPress = false; // Cancel any pending NextPress
-                AnyKeyPress = true;
-                LongPress = false;
-                return;
-            } else {
-                // First click - wait for potential double click
-                pendingNextPress = true;
-                pendingTime = launcherMillis();
-            }
-        }
-        AnyKeyPress = true;
-        LongPress = false;
-    }
-}
+void InputHandler(void) { hal_buttons_poll_1(DeviceButtons{SEL_BTN}); }

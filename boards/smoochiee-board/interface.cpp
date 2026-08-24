@@ -1,4 +1,5 @@
 #include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "hal/power/pmic.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
@@ -25,13 +26,11 @@
 // board, battery% comes from the PMIC's own system voltage reading.
 #include <Wire.h>
 
+static DeviceButtons buttonsCfg() { return DeviceButtons{L_BTN, R_BTN, UP_BTN, DW_BTN, SEL_BTN}; }
+
 void _setup_gpio() {
 
-    launcherGpioInputPullup(UP_BTN); // Sets the power btn as an INPUT
-    launcherGpioInputPullup(SEL_BTN);
-    launcherGpioInputPullup(DW_BTN);
-    launcherGpioInputPullup(R_BTN);
-    launcherGpioInputPullup(L_BTN);
+    hal_buttons_init(buttonsCfg(), 5);
 
     launcherGpioOutput(CC1101_SS_PIN);
     launcherGpioOutput(NRF24_SS_PIN);
@@ -61,31 +60,7 @@ int getBattery() {
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = 0;
-    if (launcherMillis() - tm < 200 && !LongPress) return;
-    // read all inputs only once, instead of 4
-    bool l = launcherGpioRead(L_BTN);
-    bool r = launcherGpioRead(R_BTN);
-    bool u = launcherGpioRead(UP_BTN);
-    bool d = launcherGpioRead(DW_BTN);
-    bool s = launcherGpioRead(SEL_BTN);
-
-    if (s == BTN_ACT || u == BTN_ACT || d == BTN_ACT || r == BTN_ACT || l == BTN_ACT) {
-        tm = launcherMillis();
-        if (!wakeUpScreen()) AnyKeyPress = true;
-        else return;
-    } else return;
-    if (l == BTN_ACT && r == BTN_ACT) {
-        EscPress = true;
-        return;
-    }
-    if (l == BTN_ACT) { PrevPress = true; }
-    if (r == BTN_ACT) { NextPress = true; }
-    if (u == BTN_ACT) { UpPress = true; }
-    if (d == BTN_ACT) { DownPress = true; }
-    if (s == BTN_ACT) { SelPress = true; }
-}
+void InputHandler(void) { hal_buttons_poll_5(buttonsCfg()); }
 
 /*********************************************************************
 ** Function: checkReboot

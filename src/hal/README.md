@@ -41,3 +41,10 @@ duplication. See `docs/plan.md` for the migration plan this follows.
   - `arduino-nesso-n1`, `m5stack-core2`, `m5stack-cores3`,
     `m5stack-paper-s3`, `m5stack-tab5` — touch via `M5.Touch`, out of scope
     for `inputs/touch.*`.
+  - `arduino-nesso-n1`, `m5stack-core`, `m5stack-cplus1_1` — buttons via
+    `M5Unified`/`AXP192`, out of scope for `inputs/buttons.*` (GPIO-only).
+  - `m5stack-sticks3`, `lilygo-t-display-c5` — the two real "2 buttons"
+    boards; both use `hal_buttons_init_2`/`hal_buttons_poll_2`
+    (`BUTTONS_IDF_COMPONENT=1`), backed by the ESP-IDF `Button` component
+    (interrupt callbacks) instead of raw GPIO polling like 1/3/5/6 buttons
+    — see `docs/etapa_2.md`.

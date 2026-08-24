@@ -26,6 +26,7 @@
 #define IO_EXP_CC_TX 10
 #define IO_EXP_LOGO 0
 #include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "hal/power/gauge.h"
 #include "hal/power/pmic.h"
 #include "idf/launcher_platform.h"
@@ -43,14 +44,11 @@
 ** Description:   initial setup for the device
 ***************************************************************************************/
 
+static DeviceButtons buttonsCfg() { return DeviceButtons{L_BTN, R_BTN, UP_BTN, DW_BTN, SEL_BTN, ESC_BTN}; }
+
 void _setup_gpio() {
 
-    pinMode(UP_BTN, INPUT_PULLUP); // Sets the power btn as an INPUT
-    pinMode(SEL_BTN, INPUT_PULLUP);
-    pinMode(DW_BTN, INPUT_PULLUP);
-    pinMode(R_BTN, INPUT_PULLUP);
-    pinMode(L_BTN, INPUT_PULLUP);
-    pinMode(ESC_BTN, INPUT_PULLUP);
+    hal_buttons_init(buttonsCfg(), 6);
 
     pinMode(CC1101_SS_PIN, OUTPUT);
     pinMode(NRF24_SS_PIN, OUTPUT);
@@ -95,28 +93,7 @@ bool isCharging() { return hal_gauge_is_charging(); }
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = 0;
-    if (millis() - tm < 200 && !LongPress) return;
-    bool _u = digitalRead(UP_BTN) == BTN_ACT;
-    bool _d = digitalRead(DW_BTN) == BTN_ACT;
-    bool _l = digitalRead(L_BTN) == BTN_ACT;
-    bool _r = digitalRead(R_BTN) == BTN_ACT;
-    bool _s = digitalRead(SEL_BTN) == BTN_ACT;
-    bool _e = digitalRead(ESC_BTN) == BTN_ACT;
-
-    if (_s || _u || _d || _r || _l || _e) {
-        tm = millis();
-        if (!wakeUpScreen()) AnyKeyPress = true;
-        else return;
-    }
-    if (_l) { PrevPress = true; }
-    if (_r) { NextPress = true; }
-    if (_u) { UpPress = true; }
-    if (_d) { DownPress = true; }
-    if (_s) { SelPress = true; }
-    if (_e) { EscPress = true; }
-}
+void InputHandler(void) { hal_buttons_poll_6(buttonsCfg()); }
 
 /*********************************************************************
 ** Function: powerOff
