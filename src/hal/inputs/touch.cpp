@@ -1,8 +1,29 @@
 #include "touch.h"
 
+#include "DisplayConfig.h" // displayConfig.width/height -- see panelSize() below
 #include "globals.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
+
+// The touch controller's coordinate range is the physical panel, full stop
+// -- it has no notion of the footer bar main.cpp/settings.cpp carve out of
+// tftHeight for the nav-hint strip (HAS_TOUCH && !HAS_TOUCH_NO_BORDER).
+// Using tftWidth/tftHeight here (as this file used to, via caller-supplied
+// parameters) silently shrank the touch-side height by that footer on every
+// board with one, throwing off any MirrorX/MirrorY math by exactly that
+// many pixels. displayConfig.width/height ("visible panel size, unrotated")
+// is the board-fundamental constant that doesn't have this problem;
+// swapping the two per rotation replicates the same swap main.cpp does for
+// tftWidth/tftHeight, just without the footer subtraction.
+static void panelSize(int16_t &w, int16_t &h) {
+    if (rotation & 1) {
+        w = displayConfig.height;
+        h = displayConfig.width;
+    } else {
+        w = displayConfig.width;
+        h = displayConfig.height;
+    }
+}
 
 #if defined(TOUCH_CTRL_XPT2046)
 #include "CYD28_TouchscreenR.h"
@@ -27,6 +48,24 @@ CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 #include <Wire.h>
 static TouchDrvGT911 touch;
 static uint8_t touchLastRot = 0xFF;
+
+#elif defined(TOUCH_CTRL_CST8XX)
+#include <TouchDrvCSTXXX.hpp>
+#include <Wire.h>
+static TouchDrvCSTXXX touch;
+static uint8_t touchLastRot = 0xFF;
+
+#elif defined(TOUCH_CTRL_FT6X36)
+#include <TouchDrvFT6X36.hpp>
+#include <Wire.h>
+static TouchDrvFT6X36 touch;
+#endif
+
+#if defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36)
+#include <Wire.h>
+static TwoWire &wireFor(const DeviceTouch &cfg) {
+    return cfg.i2c_bus ? *static_cast<TwoWire *>(cfg.i2c_bus) : Wire;
+}
 #endif
 
 bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_spi) {
@@ -36,9 +75,27 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
     return xpt_shared_spi ? touch.begin(&SPI) : touch.begin();
 #elif defined(TOUCH_CTRL_GT911)
     (void)xpt_shared_spi;
-    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) Wire.begin(cfg.pin_sda, cfg.pin_scl);
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
     touch.setPins(cfg.pin_rst, cfg.pin_irq);
-    return touch.begin(Wire, i2c_addr);
+    return touch.begin(wireFor(cfg), i2c_addr);
+#elif defined(TOUCH_CTRL_CST8XX)
+    (void)xpt_shared_spi;
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    if (touch.begin(wireFor(cfg), i2c_addr, cfg.pin_sda, cfg.pin_scl)) return true;
+    return touch.begin(wireFor(cfg), CST816_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl);
+#elif defined(TOUCH_CTRL_FT6X36)
+    (void)i2c_addr;
+    (void)xpt_shared_spi;
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    if (!touch.begin(wireFor(cfg), FT6X36_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl)) return false;
+    launcherConsolePrintf("[FT6X36] model: %s\n", touch.getModelName());
+    // hal_touch_read() polls (no IRQ line wired into the read path) -- every
+    // SensorLib example for this chip calls this right after begin() for
+    // that reason.
+    touch.interruptPolling();
+    return true;
 #else
     (void)cfg;
     (void)i2c_addr;
@@ -47,14 +104,27 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
 #endif
 }
 
-bool hal_touch_read(const DeviceTouch &cfg, int16_t screenW, int16_t screenH, LTouchPoint &out) {
-#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_GT911)
+bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
+#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) ||                \
+    defined(TOUCH_CTRL_FT6X36)
     uint8_t r = rotation & 0x03;
+    int16_t screenW, screenH;
+    panelSize(screenW, screenH);
 #endif
+
+    // XPT2046/FT6X36 give a raw, unrotated point -- the mirror/swap math
+    // below is applied on the host side. GT911/CST8xx hand rotation to the
+    // driver itself instead (setSwapXY/setMirrorXY), see the other half of
+    // this function.
 #if defined(TOUCH_CTRL_XPT2046)
     if (!touch.touched()) return false;
     auto p = touch.getPointScaled();
     int16_t x = p.x, y = p.y;
+#elif defined(TOUCH_CTRL_FT6X36)
+    int16_t x = 0, y = 0;
+    if (!touch.getPoint(&x, &y, 1)) return false;
+#endif
+#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36)
     if (cfg.SwapXY[r]) {
         int16_t t = x;
         x = y;
@@ -66,7 +136,7 @@ bool hal_touch_read(const DeviceTouch &cfg, int16_t screenW, int16_t screenH, LT
     out.y = y;
     out.pressed = true;
     return true;
-#elif defined(TOUCH_CTRL_GT911)
+#elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX)
     if (touchLastRot != r) {
         touch.setMaxCoordinates(screenW, screenH);
         touch.setSwapXY(cfg.SwapXY[r]);
@@ -81,8 +151,6 @@ bool hal_touch_read(const DeviceTouch &cfg, int16_t screenW, int16_t screenH, LT
     return true;
 #else
     (void)cfg;
-    (void)screenW;
-    (void)screenH;
     (void)out;
     return false;
 #endif
@@ -101,4 +169,30 @@ bool hal_touch_apply(const LTouchPoint &t, bool wakeUp) {
     touchPoint.pressed = true;
     touchHeatMap(touchPoint);
     return true;
+}
+
+void hal_touch_set_home_button(int16_t x, int16_t y, void (*cb)(void *user_data), void *user_data) {
+#if defined(TOUCH_CTRL_CST8XX)
+    touch.setCenterButtonCoordinate(x, y);
+    touch.setHomeButtonCallback(cb, user_data);
+#else
+    (void)x;
+    (void)y;
+    (void)cb;
+    (void)user_data;
+#endif
+}
+
+void hal_touch_disable_auto_sleep() {
+#if defined(TOUCH_CTRL_CST8XX)
+    touch.disableAutoSleep();
+#endif
+}
+
+void hal_touch_set_threshold(uint8_t value) {
+#if defined(TOUCH_CTRL_FT6X36)
+    touch.setThreshold(value);
+#else
+    (void)value;
+#endif
 }

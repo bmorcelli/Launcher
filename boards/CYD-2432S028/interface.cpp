@@ -210,7 +210,7 @@ void InputHandler(void) {
 #if defined(TOUCH_CTRL_XPT2046)
     if (launcherMillis() - d_tmp > 250 || LongPress) {
         LTouchPoint t;
-        if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+        if (hal_touch_read(touchCfg(), t)) {
             d_tmp = launcherMillis();
             if (!hal_touch_apply(t)) return;
         }

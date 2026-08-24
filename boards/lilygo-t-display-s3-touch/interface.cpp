@@ -1,24 +1,34 @@
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <interface.h>
 
-#define TOUCH_MODULES_CST_SELF
-#include <TouchDrvCSTXXX.hpp>
-#include <Wire.h>
 #define LCD_MODULE_CMD_1
 
 #define SEL_BTN 0
 #define DW_BTN 14
 
 #include <esp_adc_cal.h>
-TouchDrvCSTXXX touch;
-struct LTouchPointPro {
-    int16_t x = 0;
-    int16_t y = 0;
-};
 bool readTouch = false;
+
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = 21;
+    cfg.pin_irq = 16;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, false, true, true};
+    bool mirrorY[4] = {true, true, false, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
 
 #include <Button.h>
 volatile bool nxtPress = false;
@@ -99,36 +109,30 @@ void _post_setup_gpio() {
     ledcWrite(TFT_BL, bright);
 
     launcherConsolePrintf("%s\n", String("Prepraring Touchscreen").c_str());
-    touch.setPins(21, 16);
-    if (!touch.begin(Wire, CST328_SLAVE_ADDRESS, 18, 17)) {
-        launcherConsolePrintf("%s\n", String("Failed init CST328 Device!").c_str());
-        if (!touch.begin(Wire, CST816_SLAVE_ADDRESS, 18, 17)) {
-            launcherConsolePrintf("%s\n", String("Failed init CST816 Device!").c_str());
-        } else readTouch = true;
-    } else readTouch = true;
-    if (readTouch) {
+    // hal_touch_init() retries at CST816_SLAVE_ADDRESS (0x15) on its own if
+    // this primary address doesn't answer -- some panels identify as either
+    // depending on batch.
+    readTouch = hal_touch_init(touchCfg(), 0x1A /* CST328_SLAVE_ADDRESS */);
+    if (!readTouch) {
+        launcherConsolePrintf("%s\n", String("Failed init touch panel!").c_str());
+    } else {
         // T-Display-S3 CST816 touch panel, touch button coordinates are is 85 , 160
-        touch.setCenterButtonCoordinate(85, 360);
-
         // Depending on the touch panel, not all touch panels have touch buttons.
-        touch.setHomeButtonCallback(
-            [](void *user_data) {
-                static uint32_t checkMs = 0;
-                if (launcherMillis() > checkMs) {
-                    if (!wakeUpScreen()) {
-                        AnyKeyPress = true;
-                        EscPress = true;
-                    }
+        hal_touch_set_home_button(85, 360, [](void *user_data) {
+            static uint32_t checkMs = 0;
+            if (launcherMillis() > checkMs) {
+                if (!wakeUpScreen()) {
+                    AnyKeyPress = true;
+                    EscPress = true;
                 }
-                checkMs = launcherMillis() + 200;
-            },
-            NULL
-        );
+            }
+            checkMs = launcherMillis() + 200;
+        });
 
         // If you poll the touch, you need to turn off the automatic sleep function, otherwise there will be
         // an I2C access error. If you use the interrupt method, you don't need to turn it off, saving power
         // consumption
-        touch.disableAutoSleep();
+        hal_touch_disable_auto_sleep();
     }
 }
 
@@ -182,49 +186,10 @@ void InputHandler(void) {
             slPress = false;
         }
         if (!readTouch) return; // dont have touchscreen
-        LTouchPointPro t;
-        uint8_t touched = 0;
-        touched = touch.getPoint(&t.x, &t.y, 1);
-
-        if (touched) {
-            // launcherConsolePrintf(
-            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(),
-            //     tm
-            // );
+        LTouchPoint t;
+        if (hal_touch_read(touchCfg(), t)) {
             tm = launcherMillis();
-            static uint8_t rot = 5;
-            if (rot != rotation) {
-                if (rotation == 1) {
-                    touch.setMaxCoordinates(320, 170);
-                    touch.setSwapXY(true);
-                    touch.setMirrorXY(false, true);
-                }
-                if (rotation == 3) {
-                    touch.setMaxCoordinates(320, 170);
-                    touch.setSwapXY(true);
-                    touch.setMirrorXY(true, false);
-                }
-                if (rotation == 0) {
-                    touch.setMaxCoordinates(170, 320);
-                    touch.setSwapXY(false);
-                    touch.setMirrorXY(false, true);
-                }
-                if (rotation == 2) {
-                    touch.setMaxCoordinates(170, 320);
-                    touch.setSwapXY(false);
-                    touch.setMirrorXY(true, false);
-                }
-                rot = rotation;
-            }
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
-            touched = 0;
+            if (!hal_touch_apply(t)) return;
             return;
         }
     }

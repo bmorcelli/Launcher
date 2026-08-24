@@ -6,7 +6,9 @@ duplication. See `docs/plan.md` for the migration plan this follows.
 ## Layout
 
 - `inputs/buttons.*` — GPIO button polling (HAS_1_BUTTON..HAS_6_BUTTONS)
-- `inputs/touch.*` — touchscreen drivers (XPT2046, GT911, CST8xx, FT6336)
+- `inputs/touch.*` — touchscreen drivers (XPT2046, GT911, CST8xx, FT6X36 —
+  the FT6X36 driver covers the whole FT6206/FT6236/FT6336(U)/FT3267/FT5336/
+  FT3068 family, there's no separate "FT6336" driver)
 - `inputs/encoder.*` — rotary encoder + associated select/esc buttons
 - `inputs/keyboard.*` — TCA8418, I2C-custom, and GPIO-matrix keyboards
 - `power/pmic.*` — charger IC init (BQ25896, AXP2101, AXP192, SY6970)
@@ -58,14 +60,34 @@ duplication. See `docs/plan.md` for the migration plan this follows.
     `marauder-v8`, `NM-CYD-C5`.
   - `TOUCH_CTRL_GT911`: `lilygo-t-deck`/`lilygo-t-deck-plus`,
     `elecrow-esp32p4-7in`, `elecrow-esp32s3-5in`.
+  - `TOUCH_CTRL_CST8XX`: `lilygo-t-display-s3-touch` (touch only —
+    its 2 physical buttons stay on their own raw `Button`/`ESP32_Button`
+    code, out of scope for Etapa 4), `lilygo-t-display-s3-amoled`,
+    `lilygo-t-display-s3-pro` — all confirmed on physical hardware except
+    `-amoled`/`-pro` (build-only so far, see `docs/etapa_4.md`).
+  - `TOUCH_CTRL_FT6X36`: `lilygo-t-watch-s3` (SensorLib `TouchDrvFT6X36`,
+    on a second I2C bus — see `cfg.i2c_bus` below; confirmed physically),
+    `ES3C28P`, `pancake` (build-only so far — both originally had a
+    byte-identical hand-rolled I2C driver instead of SensorLib; migrated to
+    `TouchDrvFT6X36` after confirming register-for-register equivalence,
+    see `docs/etapa_4.md`). `hal_touch_set_threshold()` is a
+    `TOUCH_CTRL_FT6X36`-only passthrough for boards that need a
+    non-default touch-sensitivity register (`ES3C28P`/`pancake` do,
+    `lilygo-t-watch-s3` doesn't).
   - `settings.cpp`'s touch calibration screen (`HAS_RESISTIVE_TOUCH`)
     still reaches the XPT2046 driver via `extern CYD28_TouchR touch;`,
     which `hal/inputs/touch.cpp` now defines with external linkage
     precisely so that keeps working unchanged, both for migrated and
     not-yet-migrated boards.
-  - Not migrated, documented in `docs/etapa_3.md`: `CYD-2432S028`'s
-    GT911/CST816S/AXS15231B branches (different lib, `TouchLib`/
-    `bb_captouch`, not `SensorLib`), `lilygo-t5-epaper-s3-pro` (GT911 on a
-    driver-owned `TwoWire`, not the global `Wire` the HAL assumes),
-    `xteink-x4pro` and `seeedstudio-reterminal-sticky` (touch + buttons
-    combo, Etapa 7).
+  - `DeviceTouch.i2c_bus` (`void*`, cast to `TwoWire*` inside
+    `hal/inputs/touch.cpp`, nullptr = the global `Wire`) is for a board
+    whose touch controller sits on a second I2C bus, e.g.
+    `lilygo-t-watch-s3`'s `Wire1`. `void*` rather than `TwoWire*` so
+    `device.h` — included by every board regardless of what sensors it
+    has — stays Arduino-free.
+  - Not migrated, documented in `docs/etapa_3.md`/`docs/etapa_4.md`:
+    `CYD-2432S028`'s GT911/CST816S/AXS15231B branches (different lib,
+    `TouchLib`/`bb_captouch`, not `SensorLib`), `lilygo-t5-epaper-s3-pro`
+    (GT911 on a driver-owned `TwoWire` — `DeviceTouch.i2c_bus` could
+    unblock this now, not attempted yet), `xteink-x4pro` and
+    `seeedstudio-reterminal-sticky` (touch + buttons combo, Etapa 7).

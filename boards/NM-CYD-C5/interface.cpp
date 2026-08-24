@@ -82,7 +82,7 @@ void InputHandler(void) {
     if (launcherMillis() - tm > 200 || LongPress) { // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         LTouchPoint t;
-        if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+        if (hal_touch_read(touchCfg(), t)) {
             tm = launcherMillis();
             if (!hal_touch_apply(t)) return;
         }

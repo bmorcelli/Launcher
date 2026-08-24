@@ -80,7 +80,7 @@ void InputHandler(void) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {
         LTouchPoint t;
-        if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+        if (hal_touch_read(touchCfg(), t)) {
             tm = launcherMillis();
             if (!hal_touch_apply(t)) return;
         } else touchPoint.pressed = false;

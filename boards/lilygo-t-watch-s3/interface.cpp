@@ -1,3 +1,5 @@
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SPI.h>
@@ -8,12 +10,26 @@
 #include <interface.h>
 
 XPowersAXP2101 axp192;
-#include <TouchDrvFT6X36.hpp>
-TouchDrvFT6X36 touch;
 
 // Haptic
 #include "HapticDrivers.hpp"
 HapticDriver_DRV2605 drv;
+
+// Touch is on Wire1 (Wire is the sensor/PMIC bus) -- see cfg.i2c_bus below.
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.i2c_bus = &Wire1;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {true, true, false, false};
+    bool mirrorY[4] = {true, false, false, true};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -86,9 +102,7 @@ void _setup_gpio() {
     axp192.setButtonBatteryChargeVoltage(3300);
     axp192.enableButtonBatteryCharge();
 
-    touch.begin(Wire1, FT6X36_SLAVE_ADDRESS, 39, 40);
-    touch.setSwapXY(true);
-    touch.interruptPolling();
+    hal_touch_init(touchCfg());
 
     // Haptic driver
     if (!drv.begin(Wire, 10, 11)) {
@@ -146,52 +160,24 @@ void _setBrightness(uint8_t brightval) {
 }
 
 bool getTouched() { return launcherGpioRead(16) == LOW; }
-struct TP {
-    int16_t x[1], y[1];
-};
 /*********************************************************************
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    TP t;
     static unsigned long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {
         // I know R3CK.. I Should NOT nest if statements..
         // but it is needed to not keep SPI bus used without need, it save resources
         if (getTouched()) {
-            touch.getPoint(t.x, t.y, 1);
-            // launcherConsolePrintf("\nRAW: Touch Pressed on x=%d, y=%d",t.x, t.y);
-            if (rotation == 3) {
-                t.y[0] = (tftHeight + (_fm * LH + 4)) - t.y[0];
-                t.x[0] = t.x[0];
+            LTouchPoint t;
+            if (hal_touch_read(touchCfg(), t)) {
+                tm = launcherMillis();
+                if (!hal_touch_apply(t)) return;
+                drv.setWaveform(0, 75);
+                drv.setWaveform(1, 0); // end waveform
+                drv.run();
             }
-            if (rotation == 0) {
-                int tmp = t.x[0];
-                t.x[0] = tftWidth - t.y[0];
-                t.y[0] = tftHeight - tmp;
-            }
-            if (rotation == 2) {
-                int tmp = t.x[0];
-                t.x[0] = t.y[0];
-                t.y[0] = tmp;
-            }
-            if (rotation == 1) { t.x[0] = tftWidth - t.x[0]; }
-            // launcherConsolePrintf("\nROT: Touch Pressed on x=%d, y=%d\n",t.x[0], t.y[0]);
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x[0];
-            touchPoint.y = t.y[0];
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
-
-            tm = launcherMillis();
-            drv.setWaveform(0, 75);
-            drv.setWaveform(1, 0); // end waveform
-            drv.run();
         }
     }
 }

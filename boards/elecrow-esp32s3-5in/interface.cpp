@@ -161,7 +161,7 @@ void InputHandler(void) {
     static long d_tmp = launcherMillis();
     if (launcherMillis() - d_tmp > 250 || LongPress) {
         LTouchPoint t;
-        if (touchReady && hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+        if (touchReady && hal_touch_read(touchCfg(), t)) {
             d_tmp = launcherMillis();
             if (!hal_touch_apply(t)) return;
         }

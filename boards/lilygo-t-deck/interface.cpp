@@ -149,7 +149,7 @@ void InputHandler(void) {
     char keyValue = 0;
     static unsigned long tm = launcherMillis();
     LTouchPoint t;
-    bool touched = hal_touch_read(touchCfg(), tftWidth, tftHeight, t);
+    bool touched = hal_touch_read(touchCfg(), t);
     launcherDelayMs(2);
     Wire.requestFrom(LILYGO_KB_SLAVE_ADDRESS, 1);
     while (Wire.available() > 0) {

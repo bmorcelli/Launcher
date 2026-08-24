@@ -48,7 +48,7 @@
 // call hal_touch_init(touchCfg()) from _setup_gpio() (or _post_setup_gpio()
 // if the panel/bus needs to come up first), then each InputHandler() cycle:
 // LTouchPoint t;
-// if (hal_touch_read(touchCfg(), tftWidth, tftHeight, t)) {
+// if (hal_touch_read(touchCfg(), t)) {
 //     // hal_touch_apply() wakes the screen (swallowing this press as the
 //     // wake-up tap, same convention as every other input source) and
 //     // publishes the point to touchPoint/touchHeatMap() -- returns false

@@ -4,16 +4,23 @@
 #include "../device.h"
 
 // Touchscreen HAL -- driver selected by build_flags macro (mirrors
-// PMIC_*/GAUGE_*): TOUCH_CTRL_XPT2046 (CYD28_TouchscreenR, SPI, resistive)
-// or TOUCH_CTRL_GT911 (SensorLib TouchDrvGT911, I2C, capacitive).
+// PMIC_*/GAUGE_*): TOUCH_CTRL_XPT2046 (CYD28_TouchscreenR, SPI, resistive);
+// TOUCH_CTRL_GT911, TOUCH_CTRL_CST8XX or TOUCH_CTRL_FT6X36 (SensorLib
+// TouchDrvGT911 / TouchDrvCSTXXX / TouchDrvFT6X36, all I2C capacitive).
+// TouchDrvFT6X36 covers the whole FT6206/FT6236/FT6336(U)/FT3267/FT5336/
+// FT3068 family, so FT6336 panels use TOUCH_CTRL_FT6X36 too -- there is no
+// separate "FT6336" driver.
 //
 // cfg.MirrorX/MirrorY/SwapXY are indexed by the display's current rotation
 // (0-3) and applied to the raw touch point before it's handed back, exactly
 // replicating the per-rotation coordinate math every touch board used to
 // duplicate in its own InputHandler(). cfg.pin_sda/pin_scl/pin_rst/pin_irq
-// only matter for TOUCH_CTRL_GT911 (I2C bus + reset/irq pins); ignored for
+// only matter for the I2C drivers (GT911/CST8XX/FT6X36); ignored for
 // TOUCH_CTRL_XPT2046, whose pins are compile-time macros from
-// CYD28_TouchscreenR.h (CYD28_TouchR_*, set via build_flags).
+// CYD28_TouchscreenR.h (CYD28_TouchR_*, set via build_flags). cfg.i2c_bus
+// (void* to a TwoWire, nullptr = the global `Wire`) is for a board whose
+// touch controller sits on a second I2C bus -- e.g. lilygo-t-watch-s3,
+// where `Wire` is already the sensor/PMIC bus and touch is on `Wire1`.
 
 struct LTouchPoint; // include/globals.h -- only referenced by pointer/ref here
 
@@ -22,6 +29,19 @@ struct LTouchPoint; // include/globals.h -- only referenced by pointer/ref here
 // TOUCH_CTRL_GT911: i2c_addr defaults to GT911_SLAVE_ADDRESS_L (0x5D); pass
 // 0x14 (GT911_SLAVE_ADDRESS_H) if the board wires ADDR high. xpt_shared_spi
 // is ignored.
+//
+// TOUCH_CTRL_CST8XX: i2c_addr is the panel's primary address (boards differ
+// -- CST328_SLAVE_ADDRESS 0x1A, CST816_SLAVE_ADDRESS 0x15, CST226SE_SLAVE_
+// ADDRESS 0x5A, all from <TouchDrvCSTXXX.hpp> -- pass the right one, there
+// is no single correct default). If that address doesn't answer, a second
+// try at CST816_SLAVE_ADDRESS is attempted automatically (some panels
+// identify as either depending on batch, see lilygo-t-display-s3-touch).
+// xpt_shared_spi is ignored.
+//
+// TOUCH_CTRL_FT6X36: i2c_addr and xpt_shared_spi are ignored, always
+// FT6X36_SLAVE_ADDRESS (0x38, every chip this driver covers shares it).
+// Logs the detected chip's model name, then calls touch.interruptPolling()
+// (required before polled reads, see hal_touch_read()'s doc).
 //
 // TOUCH_CTRL_XPT2046: i2c_addr is ignored. xpt_shared_spi (default true)
 // picks which CYD28_TouchR::begin() overload is used: true passes &SPI, so
@@ -34,13 +54,39 @@ struct LTouchPoint; // include/globals.h -- only referenced by pointer/ref here
 // bit-bang its own (e.g. CYD-2432S028's default/XPT2046 branch).
 bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr = 0x5D, bool xpt_shared_spi = true);
 
-// Polls the controller once. screenW/screenH must be the display's *current*
-// (already rotated) width/height -- same tftWidth/tftHeight every board
-// already used in its own mirror math -- used both for the mirror math here
-// and (TOUCH_CTRL_GT911 only) setMaxCoordinates(). Returns false if nothing
-// is pressed right now (out left untouched); true with out.x/out.y/out.pressed
-// filled in otherwise.
-bool hal_touch_read(const DeviceTouch &cfg, int16_t screenW, int16_t screenH, LTouchPoint &out);
+// Polls the controller once. The screen size used for the mirror math (and,
+// TOUCH_CTRL_GT911/TOUCH_CTRL_CST8XX only, setMaxCoordinates()) is computed
+// internally from displayConfig.width/height (the physical panel's native
+// resolution) swapped per the current rotation -- NOT tftWidth/tftHeight,
+// which on a HAS_TOUCH board without HAS_TOUCH_NO_BORDER are shrunk by the
+// footer nav-hint strip (main.cpp/settings.cpp's `- (_fm * LH + 4)`). The
+// touch controller has no notion of that footer -- its coordinate range is
+// always the full panel -- so using tftHeight there silently offset every
+// mirrored axis by the footer's height. Returns false if nothing is pressed
+// right now (out left untouched); true with out.x/out.y/out.pressed filled
+// in otherwise.
+bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out);
+
+// TOUCH_CTRL_CST8XX only: registers the panel's virtual "home button" touch
+// zone + callback (vendor API passthrough -- touch.setCenterButtonCoordinate
+// + touch.setHomeButtonCallback -- left as a passthrough rather than folded
+// into the HAL because what the callback actually does varies per board:
+// some set EscPress, one toggles the backlight directly). No-op for other
+// drivers.
+void hal_touch_set_home_button(int16_t x, int16_t y, void (*cb)(void *user_data), void *user_data = nullptr);
+
+// TOUCH_CTRL_CST8XX only: touch.disableAutoSleep() passthrough -- needed
+// when polling (as hal_touch_read() does) instead of using the panel's IRQ
+// line, per the vendor's own docs, else the chip can go to sleep mid-poll
+// and every read after that errors out. No-op for other drivers.
+void hal_touch_disable_auto_sleep();
+
+// TOUCH_CTRL_FT6X36 only: touch.setThreshold() passthrough -- raises/lowers
+// the panel's touch-detect sensitivity register (chip default ~22; some
+// boards raise it to reduce phantom touches inside a case). Call only if a
+// board actually needs a non-default value -- leaving it uncalled keeps the
+// chip's own default. No-op for other drivers.
+void hal_touch_set_threshold(uint8_t value);
 
 // Common tail every board's InputHandler() used to duplicate after a
 // successful hal_touch_read(): wake the screen (this press is swallowed as

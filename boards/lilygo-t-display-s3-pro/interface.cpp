@@ -1,3 +1,5 @@
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <SD_MMC.h>
@@ -5,9 +7,6 @@
 #include <XPowersLib.h>
 #include <interface.h>
 static PowersSY6970 PMU;
-#define TOUCH_MODULES_CST_SELF
-#include <TouchDrvCSTXXX.hpp>
-#include <Wire.h>
 #define LCD_MODULE_CMD_1
 // buttons, not used here, but defined for the interface
 #define SEL_BTN 0
@@ -21,7 +20,22 @@ static PowersSY6970 PMU;
 #define BOARD_I2C_SCL 6
 #define BOARD_SENSOR_IRQ 21
 #define BOARD_TOUCH_RST 13
-TouchDrvCSTXXX touch;
+
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = BOARD_TOUCH_RST;
+    cfg.pin_irq = BOARD_SENSOR_IRQ;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, false, true, true};
+    bool mirrorY[4] = {false, true, true, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
 
 void touchHomeKeyCallback(void *user_data) {
     launcherConsolePrintf("%s\n", String("Home key pressed!").c_str());
@@ -62,13 +76,9 @@ void _setup_gpio() {
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
     // Initialize capacitive touch
-    touch.setPins(BOARD_TOUCH_RST, BOARD_SENSOR_IRQ);
-    touch.begin(Wire, CST226SE_SLAVE_ADDRESS, BOARD_I2C_SDA, BOARD_I2C_SCL);
-    touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-    touch.setSwapXY(true);
-    touch.setMirrorXY(false, false);
+    hal_touch_init(touchCfg(), 0x5A /* CST226SE_SLAVE_ADDRESS */);
     // Set the screen to turn on or off after pressing the screen Home touch button
-    touch.setHomeButtonCallback(touchHomeKeyCallback);
+    hal_touch_set_home_button(-1, -1, touchHomeKeyCallback);
 
     bool hasPMU = PMU.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, SY6970_SLAVE_ADDRESS);
     if (!hasPMU) {
@@ -127,44 +137,17 @@ void _setBrightness(uint8_t brightval) {
     }
 }
 
-struct LTouchPointPro {
-    int16_t x[5];
-    int16_t y[5];
-};
 /*********************************************************************
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
-    LTouchPointPro t;
     if (launcherMillis() - tm > 200 || LongPress) {
-        if (touch.getPoint(t.x, t.y, 1) && touch.isPressed()) {
+        LTouchPoint t;
+        if (hal_touch_read(touchCfg(), t)) {
             tm = launcherMillis();
-            if (rotation == 1) { t.y[0] = TFT_WIDTH - t.y[0]; }
-            if (rotation == 3) { t.x[0] = TFT_HEIGHT - t.x[0]; }
-            // Need to test these 2
-            if (rotation == 0) {
-                int tmp = t.x[0];
-                t.x[0] = t.y[0];
-                t.y[0] = tmp;
-            }
-            if (rotation == 2) {
-                int tmp = t.x[0];
-                t.x[0] = TFT_WIDTH - t.y[0];
-                t.y[0] = TFT_HEIGHT - tmp;
-            }
-
-            launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d", t.x[0], t.y[0], rotation);
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x[0];
-            touchPoint.y = t.y[0];
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
+            if (!hal_touch_apply(t)) return;
         }
     }
 }

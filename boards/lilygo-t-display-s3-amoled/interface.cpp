@@ -1,6 +1,8 @@
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <TouchDrv.hpp>
+#include <Wire.h>
 #include <interface.h>
 #define BOARD_I2C_SDA 3
 #define BOARD_I2C_SCL 2
@@ -8,8 +10,23 @@
 #define BOARD_TOUCH_RST 16
 #define SEL_BTN 0
 
-TouchDrvCST816 touch;
 static bool touch_OK = false;
+
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = BOARD_TOUCH_RST;
+    cfg.pin_irq = BOARD_SENSOR_IRQ;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {true, false, true, false};
+    bool mirrorX[4] = {true, false, false, true};
+    bool mirrorY[4] = {false, false, true, true};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
 
 void touchHomeKeyCallback(void *user_data) {
     launcherConsolePrintf("%s\n", String("Home key pressed!").c_str());
@@ -40,13 +57,10 @@ void _setup_gpio() {
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
     // Initialize capacitive touch
-    touch.setPins(BOARD_TOUCH_RST, BOARD_SENSOR_IRQ);
-    if (touch.begin(Wire, CST816_SLAVE_ADDRESS, BOARD_I2C_SDA, BOARD_I2C_SCL)) {
-        touch_OK = true;
+    touch_OK = hal_touch_init(touchCfg(), 0x15 /* CST816_SLAVE_ADDRESS */);
+    if (touch_OK) {
         // Set the screen to turn on or off after pressing the screen Home touch button
-        touch.setCenterButtonCoordinate(600, 120);
-        touch.setHomeButtonCallback(touchHomeKeyCallback, NULL);
-    } else {
+        hal_touch_set_home_button(600, 120, touchHomeKeyCallback);
     }
 }
 
@@ -72,10 +86,6 @@ void _setBrightness(uint8_t brightval) {
     if (panel) panel->setBrightness((brightval * 255) / 100);
 }
 
-struct LTouchPointPro {
-    int16_t x = 0;
-    int16_t y = 0;
-};
 /*********************************************************************
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
@@ -94,57 +104,13 @@ void InputHandler(void) {
     static bool pendingNextPress = false;
     static unsigned long pendingTime = 0;
     if (touch_OK) {
-        LTouchPointPro t;
-        uint8_t touched = 0;
-        uint8_t rot = 5;
-        if (rot != rotation) {
-            if (rotation == 0) {
-                touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-                touch.setSwapXY(true);
-                touch.setMirrorXY(true, false);
-            }
-            if (rotation == 2) {
-                touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-                touch.setSwapXY(true);
-                touch.setMirrorXY(false, true);
-            }
-            if (rotation == 1) {
-                touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-                touch.setSwapXY(false);
-                touch.setMirrorXY(false, false);
-            }
-            if (rotation == 3) {
-                touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-                touch.setSwapXY(false);
-                touch.setMirrorXY(true, true);
-            }
-            rot = rotation;
-        }
-        touched = touch.getPoint(&t.x, &t.y, 1);
+        LTouchPoint t;
+        bool touched = hal_touch_read(touchCfg(), t);
         vTaskDelay(pdMS_TO_TICKS(50));
         if ((launcherMillis() - tm) > 200 || LongPress) { // one reading each 500ms
-
-            // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
             if (touched) {
-
-                launcherConsolePrintf(
-                    "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
-                    t.x,
-                    t.y,
-                    rotation,
-                    launcherMillis(),
-                    tm
-                );
                 tm = launcherMillis();
-
-                if (!wakeUpScreen()) AnyKeyPress = true;
-                else return;
-
-                // Touch point global variable
-                touchPoint.x = t.x;
-                touchPoint.y = t.y;
-                touchPoint.pressed = true;
-                touchHeatMap(touchPoint);
+                if (!hal_touch_apply(t)) return;
             }
         }
     } else {
