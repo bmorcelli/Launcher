@@ -1,9 +1,10 @@
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <TouchDrvCSTXXX.hpp>
 #include <Wire.h>
 #include <interface.h>
-TouchDrvCSTXXX touch;
+
+static bool touch_OK = false;
 
 // GPIO expander
 #include <ExtensionIOXL9555.hpp>
@@ -111,6 +112,20 @@ void detectBoardVariantAndPrepareDisplay(bool preDisplayInit) {
     }
 }
 } // namespace
+
+// Reset pin depends on the variant detected above: 1.0/1.1 have a real GPIO
+// reset (TOUCH_RST/TOUCH_RST2, already pulsed by hand in
+// detectBoardVariantAndPrepareDisplay() before hal_touch_init() runs, same
+// as the driver's own reset via cfg.pin_rst); MAX has none (-1) -- its
+// display/touch reset line is routed through the XL9555 expander instead.
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    if (variant == 0) cfg.pin_rst = TOUCH_RST;
+    else if (variant == 1) cfg.pin_rst = TOUCH_RST2;
+    else cfg.pin_rst = -1;
+    cfg.pin_irq = TOUCH_INT;
+    return cfg;
+}
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
@@ -225,23 +240,12 @@ void _post_setup_gpio() {
         }
     }
 
-    uint8_t address = 0xFF;
-    Wire.beginTransmission(CST328_SLAVE_ADDRESS);
-    if (Wire.endTransmission() == 0) { address = CST328_SLAVE_ADDRESS; }
-
-    uint8_t touchAddress = 0;
-    if (variant == 0) touch.setPins(TOUCH_RST, TOUCH_INT);
-    else if (variant == 1) touch.setPins(TOUCH_RST2, TOUCH_INT);
-    else touch.setPins(-1, TOUCH_INT);
-    bool hasTouch = true;
-    hasTouch = touch.begin(Wire, address, BOARD_SDA, BOARD_SCL);
-    if (!hasTouch) {
+    touch_OK = hal_touch_init(touchCfg(), BOARD_I2C_ADDR_TOUCH /* CST328_SLAVE_ADDRESS */);
+    if (!touch_OK) {
         launcherConsolePrintf("%s\n", String("Failed to find Capacitive Touch !").c_str());
     } else {
         launcherConsolePrintf("%s\n", String("Find Capacitive Touch").c_str());
     }
-    launcherConsolePrintf("%s", String("Model :").c_str());
-    launcherConsolePrintf("%s\n", String(touch.getModelName()).c_str());
 }
 
 /***************************************************************************************
@@ -273,11 +277,6 @@ void _setBrightness(uint8_t brightval) {
         ledcWrite(TFT_BL, dutyCycle);
     }
 }
-
-struct LTouchPointPro {
-    int16_t x = 0;
-    int16_t y = 0;
-};
 
 #define KB_ROWS 4
 #define KB_COLS 10
@@ -399,16 +398,14 @@ void InputHandler(void) {
     static bool upHeld = false;
     static bool downHeld = false;
 
-    LTouchPointPro t;
-    uint8_t touched = 0;
+    LTouchPoint t;
+    bool touched = touch_OK && hal_touch_read(touchCfg(), t);
     vTaskDelay(pdMS_TO_TICKS(5));
-    touched = touch.getPoint(&t.x, &t.y, 1);
     if ((launcherMillis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
         if (launcherGpioRead(0) == LOW) NextPress = true;
 
         // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
-            touch.reset();
 
             // launcherConsolePrintf(
             //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",

@@ -1,15 +1,15 @@
-#include "idf/launcher_platform.h"
-#include "powerSave.h"
-#include <TouchDrvGT911.hpp>
-#include <Wire.h>
-#include <interface.h>
-
-TouchDrvGT911 touch;
-
 #include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "hal/power/gauge.h"
 #include "hal/power/pmic.h"
 #include "idf/launcher_platform.h"
+#include "powerSave.h"
+#include <Wire.h>
+#include <interface.h>
+
+static bool touch_OK = false;
+static int8_t touchRstPin = -1;
+static int8_t touchIrqPin = -1;
 
 bool isH752_1 = false;
 
@@ -61,6 +61,28 @@ int pmicWriteReg(uint8_t devAddr, uint8_t regAddr, uint8_t *data, uint8_t len) {
 }
 } // namespace
 
+// ED047TC2: 960x540 native resolution. displayConfig.width/height (TFT_WIDTH/
+// TFT_HEIGHT = 540/960) swapped per rotation by hal_touch_read() already
+// reproduces the 960x540 vs 540x960 setMaxCoordinates() split the original
+// code did by hand; this table replicates the per-rotation swap/mirror the
+// old InputHandler() applied (see docs/etapa_7.md).
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = touchRstPin;
+    cfg.pin_irq = touchIrqPin;
+    cfg.i2c_bus = activeI2c();
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, false, true, true};
+    bool mirrorY[4] = {false, true, true, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
+
 bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
     TwoWire *wire = activeI2c();
     if (wire == nullptr) {
@@ -68,20 +90,17 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
         return false;
     }
 
-    EPD_Painter::Config cfg = tft->getConfig();
-
     launcherGpioOutput(irq);
     launcherGpioWrite(irq, HIGH);
-    touch.setPins(rst, irq);
-    if (!touch.begin(*wire, touchAddress, cfg.i2c.sda, cfg.i2c.scl)) {
+    touchRstPin = rst;
+    touchIrqPin = irq;
+    touch_OK = hal_touch_init(touchCfg(), touchAddress);
+    if (!touch_OK) {
         while (1) {
             launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
             launcherDelayMs(1000);
         }
     }
-    touch.setMaxCoordinates(960, 540); // ED047TC2: 960x540 native resolution
-    touch.setSwapXY(true);
-    touch.setMirrorXY(false, true);
 
     launcherConsolePrintf("%s\n", String("Started Touchscreen poll...").c_str());
 
@@ -170,66 +189,18 @@ void _setBrightness(uint8_t brightval) {
     }
 }
 
-struct LTouchPointPro {
-    int16_t x = 0;
-    int16_t y = 0;
-};
-
 /*********************************************************************
 ** Function: InputHandler
 ** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
 **********************************************************************/
 void InputHandler(void) {
-    static unsigned long _tmptmp = 0;
-    LTouchPointPro t;
-    uint8_t touched = 0;
-    static uint8_t rot = 5;
-    if (rot != rotation) {
-        if (rotation == 1) {
-            touch.setMaxCoordinates(960, 540);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(false, true);
-        }
-        if (rotation == 3) {
-            touch.setMaxCoordinates(960, 540);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(true, false);
-        }
-        if (rotation == 0) {
-            touch.setMaxCoordinates(540, 960);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(false, false);
-        }
-        if (rotation == 2) {
-            touch.setMaxCoordinates(540, 960);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(true, true);
-        }
-        rot = rotation;
-    }
-    touched = touch.getPoint(&t.x, &t.y, 1);
-    if ((launcherMillis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
-
-        // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
-        if (touched) {
-
-            // launcherConsolePrintf(
-            //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d", t.x, t.y, rotation, launcherMillis(),
-            //     _tmptmp
-            // );
-            _tmptmp = launcherMillis();
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
-            touched = 0;
-            touch.reset();
-        }
+    if (!touch_OK) return; // dont have touchscreen
+    static unsigned long tm = 0;
+    if (launcherMillis() - tm < 200 && !LongPress) return;
+    LTouchPoint t;
+    if (hal_touch_read(touchCfg(), t)) {
+        tm = launcherMillis();
+        hal_touch_apply(t);
     }
 }
 

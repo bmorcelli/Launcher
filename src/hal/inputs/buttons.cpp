@@ -17,8 +17,10 @@ static volatile bool hal2PendingEsc = false;
 
 static void hal2OnBtn1Click(void *, void *) { hal2PendingNext = true; }
 static void hal2OnBtn1Long(void *, void *) { hal2PendingSel = true; }
+static void hal2OnBtn1Double(void *, void *) { hal2PendingSel = true; }
 static void hal2OnBtn2Click(void *, void *) { hal2PendingPrev = true; }
 static void hal2OnBtn2Long(void *, void *) { hal2PendingEsc = true; }
+static void hal2OnBtn2Double(void *, void *) { hal2PendingEsc = true; }
 #endif
 
 static void configurePin(int8_t pin, bool pullup) {
@@ -58,10 +60,12 @@ void hal_buttons_init_2(const DeviceButtons &cfg, uint16_t long_press_ms) {
     };
     hal2Btn1 = new Button(btn1Cfg);
     hal2Btn1->attachSingleClickEventCb(&hal2OnBtn1Click, nullptr);
+    hal2Btn1->attachDoubleClickEventCb(&hal2OnBtn1Double, nullptr);
     hal2Btn1->attachLongPressStartEventCb(&hal2OnBtn1Long, nullptr);
 
     hal2Btn2 = new Button(btn2Cfg);
     hal2Btn2->attachSingleClickEventCb(&hal2OnBtn2Click, nullptr);
+    hal2Btn2->attachDoubleClickEventCb(&hal2OnBtn2Double, nullptr);
     hal2Btn2->attachLongPressStartEventCb(&hal2OnBtn2Long, nullptr);
 #else
     (void)cfg;

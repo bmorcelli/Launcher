@@ -1,12 +1,11 @@
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <esp_sleep.h>
 #include <interface.h>
 #include <xteink_panel_probe.h>
-
-TouchDrvGT911 touch;
 
 // Xteink X4 Pro — ESP32-S3, 800x480 e-paper, GT911 touch, dual frontlight.
 //
@@ -74,6 +73,25 @@ static volatile bool homePressed = false;
 static void onGt911HomeButton(void *userData) {
     (void)userData;
     homePressed = true;
+}
+
+// Panel is native TFT_WIDTH x TFT_HEIGHT (800x480) landscape; table
+// replicates the per-rotation swap/mirror the old InputHandler() applied by
+// hand to touch.setSwapXY()/setMirrorXY() (see docs/etapa_7.md).
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = GT911_RST;
+    cfg.pin_irq = GT911_INT;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, false, true, true};
+    bool mirrorY[4] = {false, true, true, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
 }
 
 /*********************************************************************
@@ -213,12 +231,11 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup, run after TFT and before SD card init
 ***************************************************************************************/
 void _post_setup_gpio() {
-    touch.setPins(GT911_RST, GT911_INT);
-    touchReady = touch.begin(Wire, GT911_ADDR, I2C_SDA, I2C_SCL);
+    touchReady = hal_touch_init(touchCfg(), GT911_ADDR);
     if (!touchReady) {
         launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
     } else {
-        touch.setHomeButtonCallback(onGt911HomeButton, nullptr);
+        hal_touch_set_home_button(0, 0, onGt911HomeButton);
     }
 
     ledcAttach(FL_COOL, FL_FREQ, FL_BITS);
@@ -277,34 +294,8 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
 
-    // Panel is native TFT_WIDTH x TFT_HEIGHT (800x480) landscape; re-map the
-    // touch axes to whichever of the four rotations is currently active, so
-    // touch coordinates line up with what is drawn. See the same pattern on
-    // lilygo-t5-epaper-s3-pro.
-    static uint8_t lastRot = 5;
-    if (touchReady && lastRot != rotation) {
-        if (rotation == 1) {
-            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(false, true);
-        } else if (rotation == 3) {
-            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(true, false);
-        } else if (rotation == 0) {
-            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(false, false);
-        } else if (rotation == 2) {
-            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(true, true);
-        }
-        lastRot = rotation;
-    }
-
-    int16_t tx = 0, ty = 0;
-    const uint8_t points = touchReady ? touch.getPoint(&tx, &ty, 1) : 0;
+    LTouchPoint t;
+    const bool touched = touchReady && hal_touch_read(touchCfg(), t);
     const bool home = homePressed;
     homePressed = false;
 
@@ -314,7 +305,7 @@ void InputHandler(void) {
     const bool left = launcherGpioRead(BTN_LEFT) == LOW;
     const bool right = launcherGpioRead(BTN_RIGHT) == LOW;
 
-    if (!left && !right && !home && points == 0) return;
+    if (!left && !right && !home && !touched) return;
 
     tm = launcherMillis();
     if (!wakeUpScreen()) AnyKeyPress = true;
@@ -324,9 +315,9 @@ void InputHandler(void) {
     if (right) NextPress = true;
     if (home) EscPress = true;
 
-    if (points > 0) {
-        touchPoint.x = tx;
-        touchPoint.y = ty;
+    if (touched) {
+        touchPoint.x = t.x;
+        touchPoint.y = t.y;
         touchPoint.pressed = true;
         touchHeatMap(touchPoint);
     }

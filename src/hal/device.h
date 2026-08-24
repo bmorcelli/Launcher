@@ -25,11 +25,9 @@ struct DeviceTouch {
     bool MirrorY[4] = {false, false, false, false};
     bool SwapXY[4] = {false, false, false, false};
     int16_t HomeBtn = -1;
-    // TwoWire* for a board whose touch controller isn't on the default/global
-    // `Wire` bus (e.g. a second I2C bus). nullptr (default) = use `Wire`. A
-    // void* rather than TwoWire* so this header stays Arduino-free; hal/inputs/
-    // touch.cpp casts it back.
     void *i2c_bus = nullptr;
+    uint16_t raw_width = 0;
+    uint16_t raw_height = 0;
 };
 
 struct DeviceEncoder {

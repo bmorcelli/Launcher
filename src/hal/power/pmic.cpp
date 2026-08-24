@@ -77,3 +77,11 @@ int hal_pmic_get_system_voltage_mv() {
     return -1;
 #endif
 }
+
+int hal_pmic_get_ntc_percent() {
+#if defined(PMIC_BQ25896)
+    return (int)ppm.getNTCPercentage();
+#else
+    return -1;
+#endif
+}

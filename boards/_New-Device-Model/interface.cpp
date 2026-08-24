@@ -21,7 +21,9 @@
 // }
 
 // For HAS_2_BUTTONS with BUTTONS_IDF_COMPONENT=1 set (needs
-// lib_deps = https://github.com/bmorcelli/ESP32_Button):
+// lib_deps = https://github.com/bmorcelli/ESP32_Button): btn1 short click ->
+// Next, double click or hold -> Sel; btn2 short click -> Prev, double click
+// or hold -> Esc.
 // #include "hal/device.h"
 // #include "hal/inputs/buttons.h"
 // call hal_buttons_init_2(DeviceButtons{BTN1, BTN2}, 600) from _setup_gpio()

@@ -59,9 +59,22 @@ static uint8_t touchLastRot = 0xFF;
 #include <TouchDrvFT6X36.hpp>
 #include <Wire.h>
 static TouchDrvFT6X36 touch;
+
+#elif defined(TOUCH_CTRL_GT9895)
+#include <TouchDrvGT9895.hpp>
+#include <Wire.h>
+static TouchDrvGT9895 touch;
+static uint8_t touchLastRot = 0xFF;
+
+#elif defined(TOUCH_CTRL_HI8561)
+#include <TouchDrvHI8561.hpp>
+#include <Wire.h>
+static TouchDrvHI8561 touch;
+static uint8_t touchLastRot = 0xFF;
 #endif
 
-#if defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36)
+#if defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36) ||                 \
+    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561)
 #include <Wire.h>
 static TwoWire &wireFor(const DeviceTouch &cfg) {
     return cfg.i2c_bus ? *static_cast<TwoWire *>(cfg.i2c_bus) : Wire;
@@ -96,6 +109,21 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
     // that reason.
     touch.interruptPolling();
     return true;
+#elif defined(TOUCH_CTRL_GT9895)
+    (void)xpt_shared_spi;
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    if (!touch.begin(wireFor(cfg), i2c_addr, cfg.pin_sda, cfg.pin_scl)) return false;
+    // Chip doesn't report its own native resolution -- only scale if the
+    // board supplied one (see DeviceTouch.raw_width/raw_height).
+    if (cfg.raw_width != 0 && cfg.raw_height != 0) touch.setResolution(cfg.raw_width, cfg.raw_height);
+    return true;
+#elif defined(TOUCH_CTRL_HI8561)
+    (void)xpt_shared_spi;
+    (void)i2c_addr; // fixed HI8561_SLAVE_ADDRESS, like FT6X36's fixed address
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    return touch.begin(wireFor(cfg), HI8561_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl);
 #else
     (void)cfg;
     (void)i2c_addr;
@@ -106,7 +134,7 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
 
 bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
 #if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) ||                \
-    defined(TOUCH_CTRL_FT6X36)
+    defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561)
     uint8_t r = rotation & 0x03;
     int16_t screenW, screenH;
     panelSize(screenW, screenH);
@@ -136,9 +164,18 @@ bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
     out.y = y;
     out.pressed = true;
     return true;
-#elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX)
+#elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_GT9895) ||               \
+    defined(TOUCH_CTRL_HI8561)
     if (touchLastRot != r) {
+#if defined(TOUCH_CTRL_GT9895)
+        // GT9895's digitizer grid is bigger than the panel -- if the board
+        // gave us its native resolution, use it to scale instead of just
+        // clamping (see DeviceTouch.raw_width/raw_height).
+        if (cfg.raw_width != 0 && cfg.raw_height != 0) touch.setTargetResolution(screenW, screenH);
+        else touch.setMaxCoordinates(screenW, screenH);
+#else
         touch.setMaxCoordinates(screenW, screenH);
+#endif
         touch.setSwapXY(cfg.SwapXY[r]);
         touch.setMirrorXY(cfg.MirrorX[r], cfg.MirrorY[r]);
         touchLastRot = r;
@@ -152,6 +189,41 @@ bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
 #else
     (void)cfg;
     (void)out;
+    return false;
+#endif
+}
+
+bool hal_touch_read_raw(LTouchPoint &out) {
+#if defined(TOUCH_CTRL_XPT2046)
+    if (!touch.touched()) return false;
+    auto p = touch.getPointScaled();
+    out.x = p.x;
+    out.y = p.y;
+    out.pressed = true;
+    return true;
+#elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36) ||               \
+    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561)
+    int16_t x = 0, y = 0;
+    if (!touch.getPoint(&x, &y, 1)) return false;
+    out.x = x;
+    out.y = y;
+    out.pressed = true;
+    return true;
+#else
+    (void)out;
+    return false;
+#endif
+}
+
+bool hal_touch_get_resolution(uint16_t &width, uint16_t &height) {
+#if defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_GT9895) ||                 \
+    defined(TOUCH_CTRL_HI8561)
+    width = touch.getResolutionX();
+    height = touch.getResolutionY();
+    return width != 0 && height != 0;
+#else
+    (void)width;
+    (void)height;
     return false;
 #endif
 }
@@ -172,7 +244,7 @@ bool hal_touch_apply(const LTouchPoint &t, bool wakeUp) {
 }
 
 void hal_touch_set_home_button(int16_t x, int16_t y, void (*cb)(void *user_data), void *user_data) {
-#if defined(TOUCH_CTRL_CST8XX)
+#if defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_GT911)
     touch.setCenterButtonCoordinate(x, y);
     touch.setHomeButtonCallback(cb, user_data);
 #else
