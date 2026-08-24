@@ -29,6 +29,7 @@ constexpr gpio_num_t kSclPin = GPIO_NUM_48;
 constexpr std::uint32_t kI2cFrequencyHz = 100000;
 constexpr std::uint32_t kSclWaitUs = 5000;
 constexpr int kTransactionTimeoutMs = 20;
+constexpr int kStartupSettlingDelayMs = 500;
 
 constexpr std::uint8_t kPm1Address = 0x6E;
 constexpr std::uint8_t kPm1DeviceIdRegister = 0x00;
@@ -132,6 +133,8 @@ struct PaperMonoClassAResult {
     std::uint8_t ioe1_snapshot_start_register;
     std::uint8_t ioe1_snapshot_length;
     std::uint8_t ioe1_snapshot[6];
+    std::uint8_t ioe1_address_probe_only;
+    std::uint8_t ioe1_address_ack;
     std::uint8_t epd_en;
     std::uint8_t ip2315_gate;
     std::uint8_t tp_en;
@@ -157,7 +160,7 @@ void initializeResult(const ReadOnlyStagePlan& plan) {
     papermono_class_a_result.state = static_cast<std::uint32_t>(ProbeState::NOT_STARTED);
     papermono_class_a_result.completion_marker = 0;
     papermono_class_a_result.planned_transaction_count =
-        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ? 2 : 1;
+        1;
     papermono_class_a_result.transaction_call_count = 0;
     papermono_class_a_result.failed_transaction_index = 0;
     papermono_class_a_result.idf_internal_recovery_allowed = 1;
@@ -168,16 +171,14 @@ void initializeResult(const ReadOnlyStagePlan& plan) {
     papermono_class_a_result.sda_before = 0xFF;
     papermono_class_a_result.scl_before = 0xFF;
     papermono_class_a_result.device_address = plan.device_address;
-    papermono_class_a_result.register_address = plan.register_address;
+    papermono_class_a_result.register_address =
+        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ? 0xFF : plan.register_address;
     papermono_class_a_result.read_length =
-        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ?
-            kIoe1UidLength + kIoe1GpioSnapshotLength : 2;
-    papermono_class_a_result.transaction1_register = plan.register_address;
-    papermono_class_a_result.transaction1_read_length = 2;
-    papermono_class_a_result.transaction2_register =
-        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ? kIoe1GpioModeRegister : 0;
-    papermono_class_a_result.transaction2_read_length =
-        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ? kIoe1GpioSnapshotLength : 0;
+        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ? 0 : 2;
+    papermono_class_a_result.transaction1_register = papermono_class_a_result.register_address;
+    papermono_class_a_result.transaction1_read_length = papermono_class_a_result.read_length;
+    papermono_class_a_result.transaction2_register = 0;
+    papermono_class_a_result.transaction2_read_length = 0;
     papermono_class_a_result.raw_byte0 = 0;
     papermono_class_a_result.raw_byte1 = 0;
     papermono_class_a_result.expected_value_checked = plan.validate_expected_value ? 1 : 0;
@@ -187,10 +188,13 @@ void initializeResult(const ReadOnlyStagePlan& plan) {
     papermono_class_a_result.ioe1_uid[1] = 0;
     papermono_class_a_result.ioe1_uid_value = 0;
     papermono_class_a_result.ioe1_snapshot_start_register = kIoe1GpioModeRegister;
-    papermono_class_a_result.ioe1_snapshot_length = kIoe1GpioSnapshotLength;
+    papermono_class_a_result.ioe1_snapshot_length = 0;
     for (std::size_t i = 0; i < kIoe1GpioSnapshotLength; ++i) {
         papermono_class_a_result.ioe1_snapshot[i] = 0;
     }
+    papermono_class_a_result.ioe1_address_probe_only =
+        plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY ? 1 : 0;
+    papermono_class_a_result.ioe1_address_ack = 0;
     papermono_class_a_result.epd_en = 0;
     papermono_class_a_result.ip2315_gate = 0;
     papermono_class_a_result.tp_en = 0;
@@ -235,6 +239,8 @@ esp_err_t readRegisterOnce(
 __attribute__((noinline)) void runClassAReadOnlyProbe(const ReadOnlyStagePlan& plan) {
     initializeResult(plan);
 
+    vTaskDelay(pdMS_TO_TICKS(kStartupSettlingDelayMs));
+
     gpio_config_t idle_check_config = {};
     idle_check_config.pin_bit_mask = (1ULL << kSdaPin) | (1ULL << kSclPin);
     idle_check_config.mode = GPIO_MODE_INPUT;
@@ -257,14 +263,14 @@ __attribute__((noinline)) void runClassAReadOnlyProbe(const ReadOnlyStagePlan& p
     }
 
     i2c_master_bus_config_t bus_config = {};
-    bus_config.i2c_port = I2C_NUM_0;
+    bus_config.i2c_port = I2C_NUM_1;
     bus_config.sda_io_num = kSdaPin;
     bus_config.scl_io_num = kSclPin;
     bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
     bus_config.glitch_ignore_cnt = 7;
     bus_config.intr_priority = 0;
     bus_config.trans_queue_depth = 0;
-    bus_config.flags.enable_internal_pullup = 0;
+    bus_config.flags.enable_internal_pullup = 1;
     bus_config.flags.allow_pd = 0;
 
     i2c_master_bus_handle_t bus_handle = nullptr;
@@ -272,6 +278,25 @@ __attribute__((noinline)) void runClassAReadOnlyProbe(const ReadOnlyStagePlan& p
     papermono_class_a_result.bus_init_error = bus_init_error;
     if (bus_init_error != ESP_OK) {
         setState(ProbeState::I2C_INIT_FAILED);
+        return;
+    }
+
+    // Stage 2D deliberately performs an address-only transaction. Unlike the
+    // synchronous register-read path, IDF 5.5.4's probe API preserves address
+    // NACK as ESP_ERR_NOT_FOUND and timeout as ESP_ERR_TIMEOUT. No register
+    // pointer or payload byte is sent, and there is no application retry.
+    if (plan.stage == PAPERMONO_STAGE_IOE1_READ_ONLY) {
+        papermono_class_a_result.transaction_call_count = 1;
+        const esp_err_t probe_error =
+            i2c_master_probe(bus_handle, plan.device_address, kTransactionTimeoutMs);
+        papermono_class_a_result.transaction_error = probe_error;
+        papermono_class_a_result.ioe1_address_ack = probe_error == ESP_OK ? 1 : 0;
+        if (probe_error != ESP_OK) {
+            papermono_class_a_result.failed_transaction_index = 1;
+            setState(ProbeState::TRANSACTION_FAILED);
+            return;
+        }
+        setState(ProbeState::PASS);
         return;
     }
 
