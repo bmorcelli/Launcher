@@ -27,11 +27,9 @@ void setup() {
     HWCDCSerial.println("NO DISPLAY INIT");
     HWCDCSerial.println("NO SD INIT");
     HWCDCSerial.println("NO PMIC/IOE1 COMMANDS");
-    HWCDCSerial.flush();
 }
 
 void loop() {
     vTaskDelay(pdMS_TO_TICKS(5000));
     HWCDCSerial.println("PAPERMONO SAFE HEARTBEAT");
-    HWCDCSerial.flush();
 }
