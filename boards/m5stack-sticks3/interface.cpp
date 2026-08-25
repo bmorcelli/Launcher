@@ -1,3 +1,4 @@
+#include "hal/bright/bright.h"
 #include "hal/device.h"
 #include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
@@ -78,9 +79,8 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 
 #ifdef USE_CARDKB2
     // CardKB2 on the Grove port (G9/G10). Probing reconfigures G9 as I2C SDA,
@@ -98,14 +98,7 @@ void _post_setup_gpio() {
 ** location: settings.cpp
 ** set brightness value
 **********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int dutyCycle = (brightval * 255) / 100;
-    if (!ledcWrite(TFT_BL, dutyCycle)) {
-        ledcDetach(TFT_BL);
-        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(TFT_BL, dutyCycle);
-    }
-}
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 /***************************************************************************************
 ** Function name: getBattery()

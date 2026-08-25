@@ -5,6 +5,7 @@
 
 #include <Wire.h>
 // Charger chip + fuel gauge, CC1101 board only; encoder on both variants
+#include "hal/bright/bright.h"
 #include "hal/device.h"
 #include "hal/inputs/encoder.h"
 #include "hal/power/gauge.h"
@@ -160,17 +161,7 @@ void _setup_gpio() {
 **  Function: _setBrightness
 **  set brightness value -- the backlight is on a different pin per board
 **********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(pinBacklight, brightval);
-    } else {
-        const uint8_t PWM_MIN = 85;
-        const uint8_t PWM_MAX = 255;
-        float linear = (float)brightval / 100.0;
-        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-        analogWrite(pinBacklight, value);
-    }
-}
+void _setBrightness(uint8_t brightval) { hal_bright_set(pinBacklight, brightval); }
 
 /***************************************************************************************
 ** Function name: getBattery()

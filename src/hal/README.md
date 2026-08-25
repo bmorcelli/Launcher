@@ -188,3 +188,66 @@ duplication. See `docs/plan.md` for the migration plan this follows.
   added for `lilygo-t-display-s3-touch`, which used both triggers for the
   same action; additive, no behavior change for `lilygo-t-display-c5`/
   `m5stack-sticks3` (never used double-click). See `docs/etapa_7.md`.
+- `bright/bright.*` (Etapa 8): `hal_bright_attach(pin[, count])` /
+  `hal_bright_set(pin[, count], percent[, curve])`. A survey of all 41 boards
+  with a `_setBrightness()` body found ~9 different hand-tuned curves/PWM
+  frequencies in use (a 5-point lookup table in ~17 variants, a
+  `pow(x,2.2)` gamma curve in 4, plain linear in a few, one inverted table)
+  — the plan's assumption that a single gamma curve was "already used by
+  practically every board" didn't hold. Per the author's explicit
+  instruction, every plain-PWM board was converged onto **one** shared
+  curve/frequency instead of parameterizing per board:
+  `HAL_BRIGHT_PWM_FREQ=5000`, `HAL_BRIGHT_PWM_RES_BITS=8`,
+  `HalBrightCurve{pwm_min=0, pwm_max=255, gamma=2.2}` (all defaults, no
+  board overrides them). Board-specific `-DTFT_BRIGHT_FREQ=...` overrides
+  (1000/10000Hz, found in 7 boards' `platformio.ini` and duplicated again as
+  `#define TFT_BRIGHT_FREQ` in several `lib/DisplayDrivers/src/devices/*.h`
+  panel-quirk headers) were removed as dead weight now that the HAL owns the
+  frequency outright; the fallback `TFT_BRIGHT_FREQ`/`TFT_BRIGHT_Bits`
+  `#ifndef` in `include/pre_compiler.h` is left alone since not-yet-migrated
+  boards may still read it. Several `lib/DisplayDrivers/src/devices/*.h`
+  panel-quirk headers (a submodule) also `#define TFT_BRIGHT_FREQ`, now
+  equally dead — left untouched on purpose, not worth editing a shared
+  library for cosmetic dead-code removal.
+  - Migrated (single pin unless noted): `CYD-2432S028`-family (all `.ini`
+    variants sharing that `interface.cpp`), `NM-CYD-C5`,
+    `elecrow-esp32p4-7in`, `elecrow`, `lilygo-t-deck-pro`, `marauder-mini`,
+    `marauder-v4og`, `marauder-v8`, `pancake`, `phantom`, `ES3C28P`,
+    `lilygo-t-display-c5`, `lilygo-t-display-s3-pro`,
+    `lilygo-t-display-s3-touch`, `lilygo-t-hmi`, `lilygo-t-watch-s3`,
+    `lilygo-t5-epaper-s3-pro`, `lilygo-t-dongle-s3-tft`/`-c5-tft`,
+    `lilygo-t-embed-cc1101`, `m5stack-dinmeter`, `m5stack-sticks3`.
+  - Migrated, two simultaneous pins via the `pins[]`/`count` overload:
+    `xteink-x4pro` (`FL_COOL`+`FL_WARM`, same duty), `lilygo-t-lora-pager`
+    (`TFT_BL`+`KEYBOARD_BL`, same duty).
+  - Migrated, PWM pin only (a non-PWM side-channel stays untouched):
+    `lilygo-t-deck` (its `TFT_BL` pin migrated; the I2C command byte sent to
+    the keyboard co-processor's brightness register was already
+    command-only, carrying no duty value, so nothing else to migrate there).
+  - Migrated, branch-gated (only the plain-PWM branch touched, the rest of
+    the board left alone): `lilygo-t-display-p4` (`P4_PANEL_IPS` branch's
+    `P4_IPS_BL_PIN`, plus the always-on `KB_BL_PIN` keyboard backlight — the
+    AMOLED branch's DSI register-write path is untouched, see below),
+    `elecrow-esp32s3-5in` (`BOARD_VER_V1_0`'s `LEGACY_BACKLIGHT_PIN` only —
+    V1.1+ drive an external I2C backlight controller chip, untouched).
+  - `lilygo-t-dongle-s3-tft`/`-c5-tft` previously had an *inverted*
+    lookup table (100% → duty 0, 0% → duty 250). No comment, schematic
+    reference, or naming anywhere in the board or its
+    `lib/DisplayDrivers` header suggested the backlight is genuinely
+    active-low; treated as an unexplained historical artifact and migrated
+    onto the same normal (non-inverted) shared curve as every other board.
+  - **Not plain GPIO PWM — left untouched, `_setBrightness()` unchanged:**
+    - `arduino-nesso-n1`, `m5stack-core`, `m5stack-core2`, `m5stack-cores3`,
+      `m5stack-tab5` — M5Unified `M5.Display`/`M5.Lcd.setBrightness()`.
+    - `m5stack-cplus1_1` — AXP192 PMIC `ScreenBreath()` register write.
+    - `lilygo-t-display-s3-amoled`, `lilygo-t-display-s3-amoled-plus`,
+      `lilygo-t-watch-ultra` — panel-controller `setBrightness()` over
+      DSI/SPI (`Arduino_RM67162`/`Arduino_CO5300`), no backlight PWM rail.
+    - `lilygo-t-display-p4`'s AMOLED branch (else of `P4_PANEL_IPS`) — raw
+      DSI register `0x51` write via `Arduino_ESP32DSIPanel`, same reason.
+    - `elecrow-esp32s3-5in`'s `BOARD_VER_V1_1_PLUS` path — external I2C
+      backlight-controller chip, two different byte-mapping protocols.
+  - **No backlight hardware — `_setBrightness()` stays a no-op:**
+    `m5stack-paper-color`, `m5stack-paper-s3` (e-paper, commented-out
+    `M5.Display.setBrightness`), `seeedstudio-reterminal-sticky`,
+    `xteink-x3-x4` (e-paper, explicit comment), `xueersi-xiaomiao`.

@@ -1,3 +1,4 @@
+#include "hal/bright/bright.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
@@ -190,6 +191,9 @@ void _setup_gpio() {
 
     hal_encoder_init(encoderCfg(), EncoderLatchMode::FOUR3);
 
+    uint8_t blPins[] = {TFT_BL, KEYBOARD_BL};
+    hal_bright_attach(blPins, 2);
+
     // Initalise keyboard
     bool res = keyboard.begin(KB_I2C_ADDRESS, &Wire);
     if (!res) {
@@ -213,17 +217,8 @@ int getBattery() { return hal_gauge_get_percent(); }
 **  set brightness value
 **********************************************************************/
 void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-        analogWrite(KEYBOARD_BL, brightval);
-    } else {
-        const uint8_t PWM_MIN = 85;
-        const uint8_t PWM_MAX = 255;
-        float linear = (float)brightval / 100.0;
-        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-        analogWrite(TFT_BL, value);
-        analogWrite(KEYBOARD_BL, value);
-    }
+    uint8_t blPins[] = {TFT_BL, KEYBOARD_BL};
+    hal_bright_set(blPins, 2, brightval);
 }
 
 /*********************************************************************

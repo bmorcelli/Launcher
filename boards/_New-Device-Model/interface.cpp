@@ -127,6 +127,12 @@ int getBattery() {
 ** location: settings.cpp
 ** set brightness value
 **********************************************************************/
+// For a plain PWM/ledc backlight pin (the common case -- see hal/bright/bright.h):
+// #include "hal/bright/bright.h"
+// call hal_bright_attach(TFT_BL) once from _post_setup_gpio(), then:
+// void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
+// For two simultaneous backlight pins (e.g. screen + keyboard), pass an array:
+// uint8_t pins[] = {TFT_BL, KEYBOARD_BL}; hal_bright_set(pins, 2, brightval);
 void _setBrightness(uint8_t brightval) {}
 
 /*********************************************************************

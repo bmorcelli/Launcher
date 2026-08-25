@@ -1,3 +1,4 @@
+#include "hal/bright/bright.h"
 #include "hal/device.h"
 #include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
@@ -102,6 +103,8 @@ void _setup_gpio() {
     launcherGpioOutput(9); // LoRa Radio CS Pin to HIGH (Inhibit the SPI Communication for this module)
     launcherGpioWrite(9, HIGH);
 
+    hal_bright_attach(TFT_BL);
+
     // Setup for Trackball
     launcherGpioInputPullup(UP_BTN);
     attachInterrupt(UP_BTN, ISR_up, FALLING);
@@ -129,15 +132,7 @@ void _post_setup_gpio() {}
 void _setBrightness(uint8_t brightval) {
     Wire.beginTransmission(LILYGO_KB_SLAVE_ADDRESS);
     Wire.write(LILYGO_KB_BRIGHTNESS_CMD);
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-    } else {
-        const uint8_t PWM_MIN = 85;
-        const uint8_t PWM_MAX = 255;
-        float linear = (float)brightval / 100.0;
-        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-        analogWrite(TFT_BL, value);
-    }
+    hal_bright_set(TFT_BL, brightval);
     Wire.endTransmission();
 }
 

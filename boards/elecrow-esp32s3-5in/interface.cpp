@@ -1,3 +1,4 @@
+#include "hal/bright/bright.h"
 #include "hal/device.h"
 #include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
@@ -134,10 +135,10 @@ void _setBrightness(uint8_t brightval) {
         static bool attached = false;
         if (!attached) {
             pinMode(LEGACY_BACKLIGHT_PIN, OUTPUT);
-            ledcAttach(LEGACY_BACKLIGHT_PIN, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
+            hal_bright_attach(LEGACY_BACKLIGHT_PIN);
             attached = true;
         }
-        ledcWrite(LEGACY_BACKLIGHT_PIN, ((uint16_t)brightval * 255) / 100);
+        hal_bright_set(LEGACY_BACKLIGHT_PIN, brightval);
         return;
     }
 

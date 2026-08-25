@@ -1,5 +1,6 @@
 #include "GaugeBQ27220.hpp"
 #include "IoExpanderXL9555.hpp"
+#include "hal/bright/bright.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
@@ -349,6 +350,7 @@ static void _kbSetup() {
     Wire1.begin(KB_I2C_SDA, KB_I2C_SCL, 400000);
     pinMode(KB_INT_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(KB_INT_PIN), _kbIsr, FALLING);
+    hal_bright_attach(KB_BL_PIN);
 
     kbReady = _kbBegin();
     if (kbReady) Serial.println("Keyboard (TCA8418) ready");
@@ -669,6 +671,7 @@ void _setup_gpio() {
     // After _config_xl9535(): the probe needs the 3V3 rail up and the touch
     // controller out of reset, and it has to happen before tft->begin().
     _detect_panel();
+    if (p4Panel == P4_PANEL_IPS) hal_bright_attach(P4_IPS_BL_PIN);
 
     // BQ27220 fuel gauge, same I2C bus as the expander.
     gaugeOk = gauge.begin(Wire, IIC_1_SDA, IIC_1_SCL);
@@ -760,15 +763,7 @@ void _post_setup_gpio() {
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
     if (p4Panel == P4_PANEL_IPS) {
-        if (brightval == 0) {
-            analogWrite(P4_IPS_BL_PIN, brightval);
-        } else {
-            const uint8_t PWM_MIN = 85;
-            const uint8_t PWM_MAX = 255;
-            float linear = (float)brightval / 100.0;
-            uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-            analogWrite(P4_IPS_BL_PIN, value);
-        }
+        hal_bright_set(P4_IPS_BL_PIN, brightval);
     } else {
         // No backlight rail on the AMOLED: brightness is the panel's own 0x51
         // register, written over the DSI link.
@@ -778,7 +773,7 @@ void _setBrightness(uint8_t brightval) {
             dsi->writeCommand(0x51, &level, 1);
         }
     }
-    if (kbReady) { analogWrite(KB_BL_PIN, (brightval * 255) / 100); }
+    if (kbReady) { hal_bright_set(KB_BL_PIN, brightval); }
 }
 
 void InputHandler(void) {

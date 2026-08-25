@@ -1,3 +1,4 @@
+#include "hal/bright/bright.h"
 #include "hal/device.h"
 #include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
@@ -51,9 +52,6 @@
 // --- frontlight ------------------------------------------------------------
 #define FL_COOL 8 // white channel
 #define FL_WARM 9 // warm channel
-#define FL_FREQ 10000
-#define FL_BITS 10
-#define FL_MAX ((1 << FL_BITS) - 1)
 
 // The gauge reports 0% until a battery profile matching this cell is resident,
 // so it has to be uploaded before any reading means anything. Table recovered
@@ -238,8 +236,8 @@ void _post_setup_gpio() {
         hal_touch_set_home_button(0, 0, onGt911HomeButton);
     }
 
-    ledcAttach(FL_COOL, FL_FREQ, FL_BITS);
-    ledcAttach(FL_WARM, FL_FREQ, FL_BITS);
+    uint8_t flPins[] = {FL_COOL, FL_WARM};
+    hal_bright_attach(flPins, 2);
     _setBrightness((uint8_t)bright);
 
     // Power-cycle the card's data path before the mount that follows. Without
@@ -282,9 +280,8 @@ void _setBrightness(uint8_t brightval) {
     // The panel has a warm channel and a cool one. The launcher has no notion
     // of colour temperature, so both are driven together for a neutral mix —
     // the split is what the setting would control if it existed.
-    const uint32_t duty = ((uint32_t)brightval * FL_MAX) / 100;
-    ledcWrite(FL_COOL, duty);
-    ledcWrite(FL_WARM, duty);
+    uint8_t flPins[] = {FL_COOL, FL_WARM};
+    hal_bright_set(flPins, 2, brightval);
 }
 
 /*********************************************************************
