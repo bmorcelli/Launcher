@@ -45,18 +45,22 @@
 // that way, e.g. lilygo-t-lora-pager), then hal_encoder_poll(encoderCfg())
 // every InputHandler() cycle.
 
-// For HAS_TOUCH with TOUCH_CTRL_XPT2046 or TOUCH_CTRL_GT911 set:
+// For HAS_TOUCH with any TOUCH_CTRL_* set (XPT2046, GT911, CST8XX, FT6X36,
+// GT9895, HI8561 -- see src/hal/README.md for which chip each one is):
 // #include "hal/device.h"
 // #include "hal/inputs/touch.h"
 // static DeviceTouch touchCfg() {
 //     DeviceTouch cfg;
-//     // TOUCH_CTRL_GT911 only -- ignored for TOUCH_CTRL_XPT2046 (pins are
-//     // compile-time macros from CYD28_TouchscreenR.h instead, see the
-//     // Touch build_flags below):
+//     // All I2C-based controllers (everything except TOUCH_CTRL_XPT2046,
+//     // which is SPI and whose pins are compile-time macros from
+//     // CYD28_TouchscreenR.h instead, see the Touch build_flags below):
 //     cfg.pin_sda = -1; // -1 if Wire.begin() is already called elsewhere
 //     cfg.pin_scl = -1;
 //     cfg.pin_rst = -1;
 //     cfg.pin_irq = TOUCH_INT;
+//     // TOUCH_CTRL_GT9895 only -- the chip doesn't report its own native
+//     // resolution over I2C, this is a fixed vendor/panel constant:
+//     // cfg.raw_width = 1060; cfg.raw_height = 2400;
 //     // MirrorX/MirrorY/SwapXY are indexed by the display's current
 //     // rotation (0-3) -- copy the values from a similar already-migrated
 //     // board (see src/hal/inputs/touch.h) rather than guessing; they only
