@@ -38,12 +38,6 @@
 
 #define BATTERY_DESIGN_CAPACITY 1000
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
-
 static DeviceButtons buttonsCfg() { return DeviceButtons{L_BTN, R_BTN, UP_BTN, DW_BTN, SEL_BTN, ESC_BTN}; }
 
 void _setup_gpio() {
@@ -79,34 +73,14 @@ void _setup_gpio() {
     hal_gauge_init(gaugeCfg);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-
-** Description:   Delivers the battery value from 1-100+
-***************************************************************************************/
 int getBattery() { return hal_gauge_get_percent(); }
 
 bool isCharging() { return hal_gauge_is_charging(); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) { hal_buttons_poll_6(buttonsCfg()); }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() { hal_pmic_shutdown(); }
 
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to tornoff the device (name is odd btw)
-**********************************************************************/
 void checkReboot() {
     int countDown;
     /* Long press power off */

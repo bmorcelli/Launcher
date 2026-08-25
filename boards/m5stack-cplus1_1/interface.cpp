@@ -127,10 +127,6 @@ static void _detect_panel() {
     );
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     launcherGpioInput(SEL_BTN);
     launcherGpioInput(DW_BTN);
@@ -191,10 +187,6 @@ void _post_setup_gpio() {
     if (bus) { bus->batchOperation(stickc_st7735s_bringup, sizeof(stickc_st7735s_bringup)); }
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     int percent = 0;
     float b = axp192.GetBatVoltage();
@@ -203,19 +195,11 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
-/*********************************************************************
-**  Function: setBrightness
-**  set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
     axp192.ScreenBreath(brightval);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm < 200 && !LongPress) return;

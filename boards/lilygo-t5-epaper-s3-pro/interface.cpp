@@ -120,11 +120,6 @@ bool startPeripherals(uint8_t touchAddress, int8_t rst, int8_t irq) {
     return true;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     // Driving this parallel EPD is bit-banged and timing sensitive, so the
     // input task has to stay out of the way while the panel is being painted.
@@ -136,11 +131,6 @@ void _setup_gpio() {
     launcherGpioWrite(46, HIGH);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     uint8_t touchAddress = 0x5D; // GT911 default I2C address
     EPD_Painter::Config cfg = tft->getConfig();
@@ -159,24 +149,10 @@ void _post_setup_gpio() {
     hal_bright_set(isH752_1 ? 11 : 40, bright);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() { return hal_gauge_get_percent(); }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(isH752_1 ? 11 : 40, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     if (!touch_OK) return; // dont have touchscreen
     static unsigned long tm = 0;
@@ -188,11 +164,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);

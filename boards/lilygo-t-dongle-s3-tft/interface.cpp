@@ -11,11 +11,6 @@
 #define SEL_BTN 0
 #endif
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
 #ifdef SOC_SDMMC_HOST_SUPPORTED
     /* T-DONGLE S3 */
@@ -41,33 +36,14 @@ void _setup_gpio() {
     hal_buttons_init(DeviceButtons{SEL_BTN}, 1);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
     hal_bright_attach(TFT_BL);
     hal_bright_set(TFT_BL, bright);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() { return 0; }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) { hal_buttons_poll_1(DeviceButtons{SEL_BTN}); }

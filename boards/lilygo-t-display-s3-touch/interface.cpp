@@ -32,11 +32,6 @@ static DeviceTouch touchCfg() {
     return cfg;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
     gpio_hold_dis((gpio_num_t)21); // PIN_TOUCH_RES
@@ -53,11 +48,6 @@ void _setup_gpio() {
     hal_buttons_init_2(DeviceButtons{SEL_BTN, DW_BTN}, 600);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
     hal_bright_attach(TFT_BL);
@@ -91,16 +81,8 @@ void _post_setup_gpio() {
     }
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
+
 void InputHandler(void) {
     hal_buttons_poll_2();
 

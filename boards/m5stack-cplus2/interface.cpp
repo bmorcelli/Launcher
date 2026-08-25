@@ -7,11 +7,6 @@
 #define UP_BTN 35
 #define DW_BTN 39
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 static DeviceButtons buttonsCfg() {
     DeviceButtons cfg{UP_BTN, DW_BTN, SEL_BTN};
     cfg.pullup = false;
@@ -33,28 +28,14 @@ void _setup_gpio() {
     gpio_pullup_dis(GPIO_NUM_36);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) { hal_buttons_poll_3(buttonsCfg()); }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     launcherGpioWrite(4, LOW);
     esp_sleep_enable_ext0_wakeup((gpio_num_t)UP_BTN, LOW);
     esp_deep_sleep_start();
 }
 
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to tornoff the device (name is odd btw)
-**********************************************************************/
 void checkReboot() {
     static unsigned long time_count = 0;
     static bool armed = false;

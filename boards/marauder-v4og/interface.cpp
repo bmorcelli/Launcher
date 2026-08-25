@@ -36,11 +36,6 @@ static DeviceEncoder encoderCfg() {
 }
 #endif
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     pinMode(SDCARD_CS, OUTPUT);
     pinMode(TOUCH_CS, OUTPUT);
@@ -53,11 +48,6 @@ void _setup_gpio() {
 #endif
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     if (!hal_touch_init(touchCfg())) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
@@ -70,17 +60,8 @@ void _post_setup_gpio() {
     hal_bright_set(TFT_BL, bright);
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {
@@ -96,11 +77,6 @@ void InputHandler(void) {
 #endif
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     displayRedStripe("Not Available");
     launcherDelayMs(2000);

@@ -157,16 +157,8 @@ void _setup_gpio() {
     hal_encoder_init(encoderCfg());
 }
 
-/*********************************************************************
-**  Function: _setBrightness
-**  set brightness value -- the backlight is on a different pin per board
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(pinBacklight, brightval); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     if (tEmbed == T_EMBED_CC1101) { return hal_gauge_get_percent(); }
 
@@ -185,16 +177,8 @@ int getBattery() {
     return (int)percent;
 }
 
-/***************************************************************************************
-** Function name: isCharging()
-** Description:   Determines if the device is charging
-***************************************************************************************/
 bool isCharging() { return tEmbed == T_EMBED_CC1101 ? hal_gauge_is_charging() : false; }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) { hal_encoder_poll(encoderCfg()); }
 
 void powerOff() {

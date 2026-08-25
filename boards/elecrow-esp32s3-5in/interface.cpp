@@ -69,11 +69,6 @@ static void tca9534Write(uint8_t reg, uint8_t val) {
     Wire.endTransmission();
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -108,11 +103,6 @@ void _setup_gpio() {
     pinMode(TOUCH_INT_PIN, INPUT);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     touchReady = hal_touch_init(touchCfg(), TOUCH_ADDR);
     if (!touchReady) {
@@ -121,13 +111,6 @@ void _post_setup_gpio() {
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** Backlight has no GPIO on V1.1+ (see the board-revision comment above the
-** class); it is set by writing a single byte to the power MCU over I2C. On
-** V1.0 it falls back to direct GPIO2 PWM.
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
 
@@ -154,10 +137,6 @@ void _setBrightness(uint8_t brightval) {
     Wire.endTransmission();
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
     if (launcherMillis() - d_tmp > 250 || LongPress) {

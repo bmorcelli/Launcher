@@ -82,11 +82,6 @@ static DeviceTouch touchCfg() {
     return cfg;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     launcherDelayMs(500); // time to ESP32C3 start and enable the keyboard
     if (!Wire.begin(KB_I2C_SDA, KB_I2C_SCL))
@@ -116,19 +111,9 @@ void _setup_gpio() {
     attachInterrupt(R_BTN, ISR_right, FALLING);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 // uint8_t isPlus = false;
 void _post_setup_gpio() {}
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     Wire.beginTransmission(LILYGO_KB_SLAVE_ADDRESS);
     Wire.write(LILYGO_KB_BRIGHTNESS_CMD);
@@ -136,10 +121,6 @@ void _setBrightness(uint8_t brightval) {
     Wire.endTransmission();
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     char keyValue = 0;
     static unsigned long tm = launcherMillis();
@@ -231,11 +212,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     launcherGpioWrite(PIN_POWER_ON, LOW);
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);

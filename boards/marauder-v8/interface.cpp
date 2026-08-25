@@ -35,11 +35,6 @@ int getBattery() {
     return (int)hi;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     pinMode(SDCARD_CS, OUTPUT);
     pinMode(TOUCH_CS, OUTPUT);
@@ -49,11 +44,6 @@ void _setup_gpio() {
     digitalWrite(TFT_CS, HIGH);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     Wire.begin(5, 4, 400000U); // MAX17048 I2C
     if (!hal_touch_init(touchCfg())) {
@@ -67,17 +57,8 @@ void _post_setup_gpio() {
     hal_bright_set(TFT_BL, bright);
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {
@@ -89,11 +70,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     displayRedStripe("Not Available");
     launcherDelayMs(2000);

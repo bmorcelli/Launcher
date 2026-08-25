@@ -32,11 +32,6 @@ static DeviceTouch touchCfg() {
     return cfg;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     launcherGpioInput(16); // Touch IRQ
     Wire.begin(10, 11);    // sensors
@@ -121,38 +116,20 @@ void _setup_gpio() {
     }
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     hal_bright_attach(TFT_BL);
     hal_bright_set(TFT_BL, bright);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     int percent = axp192.getBatteryPercent();
     return percent;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 bool getTouched() { return launcherGpioRead(16) == LOW; }
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
+
 void InputHandler(void) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {
@@ -171,11 +148,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     axp192.disableALDO2(); //! TFT BACKLIGHT   VDD
     axp192.disableALDO3(); //! Screen touch VDD
@@ -184,17 +156,6 @@ void powerOff() {
     axp192.shutdown();
 }
 
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to turn off the device (name is odd btw)
-**********************************************************************/
-void checkReboot() {}
-
-/***************************************************************************************
-** Function name: isCharging()
-** Description:   Determines if the device is charging
-***************************************************************************************/
 bool isCharging() {
     return axp192.isCharging(); // Return the charging status from AXP
 }

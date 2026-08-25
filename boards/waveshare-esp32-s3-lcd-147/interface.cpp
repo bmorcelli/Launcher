@@ -8,11 +8,6 @@
 
 #define SEL_BTN 0
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
 #ifdef USE_SD_MMC
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
@@ -38,8 +33,4 @@ void _setup_gpio() {
     hal_buttons_init(DeviceButtons{SEL_BTN}, 1);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) { hal_buttons_poll_1(DeviceButtons{SEL_BTN}); }

@@ -42,11 +42,6 @@ void touchHomeKeyCallback(void *user_data) {
     checkMs = launcherMillis() + 200;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     launcherGpioOutput(BOARD_TOUCH_RST); // PIN_TOUCH_RES
     launcherGpioOutput(38 /* PMIC_EN */);
@@ -67,21 +62,11 @@ void _setup_gpio() {
     }
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     int percent = 0;
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // The AMOLED has no backlight rail; brightness is the RM67162's 0x51
     // register, which the driver writes for us.
@@ -89,10 +74,6 @@ void _setBrightness(uint8_t brightval) {
     if (panel) panel->setBrightness((brightval * 255) / 100);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     if (touch_OK) {
         static unsigned long tm = 0;

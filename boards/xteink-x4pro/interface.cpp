@@ -198,11 +198,6 @@ static void _detect_panel() {
     );
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     launcherGpioInputPullup(BTN_LEFT);
     launcherGpioInputPullup(BTN_RIGHT);
@@ -223,11 +218,6 @@ void _setup_gpio() {
     _detect_panel();
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup, run after TFT and before SD card init
-***************************************************************************************/
 void _post_setup_gpio() {
     touchReady = hal_touch_init(touchCfg(), GT911_ADDR);
     if (!touchReady) {
@@ -250,11 +240,6 @@ void _post_setup_gpio() {
     launcherDelayMs(120);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     // The launcher asks on every header redraw and the gauge is on a 400 kHz
     // bus, so cache; on an I2C error keep the last value rather than blink to 0.
@@ -271,11 +256,6 @@ int getBattery() {
     return cached;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // The panel has a warm channel and a cool one. The launcher has no notion
     // of colour temperature, so both are driven together for a neutral mix —
@@ -284,10 +264,6 @@ void _setBrightness(uint8_t brightval) {
     hal_bright_set(flPins, 2, brightval);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
 
@@ -320,11 +296,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     while (launcherGpioRead(BTN_POWER) == LOW) launcherDelayMs(50);
     launcherDelayMs(100);

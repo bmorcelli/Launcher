@@ -13,11 +13,6 @@
 
 GaugeAXP2602 gauge;
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     // DW_BTN -> Next (single click) / Sel (600ms hold)
     // SEL_BTN -> Prev (single click) / Esc (600ms hold)
@@ -26,11 +21,6 @@ void _setup_gpio() {
     if (!gauge.begin(Wire, 2, 3)) { Serial.println("Failed to AXP2602 - check your wiring!"); }
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
     hal_bright_attach(TFT_BL);

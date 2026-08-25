@@ -19,11 +19,6 @@
 
 static M5PM1 pm1;
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     if (pm1.begin(&Wire1, M5PM1_DEFAULT_ADDR, PM1_SDA, PM1_SCL) != M5PM1_OK) {
         launcherConsolePrintf("%s\n", String("M5PM1 init failed").c_str());
@@ -73,11 +68,6 @@ void _setup_gpio() {
     hal_buttons_init_2(DeviceButtons{BTN_A_PIN, BTN_B_PIN}, 600);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     hal_bright_attach(TFT_BL);
     hal_bright_set(TFT_BL, bright);
@@ -93,18 +83,8 @@ void _post_setup_gpio() {
 #endif
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     uint16_t mv = 0;
     if (pm1.readVbat(&mv) != M5PM1_OK) return 0;
@@ -112,15 +92,6 @@ int getBattery() {
     return (level < 0) ? 0 : (level >= 100) ? 100 : level;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) { hal_buttons_poll_2(); }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() { pm1.shutdown(); }

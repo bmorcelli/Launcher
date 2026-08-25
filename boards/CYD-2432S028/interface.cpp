@@ -114,11 +114,6 @@ CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 #endif
 #endif
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
 #if defined(TOUCH_AXS15231B_I2C)
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
@@ -134,11 +129,6 @@ void _setup_gpio() {
 #endif
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
     hal_bright_attach(TFT_BL);
@@ -165,17 +155,8 @@ void _post_setup_gpio() {
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
 #if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX)

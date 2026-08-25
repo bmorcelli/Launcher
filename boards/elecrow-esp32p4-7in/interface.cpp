@@ -49,11 +49,6 @@ static DeviceTouch touchCfg() {
     return cfg;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
     // LCD_BK_POWER: P-MOS load switch feeding the backlight boost converter's
@@ -62,11 +57,6 @@ void _setup_gpio() {
     digitalWrite(TFT_BL_POWER, LOW);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
     hal_bright_attach(TFT_BL);
@@ -104,17 +94,8 @@ void _post_setup_gpio() {
     }
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
     if (launcherMillis() - d_tmp > 250 || LongPress) {

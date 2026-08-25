@@ -128,11 +128,6 @@ static DeviceTouch touchCfg() {
     return cfg;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     // LORA、SD、EPD use the same SPI, in order to avoid mutual influence;
     // before powering on, all CS signals should be pulled high and in an unselected state;
@@ -179,11 +174,6 @@ void _setup_gpio() {
     }
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 #define TFT_BL 40
 
 void scanDevices(void) {
@@ -248,18 +238,8 @@ void _post_setup_gpio() {
     }
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() { return hal_gauge_get_percent(); }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 #define KB_ROWS 4
@@ -367,10 +347,6 @@ int handleSpecialKeys(uint8_t k, bool pressed) {
     return 0;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long _tmptmp;
     static unsigned long nextRepeatTime = 0;
@@ -530,11 +506,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);

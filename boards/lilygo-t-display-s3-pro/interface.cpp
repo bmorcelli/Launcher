@@ -51,11 +51,6 @@ void touchHomeKeyCallback(void *user_data) {
     checkMs = launcherMillis() + 200;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     gpio_hold_dis((gpio_num_t)BOARD_TOUCH_RST); // PIN_TOUCH_RES
     launcherGpioInput(SEL_BTN);
@@ -91,22 +86,12 @@ void _setup_gpio() {
     }
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // PWM backlight setup
     hal_bright_attach(TFT_BL);
     hal_bright_set(TFT_BL, bright);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     int percent = 0;
     percent = (PMU.getSystemVoltage() - 3300) * 100 / (float)(4150 - 3350);
@@ -114,17 +99,8 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {

@@ -325,9 +325,11 @@ def emit_touch(out, symbols):
     """The touch controller.
 
     XPT2046 is read by the launcher's own CYD28_TouchscreenR, hence the
-    CYD28_TouchR_* names. The I2C controllers are driven by TouchLib and
-    bb_captouch, which interface.cpp configures from the manifest's own macro
-    names -- so those keep their names and only gain a literal value.
+    CYD28_TouchR_* names. GT911/CST816S go through src/hal/inputs/touch.cpp
+    (SensorLib) via TOUCH_CTRL_GT911/TOUCH_CTRL_CST8XX since Etapa 7 -- only
+    their pin sub-defines keep the manifest's own macro names, which
+    interface.cpp's touchCfg() reads directly. AXS15231B is still driven by
+    bb_captouch, configured from the manifest's own macro names as before.
     """
     if "TOUCH_XPT2046_SPI" in symbols:
         out.group("Touch: XPT2046 (resistive, SPI)")
@@ -340,7 +342,10 @@ def emit_touch(out, symbols):
 
     elif "TOUCH_GT911_I2C" in symbols:
         out.group("Touch: GT911 (capacitive, I2C)")
-        out.add("TOUCH_GT911_I2C")
+        # TOUCH_CTRL_GT911 is the HAL selection macro (src/hal/inputs/touch.cpp)
+        # -- not the same name as the manifest key above, since Etapa 7
+        # migrated this family off TouchLib onto hal_touch_* / SensorLib.
+        out.add("TOUCH_CTRL_GT911", 1)
         out.add("GT911_I2C_CONFIG_SDA_IO_NUM", "GT911_I2C_CONFIG_SDA_IO_NUM")
         out.add("GT911_I2C_CONFIG_SCL_IO_NUM", "GT911_I2C_CONFIG_SCL_IO_NUM")
         out.add("GT911_TOUCH_CONFIG_RST_GPIO_NUM", "GT911_TOUCH_CONFIG_RST_GPIO_NUM")
@@ -348,7 +353,10 @@ def emit_touch(out, symbols):
 
     elif "TOUCH_CST816S_I2C" in symbols:
         out.group("Touch: CST816S (capacitive, I2C)")
-        out.add("TOUCH_CST816S_I2C")
+        # TOUCH_CTRL_CST8XX is the HAL selection macro -- same Etapa 7 rename
+        # as TOUCH_CTRL_GT911 above (this family also covers CST820/CST816S
+        # via SensorLib's auto-detecting TouchDrvCSTXXX wrapper).
+        out.add("TOUCH_CTRL_CST8XX", 1)
         out.add("CST816S_I2C_CONFIG_SDA_IO_NUM", "CST816S_I2C_CONFIG_SDA_IO_NUM")
         out.add("CST816S_I2C_CONFIG_SCL_IO_NUM", "CST816S_I2C_CONFIG_SCL_IO_NUM")
         out.add("CST816S_TOUCH_CONFIG_RST_GPIO_NUM", "CST816S_TOUCH_CONFIG_RST_GPIO_NUM")

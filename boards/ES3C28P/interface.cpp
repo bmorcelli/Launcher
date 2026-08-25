@@ -31,13 +31,6 @@ static DeviceTouch touchCfg() {
     return cfg;
 }
 
-// ─── Launcher board hooks ─────────────────────────────────────────────────────
-
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     // TFT CS high so the bus is quiet while everything else comes up
     pinMode(TFT_CS, OUTPUT);
@@ -55,11 +48,6 @@ void _setup_gpio() {
     launcherGpioInputPullup(BOOT_BTN);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // Backlight PWM — must be done after tft.init()
     hal_bright_attach(TFT_BL);
@@ -71,17 +59,8 @@ void _post_setup_gpio() {
     hal_touch_set_threshold(40);
 }
 
-/*********************************************************************
-** Function: _setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long tm = launcherMillis();
     if (launcherMillis() - tm > 250 || LongPress) {
@@ -100,11 +79,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     neopixelWrite(RGB_LED_PIN, 0, 0, 0);
     esp_deep_sleep_start();

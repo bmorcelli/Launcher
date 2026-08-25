@@ -148,10 +148,6 @@ int handleSpecialKeys(uint8_t k, bool pressed) {
     return 0;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
 
     Wire.begin(KEYBOARD_SDA, KEYBOARD_SCL);
@@ -206,25 +202,13 @@ void _setup_gpio() {
     keyboard.flush();
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() { return hal_gauge_get_percent(); }
 
-/*********************************************************************
-**  Function: setBrightness
-**  set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     uint8_t blPins[] = {TFT_BL, KEYBOARD_BL};
     hal_bright_set(blPins, 2, brightval);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
 
     static unsigned long nextRepeatTime = 0;

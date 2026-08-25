@@ -847,11 +847,6 @@ void InputHandler(void) {
 }
 
 /*********************************************************************
-** Function: getBattery
-** location: display.cpp
-** Delivers the battery value from 0-100
-**********************************************************************/
-/*********************************************************************
 ** Battery
 **
 ** drawMainMenu() calls getBattery() on every redraw, and keyboard navigation redraws many

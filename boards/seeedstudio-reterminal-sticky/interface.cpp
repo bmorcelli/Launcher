@@ -153,11 +153,6 @@ static void powerOnHold() {
     powerLockPulse();
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
 
     powerOnHold();
@@ -199,22 +194,12 @@ void _setup_gpio() {
     launcherDelayMs(250);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     touchReady = bringUpTouch();
     // Swap/mirror per rotation is set in InputHandler(), same as xteink-x4pro
     // (same 800x480 native panel geometry).
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     // The launcher asks on every header redraw; cache it and keep the last
     // good reading on an I2C error rather than blink to 0.
@@ -236,20 +221,11 @@ int getBattery() {
     return cached;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // No backlight and no frontlight on this panel.
     (void)brightval;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long pool_tm = launcherMillis();
     static unsigned long ready_tm = launcherMillis();
@@ -275,11 +251,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     while (launcherGpioRead(BTN_SEL_PWR) == LOW) launcherDelayMs(50);
     launcherDelayMs(100);

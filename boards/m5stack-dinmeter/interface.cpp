@@ -19,11 +19,6 @@ static DeviceEncoder encoderCfg() {
     return cfg;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() { hal_encoder_init(encoderCfg()); }
 
 void _post_setup_gpio() {
