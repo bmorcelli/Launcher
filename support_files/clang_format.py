@@ -14,7 +14,9 @@ FOLDERS = [
     "boards",
     "include",
     "lib/CYD-touch",
-    "lib/utility",
+    "lib/AXP192",
+    "lib/Keyboard",
+    "lib/bq27220",
     "lib/xteink_panel",
 ]
 EXTENSIONS = {".c", ".cpp", ".cc", ".h", ".hpp", ".hh"}
