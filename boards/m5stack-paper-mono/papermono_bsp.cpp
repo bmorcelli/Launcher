@@ -36,6 +36,26 @@ void stopP2SafeRuntime() {
     for (;;) { delay(1000); }
 }
 
+#if defined(PAPERMONO_P3_TOUCH_BRINGUP)
+void runP3TouchTelemetry(PaperMonoBsp &bsp) {
+    Serial.printf("P3_TOUCH_INIT=%d\n", bsp.touchReady());
+    PaperMonoTouchSample last;
+    bool haveLast = false;
+    for (;;) {
+        PaperMonoTouchSample sample;
+        if (bsp.readTouch(sample) &&
+            (!haveLast || sample.touched != last.touched ||
+             (sample.touched && (abs(sample.x - last.x) > 2 || abs(sample.y - last.y) > 2)))) {
+            if (sample.touched) Serial.printf("P3_TOUCH=1 X=%d Y=%d\n", sample.x, sample.y);
+            else Serial.println("P3_TOUCH=0");
+            last = sample;
+            haveLast = true;
+        }
+        delay(50);
+    }
+}
+#endif
+
 #endif
 
 } // namespace
@@ -54,9 +74,16 @@ void PaperMonoBsp::begin() {
 #if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP)
     beginP2Telemetry();
     boardReady_ = bootstrap_.begin();
+#if defined(PAPERMONO_P3_TOUCH_BRINGUP)
+    beginTouch();
+#endif
     waitForP2TelemetryHost();
     emitP2Telemetry(boardReady_);
+#if defined(PAPERMONO_P3_TOUCH_BRINGUP)
+    runP3TouchTelemetry(*this);
+#else
     stopP2SafeRuntime();
+#endif
 #else
     auto cfg = M5.config();
     cfg.clear_display = false;
@@ -81,6 +108,15 @@ void PaperMonoBsp::begin() {
 }
 
 bool PaperMonoBsp::boardReady() const { return boardReady_; }
+
+bool PaperMonoBsp::beginTouch() {
+    if (!boardReady_) return false;
+    return touch_.begin();
+}
+
+bool PaperMonoBsp::touchReady() const { return touch_.ready(); }
+
+bool PaperMonoBsp::readTouch(PaperMonoTouchSample &sample) { return touch_.read(sample); }
 
 int PaperMonoBsp::batteryLevel() const {
     const int percent = M5.Power.getBatteryLevel();
