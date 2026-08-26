@@ -1,12 +1,13 @@
 #include "papermono_display.h"
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include <Arduino.h>
 #include <cstring>
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include <esp_heap_caps.h>
 #endif
 
@@ -21,7 +22,7 @@ constexpr gpio_num_t kDisplayBusy = GPIO_NUM_18;
 constexpr int kDisplaySpiHz = 20 * 1000 * 1000;
 
 #if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
-    defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 constexpr size_t kOtpBytesPerRow = 100;
 constexpr size_t kOtpFrameRows = 480;
 constexpr size_t kOtpFrameBytes = kOtpBytesPerRow * kOtpFrameRows;
@@ -62,7 +63,7 @@ bool PaperMonoDisplay::beginTransport() {
     busConfig.quadwp_io_num = -1;
     busConfig.quadhd_io_num = -1;
 #if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
-    defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
     busConfig.max_transfer_sz = kOtpPayloadTransferBytes;
     if (spi_bus_initialize(kDisplaySpiHost, &busConfig, SPI_DMA_CH_AUTO) != ESP_OK) return false;
 #else
@@ -76,7 +77,7 @@ bool PaperMonoDisplay::beginTransport() {
     deviceConfig.mode = 0;
     deviceConfig.spics_io_num = -1;
 #if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
-    defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
     deviceConfig.flags = SPI_DEVICE_HALFDUPLEX;
 #endif
     deviceConfig.queue_size = 1;
@@ -122,7 +123,8 @@ bool PaperMonoDisplay::configureNoRefresh() {
            waitBusyIdle(15000) && sendCommandData(0x3C, kBorder, sizeof(kBorder)) && waitBusyIdle(15000);
 }
 
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                    \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoDisplay::configureOtpMono() {
     // Direct port of the official OTP Demo's init_mono_mode() command order.
     constexpr uint8_t kTemperatureSelection[] = {0x80};
@@ -186,7 +188,8 @@ bool PaperMonoDisplay::activateOtpOnce(uint8_t &activationCount) {
 }
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoDisplay::configureOtpFullMono() {
     // Direct port of the official OTP Demo's init_mono_mode() command order.
     constexpr uint8_t kTemperatureSelection[] = {0x80};
@@ -264,7 +267,7 @@ bool PaperMonoDisplay::activateOtpFullSecond(uint8_t &activationCount) {
 }
 #endif
 
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoDisplay::ensureOtpShadowFrames() {
     if (otpPreviousFrame_ != nullptr && otpPendingFrame_ != nullptr) return true;
 
@@ -365,7 +368,7 @@ bool PaperMonoDisplay::sendCommandData(uint8_t command, const uint8_t *data, uin
 }
 
 #if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
-    defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoDisplay::sendDataBlock(const uint8_t *data, size_t length) {
     if (device_ == nullptr || length == 0 || gpio_set_level(kDisplayDataCommand, 1) != ESP_OK ||
         gpio_set_level(kDisplayChipSelect, 0) != ESP_OK) {

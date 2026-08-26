@@ -6,11 +6,13 @@
 #include "papermono_touch.h"
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "papermono_display.h"
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 struct PaperMonoOtpFullRefreshResult {
     bool pwmOffPre = false;
     bool resetAsserted = false;
@@ -41,7 +43,7 @@ struct PaperMonoOtpFullRefreshResult {
 };
 #endif
 
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 struct PaperMonoRepeatedPartialResult {
     bool stateValid = false;
     bool pwmOffPre = false;
@@ -163,7 +165,7 @@ public:
 #if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
     PaperMonoOtpFullRefreshResult runOtpFullPanelService();
 #endif
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
     bool prepareRepeatedPartialTarget(bool inverse);
     bool repeatedPartialShadowValid() const;
     PaperMonoOtpFullRefreshResult runOtpFullPanelService();
@@ -177,7 +179,8 @@ private:
     bool assertFrontlightEpdReset();
     void abortFrontlight(bool attemptPwmOff);
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
     bool p4PwmOff();
     bool p4SetRail(bool on);
     bool p4SetReset(bool high);
@@ -191,7 +194,8 @@ private:
     PaperMonoStorage storage_;
     PaperMonoTouch touch_;
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
     PaperMonoDisplay display_;
 #endif
 };

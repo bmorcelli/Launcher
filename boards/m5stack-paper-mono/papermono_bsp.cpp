@@ -4,13 +4,18 @@
 
 #if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||                  \
     defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
-    defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "vendor/freeink_board/M5Ioe1.h"
 #endif
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "vendor/freeink_board/M5Pm1.h"
+#endif
+
+#if defined(PAPERMONO_P4_REFRESH_MANAGER)
+#include "papermono_refresh_manager.h"
 #endif
 
 namespace {
@@ -246,6 +251,60 @@ void runP4RepeatedPartialTelemetry(PaperMonoBsp &bsp) {
 }
 #endif
 
+#if defined(PAPERMONO_P4_REFRESH_MANAGER)
+void runP4RefreshManagerTelemetry(PaperMonoBsp &bsp) {
+    PaperMonoRefreshManager manager(bsp);
+    Serial.println("P4_RM_BEGIN");
+    Serial.printf("P4_RM_COLD_FIRST_FULL_REQUIRED=%d\n", manager.firstRefreshMustFull());
+
+    const PaperMonoRefreshResult auto0 = manager.request(PaperMonoRefreshRequest::Auto, false);
+    Serial.printf("P4_RM_AUTO0_EXECUTED_FULL=%d\n", auto0.executedType == PaperMonoRefreshExecuted::Full);
+    Serial.printf("P4_RM_AUTO0_OK=%d\n", auto0.status == PaperMonoRefreshStatus::Success);
+    Serial.printf("P4_RM_COUNT=%u\n", static_cast<unsigned>(auto0.partialCountAfter));
+    Serial.printf("P4_RM_FULL_DUE=%d\n", auto0.fullDueAfter);
+    Serial.printf("P4_RM_FAULT=%d\n", auto0.faultLatchedAfter);
+    if (auto0.status != PaperMonoRefreshStatus::Success) {
+        Serial.println("P4_RM_FAIL=AUTO0");
+        for (;;) { delay(1000); }
+    }
+
+    const PaperMonoRefreshResult partial1 = manager.request(PaperMonoRefreshRequest::Auto, true);
+    Serial.printf("P4_RM_PARTIAL1_EXECUTED=%d\n", partial1.executedType == PaperMonoRefreshExecuted::Partial);
+    Serial.printf("P4_RM_PARTIAL1_OK=%d\n", partial1.status == PaperMonoRefreshStatus::Success);
+    if (partial1.status != PaperMonoRefreshStatus::Success) {
+        Serial.println("P4_RM_FAIL=PARTIAL1");
+        for (;;) { delay(1000); }
+    }
+
+    const bool seeded = manager.seedPartialCountForTestNine();
+    Serial.printf("P4_RM_TEST_COUNT_SEEDED=%u\n", seeded ? 9U : 0U);
+    if (!seeded) {
+        Serial.println("P4_RM_FAIL=SEED");
+        for (;;) { delay(1000); }
+    }
+
+    const PaperMonoRefreshResult threshold = manager.request(PaperMonoRefreshRequest::Partial, false);
+    Serial.printf("P4_RM_THRESHOLD_PARTIAL_OK=%d\n", threshold.status == PaperMonoRefreshStatus::Success);
+    Serial.printf("P4_RM_COUNT_AFTER_THRESHOLD=%u\n", static_cast<unsigned>(threshold.partialCountAfter));
+    Serial.printf("P4_RM_FULL_DUE_AFTER_THRESHOLD=%d\n", threshold.fullDueAfter);
+    if (threshold.status != PaperMonoRefreshStatus::Success) {
+        Serial.println("P4_RM_FAIL=THRESHOLD");
+        for (;;) { delay(1000); }
+    }
+
+    const PaperMonoRefreshResult dueAuto = manager.request(PaperMonoRefreshRequest::Auto, false);
+    Serial.printf(
+        "P4_RM_AUTO_FULL_DUE_EXECUTED_FULL=%d\n", dueAuto.executedType == PaperMonoRefreshExecuted::Full
+    );
+    Serial.printf("P4_RM_RECOVERY_FULL_OK=%d\n", dueAuto.status == PaperMonoRefreshStatus::Success);
+    Serial.printf("P4_RM_COUNT_FINAL=%u\n", static_cast<unsigned>(dueAuto.partialCountAfter));
+    Serial.printf("P4_RM_FULL_DUE_FINAL=%d\n", dueAuto.fullDueAfter);
+    Serial.printf("P4_RM_FAULT_FINAL=%d\n", dueAuto.faultLatchedAfter);
+    Serial.println("P4_RM_DONE");
+    for (;;) { delay(1000); }
+}
+#endif
+
 #endif
 
 } // namespace
@@ -283,6 +342,8 @@ void PaperMonoBsp::begin() {
     runP4FullTelemetry(*this);
 #elif defined(PAPERMONO_P4_REPEATED_PARTIAL)
     runP4RepeatedPartialTelemetry(*this);
+#elif defined(PAPERMONO_P4_REFRESH_MANAGER)
+    runP4RefreshManagerTelemetry(*this);
 #else
     stopP2SafeRuntime();
 #endif
@@ -517,7 +578,8 @@ PaperMonoOtpSingleRefreshResult PaperMonoBsp::runOtpSinglePanelService() {
 }
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     PaperMonoOtpFullRefreshResult result;
     if (!boardReady_) return result;
@@ -563,7 +625,7 @@ PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     result.resetSafePost = p4SetReset(false);
     result.railOff = p4SetRail(false);
     result.spiReleased = display_.releaseTransport();
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
     if (result.ok()) display_.seedOtpPreviousFromPending();
 #endif
     return result;
@@ -571,7 +633,8 @@ PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
 #endif
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoBsp::p4PwmOff() {
     constexpr uint16_t kPwmEnableMask = 0x1000;
     if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) return false;
@@ -593,7 +656,7 @@ bool PaperMonoBsp::p4SetReset(bool high) {
 }
 #endif
 
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoBsp::prepareRepeatedPartialTarget(bool inverse) {
     return display_.prepareOtpQuadrantTarget(inverse);
 }
