@@ -1,11 +1,14 @@
 #include "papermono_display.h"
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 #include <Arduino.h>
 #include <cstring>
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+#include <esp_heap_caps.h>
+#endif
 
 namespace {
 
@@ -17,9 +20,11 @@ constexpr gpio_num_t kDisplayDataCommand = GPIO_NUM_17;
 constexpr gpio_num_t kDisplayBusy = GPIO_NUM_18;
 constexpr int kDisplaySpiHz = 20 * 1000 * 1000;
 
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL)
 constexpr size_t kOtpBytesPerRow = 100;
 constexpr size_t kOtpFrameRows = 480;
+constexpr size_t kOtpFrameBytes = kOtpBytesPerRow * kOtpFrameRows;
 constexpr size_t kOtpPayloadTransferBytes = 4092;
 #endif
 
@@ -56,7 +61,8 @@ bool PaperMonoDisplay::beginTransport() {
     busConfig.sclk_io_num = kDisplayClock;
     busConfig.quadwp_io_num = -1;
     busConfig.quadhd_io_num = -1;
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL)
     busConfig.max_transfer_sz = kOtpPayloadTransferBytes;
     if (spi_bus_initialize(kDisplaySpiHost, &busConfig, SPI_DMA_CH_AUTO) != ESP_OK) return false;
 #else
@@ -69,7 +75,8 @@ bool PaperMonoDisplay::beginTransport() {
     deviceConfig.clock_speed_hz = kDisplaySpiHz;
     deviceConfig.mode = 0;
     deviceConfig.spics_io_num = -1;
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL)
     deviceConfig.flags = SPI_DEVICE_HALFDUPLEX;
 #endif
     deviceConfig.queue_size = 1;
@@ -115,7 +122,7 @@ bool PaperMonoDisplay::configureNoRefresh() {
            waitBusyIdle(15000) && sendCommandData(0x3C, kBorder, sizeof(kBorder)) && waitBusyIdle(15000);
 }
 
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 bool PaperMonoDisplay::configureOtpMono() {
     // Direct port of the official OTP Demo's init_mono_mode() command order.
     constexpr uint8_t kTemperatureSelection[] = {0x80};
@@ -179,7 +186,7 @@ bool PaperMonoDisplay::activateOtpOnce(uint8_t &activationCount) {
 }
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 bool PaperMonoDisplay::configureOtpFullMono() {
     // Direct port of the official OTP Demo's init_mono_mode() command order.
     constexpr uint8_t kTemperatureSelection[] = {0x80};
@@ -257,6 +264,79 @@ bool PaperMonoDisplay::activateOtpFullSecond(uint8_t &activationCount) {
 }
 #endif
 
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+bool PaperMonoDisplay::ensureOtpShadowFrames() {
+    if (otpPreviousFrame_ != nullptr && otpPendingFrame_ != nullptr) return true;
+
+    if (otpPreviousFrame_ == nullptr) {
+        otpPreviousFrame_ =
+            static_cast<uint8_t *>(heap_caps_malloc(kOtpFrameBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    }
+    if (otpPendingFrame_ == nullptr) {
+        otpPendingFrame_ =
+            static_cast<uint8_t *>(heap_caps_malloc(kOtpFrameBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    }
+    if (otpPreviousFrame_ == nullptr || otpPendingFrame_ == nullptr) {
+        otpPreviousFrameValid_ = false;
+        return false;
+    }
+    return true;
+}
+
+void PaperMonoDisplay::fillOtpQuadrantFrame(uint8_t *frame, bool inverse) const {
+    if (frame == nullptr) return;
+
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        uint8_t *rowData = frame + row * kOtpBytesPerRow;
+        std::memset(rowData, 0xFF, kOtpBytesPerRow);
+        const bool upper = row < kOtpFrameRows / 2;
+        const bool blackLeft = inverse ? !upper : upper;
+        if (blackLeft) std::memset(rowData, 0x00, kOtpBytesPerRow / 2);
+        else std::memset(rowData + kOtpBytesPerRow / 2, 0x00, kOtpBytesPerRow / 2);
+    }
+}
+
+bool PaperMonoDisplay::prepareOtpQuadrantTarget(bool inverse) {
+    if (!ensureOtpShadowFrames()) return false;
+    fillOtpQuadrantFrame(otpPendingFrame_, inverse);
+    return true;
+}
+
+bool PaperMonoDisplay::seedOtpPreviousFromPending() {
+    if (!ensureOtpShadowFrames()) return false;
+    std::memcpy(otpPreviousFrame_, otpPendingFrame_, kOtpFrameBytes);
+    otpPreviousFrameValid_ = true;
+    return true;
+}
+
+bool PaperMonoDisplay::otpPreviousFrameValid() const { return otpPreviousFrameValid_; }
+
+bool PaperMonoDisplay::writeOtpFrameToRam(uint8_t command, const uint8_t *frame) {
+    if (frame == nullptr || !waitBusyIdle(15000) || !setOtpFullWindow() || !sendCommand(command))
+        return false;
+
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        if (!sendDataBlock(frame + row * kOtpBytesPerRow, kOtpBytesPerRow)) return false;
+    }
+    return true;
+}
+
+bool PaperMonoDisplay::writeOtpRepeatedPartialPlanes() {
+    if (!otpPreviousFrameValid_ || otpPendingFrame_ == nullptr || otpPreviousFrame_ == nullptr) return false;
+
+    // FreeInk PaperMono's binary OTP path derives 0x24 from the next target and
+    // 0x26 from the last successfully displayed B/W frame.  B/W packing is
+    // unchanged: white is bit 1 and black is bit 0 in both full-frame buffers.
+    return writeOtpFrameToRam(0x24, otpPendingFrame_) && writeOtpFrameToRam(0x26, otpPreviousFrame_);
+}
+
+bool PaperMonoDisplay::commitOtpPendingFrame() {
+    if (!otpPreviousFrameValid_ || otpPreviousFrame_ == nullptr || otpPendingFrame_ == nullptr) return false;
+    std::memcpy(otpPreviousFrame_, otpPendingFrame_, kOtpFrameBytes);
+    return true;
+}
+#endif
+
 bool PaperMonoDisplay::releaseTransport() {
     bool ok = true;
     if (device_ != nullptr) {
@@ -284,7 +364,8 @@ bool PaperMonoDisplay::sendCommandData(uint8_t command, const uint8_t *data, uin
     return true;
 }
 
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL)
 bool PaperMonoDisplay::sendDataBlock(const uint8_t *data, size_t length) {
     if (device_ == nullptr || length == 0 || gpio_set_level(kDisplayDataCommand, 1) != ESP_OK ||
         gpio_set_level(kDisplayChipSelect, 0) != ESP_OK) {

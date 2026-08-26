@@ -3,12 +3,13 @@
 #include <M5Unified.h>
 
 #if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL)
 #include "vendor/freeink_board/M5Ioe1.h"
 #endif
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 #include "vendor/freeink_board/M5Pm1.h"
 #endif
 
@@ -192,6 +193,59 @@ void runP4FullTelemetry(PaperMonoBsp &bsp) {
 }
 #endif
 
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+void runP4RepeatedPartialTelemetry(PaperMonoBsp &bsp) {
+    Serial.println("P4_RP_BEGIN");
+
+    const bool baseTargetReady = bsp.prepareRepeatedPartialTarget(false);
+    const PaperMonoOtpFullRefreshResult base =
+        baseTargetReady ? bsp.runOtpFullPanelService() : PaperMonoOtpFullRefreshResult{};
+    Serial.printf("P4_RP_BASE_FULL_OK=%d\n", base.ok());
+    Serial.printf("P4_RP_BASE_STAGE1_ACTIVATED=%d\n", base.stage1Activated);
+    Serial.printf("P4_RP_BASE_STAGE1_BUSY_DONE=%d\n", base.stage1BusyDone);
+    Serial.printf("P4_RP_BASE_STAGE2_ACTIVATED=%d\n", base.stage2Activated);
+    Serial.printf("P4_RP_BASE_STAGE2_BUSY_DONE=%d\n", base.stage2BusyDone);
+    Serial.printf("P4_RP_BASE_ACTIVATION_COUNT=%u\n", static_cast<unsigned>(base.activationCount));
+    Serial.printf("P4_RP_BASE_VALID=%d\n", bsp.repeatedPartialShadowValid());
+    if (!base.ok() || !bsp.repeatedPartialShadowValid()) {
+        Serial.println("P4_RP_FAIL=BASE");
+        for (;;) { delay(1000); }
+    }
+
+    Serial.println("P4_RP_A_BEGIN");
+    const bool aTargetReady = bsp.prepareRepeatedPartialTarget(true);
+    const PaperMonoRepeatedPartialResult a =
+        aTargetReady ? bsp.runOtpRepeatedPartialPanelService() : PaperMonoRepeatedPartialResult{};
+    Serial.printf("P4_RP_A_PLANES_READY=%d\n", a.planesStaged);
+    Serial.printf("P4_RP_A_ACTIVATION_COUNT=%u\n", static_cast<unsigned>(a.activationCount));
+    Serial.printf("P4_RP_A_BUSY_DONE=%d\n", a.busyDone);
+    Serial.printf("P4_RP_A_SHADOW_COMMIT=%d\n", a.shadowCommitted);
+    Serial.printf("P4_RP_A_CLEANUP=%d\n", a.cleanup());
+    if (!a.ok()) {
+        Serial.println("P4_RP_FAIL=A");
+        for (;;) { delay(1000); }
+    }
+
+    Serial.println("P4_RP_B_BEGIN");
+    const bool bTargetReady = bsp.prepareRepeatedPartialTarget(false);
+    const PaperMonoRepeatedPartialResult b =
+        bTargetReady ? bsp.runOtpRepeatedPartialPanelService() : PaperMonoRepeatedPartialResult{};
+    Serial.printf("P4_RP_B_PLANES_READY=%d\n", b.planesStaged);
+    Serial.printf("P4_RP_B_ACTIVATION_COUNT=%u\n", static_cast<unsigned>(b.activationCount));
+    Serial.printf("P4_RP_B_BUSY_DONE=%d\n", b.busyDone);
+    Serial.printf("P4_RP_B_SHADOW_COMMIT=%d\n", b.shadowCommitted);
+    Serial.printf("P4_RP_B_CLEANUP=%d\n", b.cleanup());
+    if (!b.ok()) {
+        Serial.println("P4_RP_FAIL=B");
+        for (;;) { delay(1000); }
+    }
+
+    Serial.printf("P4_RP_FINAL_SHADOW_VALID=%d\n", bsp.repeatedPartialShadowValid());
+    Serial.println("P4_RP_DONE");
+    for (;;) { delay(1000); }
+}
+#endif
+
 #endif
 
 } // namespace
@@ -227,6 +281,8 @@ void PaperMonoBsp::begin() {
     runP4OtpTelemetry(*this);
 #elif defined(PAPERMONO_P4_OTP_FULL_REFRESH)
     runP4FullTelemetry(*this);
+#elif defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    runP4RepeatedPartialTelemetry(*this);
 #else
     stopP2SafeRuntime();
 #endif
@@ -461,7 +517,7 @@ PaperMonoOtpSingleRefreshResult PaperMonoBsp::runOtpSinglePanelService() {
 }
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     PaperMonoOtpFullRefreshResult result;
     if (!boardReady_) return result;
@@ -507,12 +563,15 @@ PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     result.resetSafePost = p4SetReset(false);
     result.railOff = p4SetRail(false);
     result.spiReleased = display_.releaseTransport();
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    if (result.ok()) display_.seedOtpPreviousFromPending();
+#endif
     return result;
 }
 #endif
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 bool PaperMonoBsp::p4PwmOff() {
     constexpr uint16_t kPwmEnableMask = 0x1000;
     if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) return false;
@@ -531,6 +590,52 @@ bool PaperMonoBsp::p4SetReset(bool high) {
     if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_RESET, high)) return false;
     bool resetHigh = !high;
     return freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_RESET, &resetHigh) && resetHigh == high;
+}
+#endif
+
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+bool PaperMonoBsp::prepareRepeatedPartialTarget(bool inverse) {
+    return display_.prepareOtpQuadrantTarget(inverse);
+}
+
+bool PaperMonoBsp::repeatedPartialShadowValid() const { return display_.otpPreviousFrameValid(); }
+
+PaperMonoRepeatedPartialResult PaperMonoBsp::runOtpRepeatedPartialPanelService() {
+    PaperMonoRepeatedPartialResult result;
+    result.stateValid = boardReady_ && display_.otpPreviousFrameValid();
+    if (!result.stateValid) return result;
+
+    result.pwmOffPre = p4PwmOff();
+    result.resetAsserted = p4SetReset(false);
+    if (result.resetAsserted) delay(10);
+    result.spiInitialized = result.pwmOffPre && result.resetAsserted && display_.beginTransport();
+    if (result.spiInitialized) {
+        result.railOn = p4SetRail(true);
+        if (result.railOn) {
+            delay(10);
+            result.resetReleased = p4SetReset(true);
+            if (result.resetReleased) {
+                delay(10);
+                result.busyIdlePre = display_.waitBusyIdle(15000);
+                if (result.busyIdlePre) {
+                    result.configured = display_.configureOtpMono();
+                    if (result.configured) result.planesStaged = display_.writeOtpRepeatedPartialPlanes();
+                    if (result.planesStaged) result.updateControl = display_.stageOtpUpdateControl();
+                    if (result.updateControl)
+                        result.busyDone = display_.activateOtpOnce(result.activationCount);
+                    if (result.busyDone && result.activationCount == 1) {
+                        result.shadowCommitted = display_.commitOtpPendingFrame();
+                    }
+                }
+            }
+        }
+    }
+
+    result.pwmOffPost = p4PwmOff();
+    result.resetSafePost = p4SetReset(false);
+    result.railOff = p4SetRail(false);
+    result.spiReleased = display_.releaseTransport();
+    return result;
 }
 #endif
 

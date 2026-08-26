@@ -6,11 +6,11 @@
 #include "papermono_touch.h"
 
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 #include "papermono_display.h"
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
 struct PaperMonoOtpFullRefreshResult {
     bool pwmOffPre = false;
     bool resetAsserted = false;
@@ -37,6 +37,35 @@ struct PaperMonoOtpFullRefreshResult {
         return pwmOffPre && resetAsserted && railOn && spiInitialized && resetReleased && busyIdlePre &&
                configured && frameWritten && stage1Control && stage1Activated && stage1BusyDone &&
                stage2Control && stage2Activated && stage2BusyDone && activationCount == 2 && cleanup();
+    }
+};
+#endif
+
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+struct PaperMonoRepeatedPartialResult {
+    bool stateValid = false;
+    bool pwmOffPre = false;
+    bool resetAsserted = false;
+    bool railOn = false;
+    bool spiInitialized = false;
+    bool resetReleased = false;
+    bool busyIdlePre = false;
+    bool configured = false;
+    bool planesStaged = false;
+    bool updateControl = false;
+    uint8_t activationCount = 0;
+    bool busyDone = false;
+    bool shadowCommitted = false;
+    bool pwmOffPost = false;
+    bool resetSafePost = false;
+    bool railOff = false;
+    bool spiReleased = false;
+
+    bool cleanup() const { return pwmOffPost && resetSafePost && railOff && spiReleased; }
+    bool ok() const {
+        return stateValid && pwmOffPre && resetAsserted && railOn && spiInitialized && resetReleased &&
+               busyIdlePre && configured && planesStaged && updateControl && activationCount == 1 &&
+               busyDone && shadowCommitted && cleanup();
     }
 };
 #endif
@@ -134,6 +163,12 @@ public:
 #if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
     PaperMonoOtpFullRefreshResult runOtpFullPanelService();
 #endif
+#if defined(PAPERMONO_P4_REPEATED_PARTIAL)
+    bool prepareRepeatedPartialTarget(bool inverse);
+    bool repeatedPartialShadowValid() const;
+    PaperMonoOtpFullRefreshResult runOtpFullPanelService();
+    PaperMonoRepeatedPartialResult runOtpRepeatedPartialPanelService();
+#endif
     int batteryLevel() const;
     void powerOff();
 
@@ -142,7 +177,7 @@ private:
     bool assertFrontlightEpdReset();
     void abortFrontlight(bool attemptPwmOff);
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
     bool p4PwmOff();
     bool p4SetRail(bool on);
     bool p4SetReset(bool high);
@@ -156,7 +191,7 @@ private:
     PaperMonoStorage storage_;
     PaperMonoTouch touch_;
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL)
     PaperMonoDisplay display_;
 #endif
 };
