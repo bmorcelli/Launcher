@@ -3,12 +3,14 @@
 #include <M5Unified.h>
 #include <interface.h>
 
+#include "papermono_bsp.h"
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
 ** Description:   initial setup for the device
 ***************************************************************************************/
-void _setup_gpio() { M5.begin(); }
+void _setup_gpio() { PaperMonoBsp::instance().begin(); }
 
 /***************************************************************************************
 ** Function name: _post_setup_gpio()
@@ -22,21 +24,19 @@ void _post_setup_gpio() {}
 ** Location: display.cpp
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
-int getBattery() {
-    int percent = M5.Power.getBatteryLevel();
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
+int getBattery() { return PaperMonoBsp::instance().batteryLevel(); }
 
 /*********************************************************************
 ** Function: setBrightness
 ** Location: settings.cpp
-** Description: set brightness through the M5GFX/M5PM1 abstraction
+** Description: frontlight behavior is deferred until the PaperMono P3/P4 slices
 **********************************************************************/
-void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
+void _setBrightness(uint8_t brightval) { (void)brightval; }
 
 /*********************************************************************
 ** Function: InputHandler
-** Handles touch input through the M5Unified abstraction
+** Handles touch input through the M5Unified abstraction. PaperMono rail/reset
+** sequencing remains deferred to a later controlled peripheral slice.
 **********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
@@ -61,6 +61,6 @@ void InputHandler(void) {
 /*********************************************************************
 ** Function: powerOff
 ** Location: mykeyboard.cpp
-** Description: use M5Unified's PaperMono-aware PM1 shutdown path
+** Description: retain M5Unified's PaperMono-aware shutdown abstraction
 **********************************************************************/
-void powerOff() { M5.Power.powerOff(); }
+void powerOff() { PaperMonoBsp::instance().powerOff(); }
