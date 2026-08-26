@@ -3,11 +3,12 @@
 #include <M5Unified.h>
 
 #if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 #include "vendor/freeink_board/M5Ioe1.h"
 #endif
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 #include "vendor/freeink_board/M5Pm1.h"
 #endif
 
@@ -162,6 +163,35 @@ void runP4OtpTelemetry(PaperMonoBsp &bsp) {
 }
 #endif
 
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+void runP4FullTelemetry(PaperMonoBsp &bsp) {
+    Serial.println("P4_FULL_BEGIN");
+    const PaperMonoOtpFullRefreshResult result = bsp.runOtpFullPanelService();
+    Serial.printf("P4_FULL_PWM_OFF_PRE=%d\n", result.pwmOffPre);
+    Serial.printf("P4_FULL_RST_ASSERTED=%d\n", result.resetAsserted);
+    Serial.printf("P4_FULL_RAIL_ON=%d\n", result.railOn);
+    Serial.printf("P4_FULL_SPI_INIT=%d\n", result.spiInitialized);
+    Serial.printf("P4_FULL_RST_RELEASED=%d\n", result.resetReleased);
+    Serial.printf("P4_FULL_BUSY_IDLE_PRE=%d\n", result.busyIdlePre);
+    Serial.printf("P4_FULL_CONFIG=%d\n", result.configured);
+    Serial.printf("P4_FULL_FRAME_WRITTEN=%d\n", result.frameWritten);
+    Serial.printf("P4_FULL_STAGE1_CTRL=%d\n", result.stage1Control);
+    Serial.printf("P4_FULL_STAGE1_ACTIVATED=%d\n", result.stage1Activated);
+    Serial.printf("P4_FULL_STAGE1_BUSY_DONE=%d\n", result.stage1BusyDone);
+    Serial.printf("P4_FULL_STAGE2_CTRL=%d\n", result.stage2Control);
+    Serial.printf("P4_FULL_STAGE2_ACTIVATED=%d\n", result.stage2Activated);
+    Serial.printf("P4_FULL_STAGE2_BUSY_DONE=%d\n", result.stage2BusyDone);
+    Serial.printf("P4_FULL_ACTIVATION_COUNT=%u\n", static_cast<unsigned>(result.activationCount));
+    Serial.printf("P4_FULL_PWM_OFF_POST=%d\n", result.pwmOffPost);
+    Serial.printf("P4_FULL_RST_SAFE_POST=%d\n", result.resetSafePost);
+    Serial.printf("P4_FULL_RAIL_OFF=%d\n", result.railOff);
+    Serial.printf("P4_FULL_SPI_RELEASE=%d\n", result.spiReleased);
+    Serial.printf("P4_FULL_CLEANUP=%d\n", result.cleanup());
+    Serial.println("P4_FULL_DONE");
+    for (;;) { delay(1000); }
+}
+#endif
+
 #endif
 
 } // namespace
@@ -195,6 +225,8 @@ void PaperMonoBsp::begin() {
     runP4NoRefreshTelemetry(*this);
 #elif defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
     runP4OtpTelemetry(*this);
+#elif defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    runP4FullTelemetry(*this);
 #else
     stopP2SafeRuntime();
 #endif
@@ -429,7 +461,58 @@ PaperMonoOtpSingleRefreshResult PaperMonoBsp::runOtpSinglePanelService() {
 }
 #endif
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
+    PaperMonoOtpFullRefreshResult result;
+    if (!boardReady_) return result;
+
+    result.pwmOffPre = p4PwmOff();
+    result.resetAsserted = p4SetReset(false);
+    if (result.resetAsserted) {
+        // Reference-derived reset-low interval before rail enable.
+        delay(10);
+    }
+    result.spiInitialized = result.pwmOffPre && result.resetAsserted && display_.beginTransport();
+    if (result.spiInitialized) {
+        result.railOn = p4SetRail(true);
+        if (result.railOn) {
+            // Reference-derived rail stabilization delay.
+            delay(10);
+            result.resetReleased = p4SetReset(true);
+            if (result.resetReleased) {
+                // Reference-derived reset release delay.
+                delay(10);
+                result.busyIdlePre = display_.waitBusyIdle(15000);
+                if (result.busyIdlePre) {
+                    result.configured = display_.configureOtpFullMono();
+                    if (result.configured) result.stage1Control = display_.stageOtpFullFirstControl();
+                    if (result.stage1Control) result.frameWritten = display_.writeOtpFullStageOneFrame();
+                    if (result.frameWritten) {
+                        result.stage1BusyDone = display_.activateOtpFullFirst(result.activationCount);
+                        result.stage1Activated = result.activationCount == 1;
+                    }
+                    if (result.stage1BusyDone) result.stage2Control = display_.stageOtpFullSecondControl();
+                    if (result.stage2Control) result.frameWritten = display_.writeOtpFullStageTwoFrames();
+                    if (result.stage2Control && result.frameWritten) {
+                        result.stage2BusyDone = display_.activateOtpFullSecond(result.activationCount);
+                        result.stage2Activated = result.activationCount == 2;
+                    }
+                }
+            }
+        }
+    }
+
+    // The P4 containment policy intentionally replaces OTP Demo deep sleep.
+    result.pwmOffPost = p4PwmOff();
+    result.resetSafePost = p4SetReset(false);
+    result.railOff = p4SetRail(false);
+    result.spiReleased = display_.releaseTransport();
+    return result;
+}
+#endif
+
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 bool PaperMonoBsp::p4PwmOff() {
     constexpr uint16_t kPwmEnableMask = 0x1000;
     if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) return false;

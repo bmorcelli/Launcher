@@ -1,6 +1,7 @@
 #include "papermono_display.h"
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 #include <Arduino.h>
 #include <cstring>
 #include <driver/gpio.h>
@@ -16,7 +17,7 @@ constexpr gpio_num_t kDisplayDataCommand = GPIO_NUM_17;
 constexpr gpio_num_t kDisplayBusy = GPIO_NUM_18;
 constexpr int kDisplaySpiHz = 20 * 1000 * 1000;
 
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 constexpr size_t kOtpBytesPerRow = 100;
 constexpr size_t kOtpFrameRows = 480;
 constexpr size_t kOtpPayloadTransferBytes = 4092;
@@ -55,7 +56,7 @@ bool PaperMonoDisplay::beginTransport() {
     busConfig.sclk_io_num = kDisplayClock;
     busConfig.quadwp_io_num = -1;
     busConfig.quadhd_io_num = -1;
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
     busConfig.max_transfer_sz = kOtpPayloadTransferBytes;
     if (spi_bus_initialize(kDisplaySpiHost, &busConfig, SPI_DMA_CH_AUTO) != ESP_OK) return false;
 #else
@@ -68,7 +69,7 @@ bool PaperMonoDisplay::beginTransport() {
     deviceConfig.clock_speed_hz = kDisplaySpiHz;
     deviceConfig.mode = 0;
     deviceConfig.spics_io_num = -1;
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
     deviceConfig.flags = SPI_DEVICE_HALFDUPLEX;
 #endif
     deviceConfig.queue_size = 1;
@@ -178,6 +179,84 @@ bool PaperMonoDisplay::activateOtpOnce(uint8_t &activationCount) {
 }
 #endif
 
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+bool PaperMonoDisplay::configureOtpFullMono() {
+    // Direct port of the official OTP Demo's init_mono_mode() command order.
+    constexpr uint8_t kTemperatureSelection[] = {0x80};
+    constexpr uint8_t kBoosterSoftStart[] = {0xAE, 0xC7, 0xC3, 0xC0, 0x80};
+    constexpr uint8_t kDriverOutput[] = {0xDF, 0x01, 0x02};
+    constexpr uint8_t kBorder[] = {0x01};
+    constexpr uint8_t kNormalRamMode[] = {0x00};
+
+    return softwareReset() && waitBusyIdle(15000) &&
+           sendCommandData(0x18, kTemperatureSelection, sizeof(kTemperatureSelection)) &&
+           waitBusyIdle(15000) && sendCommandData(0x0C, kBoosterSoftStart, sizeof(kBoosterSoftStart)) &&
+           waitBusyIdle(15000) && sendCommandData(0x01, kDriverOutput, sizeof(kDriverOutput)) &&
+           waitBusyIdle(15000) && sendCommandData(0x3C, kBorder, sizeof(kBorder)) && waitBusyIdle(15000) &&
+           sendCommandData(0x21, kNormalRamMode, sizeof(kNormalRamMode)) && setOtpFullWindow();
+}
+
+bool PaperMonoDisplay::stageOtpFullFirstControl() {
+    constexpr uint8_t kOfficialFirstControl[] = {0xF8};
+    return waitBusyIdle(15000) && sendCommandData(0x22, kOfficialFirstControl, sizeof(kOfficialFirstControl));
+}
+
+bool PaperMonoDisplay::writeOtpFullStageOneFrame() {
+    uint8_t rowData[kOtpBytesPerRow];
+    if (!waitBusyIdle(15000) || !setOtpFullWindow() || !sendCommand(0x24)) return false;
+
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        // Direct port of make_bw_quadrants(): black upper-left and lower-right.
+        std::memset(rowData, 0xFF, sizeof(rowData));
+        if (row < kOtpFrameRows / 2) std::memset(rowData, 0x00, kOtpBytesPerRow / 2);
+        else std::memset(rowData + kOtpBytesPerRow / 2, 0x00, kOtpBytesPerRow / 2);
+        for (size_t byte = 0; byte < sizeof(rowData); ++byte)
+            rowData[byte] = static_cast<uint8_t>(~rowData[byte]);
+        if (!sendDataBlock(rowData, sizeof(rowData))) return false;
+    }
+    return true;
+}
+
+bool PaperMonoDisplay::activateOtpFullFirst(uint8_t &activationCount) {
+    if (activationCount != 0 || !waitBusyIdle(15000) || !sendCommand(0x20)) return false;
+    activationCount = 1;
+    return waitBusyIdle(15000);
+}
+
+bool PaperMonoDisplay::stageOtpFullSecondControl() {
+    constexpr uint8_t kOfficialSecondControl[] = {0x14};
+    return waitBusyIdle(15000) &&
+           sendCommandData(0x22, kOfficialSecondControl, sizeof(kOfficialSecondControl));
+}
+
+bool PaperMonoDisplay::writeOtpFullStageTwoFrames() {
+    uint8_t rowData[kOtpBytesPerRow];
+    if (!waitBusyIdle(15000) || !setOtpFullWindow() || !sendCommand(0x26)) return false;
+
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        std::memset(rowData, 0xFF, sizeof(rowData));
+        if (row < kOtpFrameRows / 2) std::memset(rowData, 0x00, kOtpBytesPerRow / 2);
+        else std::memset(rowData + kOtpBytesPerRow / 2, 0x00, kOtpBytesPerRow / 2);
+        if (!sendDataBlock(rowData, sizeof(rowData))) return false;
+    }
+
+    if (!setOtpFullWindow() || !sendCommand(0x24)) return false;
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        std::memset(rowData, 0xFF, sizeof(rowData));
+        if (row < kOtpFrameRows / 2) std::memset(rowData, 0x00, kOtpBytesPerRow / 2);
+        else std::memset(rowData + kOtpBytesPerRow / 2, 0x00, kOtpBytesPerRow / 2);
+        if (!sendDataBlock(rowData, sizeof(rowData))) return false;
+    }
+    return true;
+}
+
+bool PaperMonoDisplay::activateOtpFullSecond(uint8_t &activationCount) {
+    if (activationCount != 1 || !waitBusyIdle(15000) || !sendCommand(0x20)) return false;
+    activationCount = 2;
+    return waitBusyIdle(15000);
+}
+#endif
+
 bool PaperMonoDisplay::releaseTransport() {
     bool ok = true;
     if (device_ != nullptr) {
@@ -205,7 +284,7 @@ bool PaperMonoDisplay::sendCommandData(uint8_t command, const uint8_t *data, uin
     return true;
 }
 
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 bool PaperMonoDisplay::sendDataBlock(const uint8_t *data, size_t length) {
     if (device_ == nullptr || length == 0 || gpio_set_level(kDisplayDataCommand, 1) != ESP_OK ||
         gpio_set_level(kDisplayChipSelect, 0) != ESP_OK) {

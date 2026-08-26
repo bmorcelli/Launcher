@@ -1,11 +1,12 @@
 #pragma once
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH)
 #include <stddef.h>
 #include <stdint.h>
 
-// SPI2-only controller transport for the P4 isolated gate. This interface
-// intentionally exposes only no-refresh controller setup and containment.
+// SPI2-only controller transport for the P4 isolated gates. No raw controller
+// command surface is exposed outside the board-local service boundary.
 class PaperMonoDisplay {
 public:
     bool beginTransport();
@@ -22,11 +23,21 @@ public:
     bool activateOtpOnce(uint8_t &activationCount);
 #endif
 
+#if defined(PAPERMONO_P4_OTP_FULL_REFRESH)
+    bool configureOtpFullMono();
+    bool stageOtpFullFirstControl();
+    bool writeOtpFullStageOneFrame();
+    bool activateOtpFullFirst(uint8_t &activationCount);
+    bool stageOtpFullSecondControl();
+    bool writeOtpFullStageTwoFrames();
+    bool activateOtpFullSecond(uint8_t &activationCount);
+#endif
+
 private:
     bool sendCommand(uint8_t command);
     bool sendCommandData(uint8_t command, const uint8_t *data, uint8_t length);
     bool transmitByte(uint8_t value, bool dataMode);
-#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH)
     bool sendDataBlock(const uint8_t *data, size_t length);
     bool setOtpFullWindow();
 #endif
