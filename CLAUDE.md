@@ -86,3 +86,8 @@ build flags.
 - `docs/` — implementation history of the HAL migration (`plan.md`,
   `etapa_*.md`). Background/history only; `src/hal/README.md` is the
   current, authoritative reference for what the HAL actually contains.
+
+## Build and flashing tests
+- Always use `pio run -e <environment>' to test changes
+- If building pocess fails due to lfs or LittleFS dependency issues, remove `.pio/core/penv` folder and try again.
+- Flahsing tests for command serial verifications must use `esptool` for uploading after build, do not use `pio -e <env> -t upload` command, map the bootloader address according to the ESP32 variant, flash partitions into 0x8000 and firmware into 0x10000 addresses.
