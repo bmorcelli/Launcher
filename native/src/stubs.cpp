@@ -10,6 +10,22 @@
 // defines but nothing here calls. Extend as needed when wiring up more
 // screens: add the declaration's header include, then a matching stub here.
 
+// Must precede <DisplayDrivers.h>: native_sdl.h drags in ArduinoJson.h at its
+// bottom, and settings.cpp (included below) hands ArduinoJson a bare String
+// and a Stream/Print-derived File to (de)serialize config.conf through — the
+// generic Reader/Writer ArduinoJson falls back to otherwise assumes a raw
+// stream cursor, which neither of those is. These macros are normally
+// auto-enabled by ARDUINO being defined; native_sdl.h deliberately doesn't
+// pull in Arduino.h (see its header comment), so they're set by hand here,
+// scoped to this translation unit only — the other DisplayDrivers backend
+// .cpp files (gxepd2_hal, lovyan, ardgfx, ...) that the library also builds
+// stay untouched, since each is a separate TU.
+#define ARDUINOJSON_ENABLE_ARDUINO_STRING 1
+#define ARDUINOJSON_ENABLE_ARDUINO_STREAM 1
+#define ARDUINOJSON_ENABLE_ARDUINO_PRINT 1
+#include <Print.h>
+#include <Stream.h>
+
 #include <DisplayDrivers.h>
 
 #include <app_registry.h>
@@ -17,9 +33,11 @@
 #include <display.h>
 #include <globals.h>
 #include <idf/idf_update.h>
+#include <idf/idf_wifi.h>
 #include <install_shared.h>
 #include <littlefs_patch.h>
 #include <mykeyboard.h>
+#include <nvs_helpers.h>
 #include <onlineLauncher.h>
 #include <partition_install_layout.h>
 #include <partition_table_model.h>
@@ -30,6 +48,7 @@
 #include <settings.h>
 #include <utils.h>
 #include <webInterface.h>
+#include <wifi_crypto.h>
 
 #include <ArduinoJson/Memory/Allocator.hpp>
 
@@ -62,17 +81,49 @@ bool GetJsonFromLauncherHub(uint8_t, const String &, bool, const String &) { ret
 // webInterface.cpp, none of which this harness compiles.
 // ---------------------------------------------------------------------------
 
-// CFG: a settings-style options list, real loopOptions().
-void settings_menu() {
-    options = {
-        {"Brightness",       [] {}                      },
-        {"Rotation",         [] {}                      },
-        {"UI Colors",        [] {}                      },
-        {"Wifi Credentials", [] {}                      },
-        {"Main Menu",        [] { returnToMenu = true; }},
-    };
-    loopOptions(options);
-}
+// CFG: the real settings.cpp (settings_menu, setBrightnessMenu, gsetRotation,
+// setUiColor, NVS load/save, ...) compiled below against the fake nvs.h/
+// esp_mac.h in native/sources/ — same tier as SD's sd_functions.cpp below.
+// NVS reads always miss and writes always "succeed" without persisting, so
+// every settings screen behaves as if it's running with defaults every time.
+#include "../../src/settings.cpp"
+
+// settings.cpp reaches into lnvs:: (nvs_helpers.cpp), wifiPwdEncrypt/Decrypt
+// (wifi_crypto.cpp) and the hosted-wifi co-processor guard (idf_wifi.cpp) —
+// none of those translation units are compiled here. Reads always miss and
+// writes always report success without persisting or encrypting anything,
+// matching the "settings screens run with defaults every time" behavior
+// above.
+bool hostedWifiAvailable = false;
+void launcherWifiHostedResetGuard() {}
+
+String wifiPwdEncrypt(const String &plain) { return plain; }
+String wifiPwdDecrypt(const String &cipher) { return cipher; }
+
+namespace lnvs {
+Handle::Handle(const char *, bool) {}
+Handle::~Handle() {}
+bool Handle::open(const char *, bool) { return false; }
+bool Handle::commit() { return false; }
+
+std::vector<String> keys(const char *, nvs_type_t) { return {}; }
+bool exists(const char *) { return false; }
+bool eraseNamespace(const char *) { return true; }
+String getString(nvs_handle_t, const char *, size_t) { return String(); }
+String getString(const char *, const char *, size_t) { return String(); }
+bool setString(nvs_handle_t, const char *, const char *) { return true; }
+bool setString(const char *, const char *, const char *) { return true; }
+bool eraseKey(nvs_handle_t, const char *) { return true; }
+bool getBool(nvs_handle_t, const char *, bool &) { return false; }
+bool setBool(nvs_handle_t, const char *, bool) { return true; }
+bool getInt(nvs_handle_t, const char *, int &) { return false; }
+bool setInt(nvs_handle_t, const char *, int) { return true; }
+bool copyBlob(nvs_handle_t, const char *, nvs_handle_t, const char *, size_t) { return false; }
+const char *typeName(nvs_type_t) { return ""; }
+nvs_type_t typeFromName(const char *) { return NVS_TYPE_ANY; }
+bool getScalar(nvs_handle_t, const char *, nvs_type_t, int64_t &) { return false; }
+bool setScalar(nvs_handle_t, const char *, nvs_type_t, int64_t) { return true; }
+} // namespace lnvs
 
 // SD: real sd_functions.cpp (loopSD/readFs, real folder-tree navigation,
 // "> Back", sorting, ...) compiled below against the fake filesystem in
@@ -155,13 +206,6 @@ void loopOptionsWebUi() {
 }
 
 bool wakeUpScreen() { return false; }
-void setBrightness(int, bool) {}
-void saveConfigs() {}
-bool getFromNVS() { return false; }
-bool getWifiFromNVS() { return false; }
-void getConfigs() {}
-void getBrightness() {}
-bool ensureM5StackUiFlowNVSDefaults() { return true; }
 
 void partitionCrawler() {}
 void launcherPartitionInitDefaultSizes() {}
@@ -218,6 +262,7 @@ void launcherConsolePrintln(const char *text) {
     launcherConsolePrint(text);
     fputc('\n', stdout);
 }
+void launcherConsolePrintLong(const char *text) { launcherConsolePrint(text); }
 void launcherConsoleBegin(unsigned long) {}
 void launcherConsoleFlush() { fflush(stdout); }
 void launcherConsoleEnd() {}
@@ -230,7 +275,6 @@ void powerOff() {}
 void reboot() {}
 void checkReboot() {}
 int getBattery() { return 0; }
-void _setBrightness(uint8_t) {}
 
 // ---------------------------------------------------------------------------
 // Low-level stubs for sd_functions.cpp's install/backup/partition-table code
@@ -292,7 +336,6 @@ BackupInstallInfo loadInstalledFromConfig(const String &appNum) {
 }
 bool restorePartitionFromBackupDirect(const char *, const char *, uint32_t, uint32_t) { return false; }
 bool restorePartitionFromBackup(const char *, const char *) { return false; }
-bool saveIntoNVS() { return false; }
 bool saveInstalledToConfig(const BackupInstallInfo &) { return false; }
 
 bool launcherSelectInstallLayout(

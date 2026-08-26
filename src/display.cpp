@@ -794,7 +794,7 @@ Opt_Coord drawOptions(
         int labelWidth = lineWidth - prefixWidth;
 #ifdef HAS_TOUCH
         if (showEscLabel) {
-            const char *escText = "[ESC]";
+            const char *escText = "[ESC] ";
             escWidth = strlen(escText) * charWidth;
             int escX = boxX + paddingSide + lineWidth - escWidth;
             if (escX < labelX) escX = labelX;

@@ -1,8 +1,10 @@
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "nvs_helpers.h"
 #include "powerSave.h"
-#include <TouchDrvGT911.hpp>
 #include <Wire.h>
 #include <interface.h>
 
@@ -29,14 +31,24 @@ static int8_t sdioPinOverride(const char *key, int8_t buildDefault) {
 #define TOUCH_INT_PIN GT911_TOUCH_CONFIG_INT_GPIO_NUM
 #define TOUCH_ADDR 0x5D // GT911 default I2C address
 
-TouchDrvGT911 touch;
 static bool touchReady = false;
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = TOUCH_RST_PIN;
+    cfg.pin_irq = TOUCH_INT_PIN;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, false, true, true};
+    bool mirrorY[4] = {false, true, true, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
+
 void _setup_gpio() {
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
     // LCD_BK_POWER: P-MOS load switch feeding the backlight boost converter's
@@ -45,19 +57,12 @@ void _setup_gpio() {
     digitalWrite(TFT_BL_POWER, LOW);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 
-    touch.setPins(TOUCH_RST_PIN, TOUCH_INT_PIN);
-    touchReady = touch.begin(Wire, TOUCH_ADDR, TOUCH_SDA_PIN, TOUCH_SCL_PIN);
+    touchReady = hal_touch_init(touchCfg(), TOUCH_ADDR);
     if (!touchReady) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
@@ -89,77 +94,15 @@ void _post_setup_gpio() {
     }
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int dutyCycle;
-    if (brightval == 100) dutyCycle = 250;
-    else if (brightval == 75) dutyCycle = 130;
-    else if (brightval == 50) dutyCycle = 70;
-    else if (brightval == 25) dutyCycle = 20;
-    else if (brightval == 0) dutyCycle = 0;
-    else dutyCycle = ((brightval * 250) / 100);
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-    log_i("dutyCycle for bright 0-255: %d", dutyCycle);
-    if (!ledcWrite(TFT_BL, dutyCycle)) {
-        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
-        ledcDetach(TFT_BL);
-        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(TFT_BL, dutyCycle);
-    }
-}
-
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
-
-    // Panel is native TFT_WIDTH x TFT_HEIGHT; re-map the touch axes to
-    // whichever of the four rotations is currently active, so touch
-    // coordinates line up with what is drawn. Same pattern as
-    // lilygo-t5-epaper-s3-pro / xteink-x4pro / seeedstudio-reterminal-sticky.
-    static uint8_t lastRot = 5;
-    if (touchReady && lastRot != rotation) {
-        if (rotation == 1) {
-            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(false, true);
-        } else if (rotation == 3) {
-            touch.setMaxCoordinates(TFT_HEIGHT, TFT_WIDTH);
-            touch.setSwapXY(true);
-            touch.setMirrorXY(true, false);
-        } else if (rotation == 0) {
-            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(false, false);
-        } else if (rotation == 2) {
-            touch.setMaxCoordinates(TFT_WIDTH, TFT_HEIGHT);
-            touch.setSwapXY(false);
-            touch.setMirrorXY(true, true);
-        }
-        lastRot = rotation;
-    }
-
-    int16_t tx = 0, ty = 0;
-    const uint8_t touched = touchReady ? touch.getPoint(&tx, &ty, 1) : 0;
-
     if (launcherMillis() - d_tmp > 250 || LongPress) {
-        if (touched) {
+        LTouchPoint t;
+        if (touchReady && hal_touch_read(touchCfg(), t)) {
             d_tmp = launcherMillis();
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = tx;
-            touchPoint.y = ty;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
+            if (!hal_touch_apply(t)) return;
         }
     }
 }

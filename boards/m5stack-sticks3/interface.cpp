@@ -1,6 +1,8 @@
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <Button.h>
 #include <M5PM1.h>
 #include <Wire.h>
 #include <interface.h>
@@ -17,24 +19,6 @@
 
 static M5PM1 pm1;
 
-// --- Buttons ---------------------------------------------------------------
-volatile bool nxtPress = false;
-volatile bool prvPress = false;
-volatile bool selPress = false;
-volatile bool escPress = false;
-static void onBtnANextCb(void *button_handle, void *usr_data) { nxtPress = true; }
-static void onBtnASelCb(void *button_handle, void *usr_data) { selPress = true; }
-static void onBtnBPrevCb(void *button_handle, void *usr_data) { prvPress = true; }
-static void onBtnBEscCb(void *button_handle, void *usr_data) { escPress = true; }
-
-Button *btnA;
-Button *btnB;
-
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     if (pm1.begin(&Wire1, M5PM1_DEFAULT_ADDR, PM1_SDA, PM1_SCL) != M5PM1_OK) {
         launcherConsolePrintf("%s\n", String("M5PM1 init failed").c_str());
@@ -81,43 +65,12 @@ void _setup_gpio() {
     launcherGpioOutput(46);
     launcherGpioWrite(46, LOW); // Infrared LED Off
 
-    button_config_t cfgA = {
-        .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 500,
-        .short_press_time = 120,
-        .gpio_button_config = {
-                               .gpio_num = BTN_A_PIN,
-                               .active_level = 0,
-                               },
-    };
-    button_config_t cfgB = {
-        .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 500,
-        .short_press_time = 120,
-        .gpio_button_config = {
-                               .gpio_num = BTN_B_PIN,
-                               .active_level = 0,
-                               },
-    };
-
-    btnA = new Button(cfgA);
-    btnA->attachSingleClickEventCb(&onBtnANextCb, NULL);
-    btnA->attachLongPressStartEventCb(&onBtnASelCb, NULL);
-
-    btnB = new Button(cfgB);
-    btnB->attachSingleClickEventCb(&onBtnBPrevCb, NULL);
-    btnB->attachLongPressStartEventCb(&onBtnBEscCb, NULL);
+    hal_buttons_init_2(DeviceButtons{BTN_A_PIN, BTN_B_PIN}, 600);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 
 #ifdef USE_CARDKB2
     // CardKB2 on the Grove port (G9/G10). Probing reconfigures G9 as I2C SDA,
@@ -130,25 +83,8 @@ void _post_setup_gpio() {
 #endif
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int dutyCycle = (brightval * 255) / 100;
-    if (!ledcWrite(TFT_BL, dutyCycle)) {
-        ledcDetach(TFT_BL);
-        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(TFT_BL, dutyCycle);
-    }
-}
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     uint16_t mv = 0;
     if (pm1.readVbat(&mv) != M5PM1_OK) return 0;
@@ -156,36 +92,6 @@ int getBattery() {
     return (level < 0) ? 0 : (level >= 100) ? 100 : level;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = launcherMillis();
-    static bool btn_pressed = false;
-    if (nxtPress || prvPress || selPress || escPress) btn_pressed = true;
+void InputHandler(void) { hal_buttons_poll_2(); }
 
-    if (launcherMillis() - tm > 200 || LongPress) {
-        if (btn_pressed) {
-            btn_pressed = false;
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-            NextPress = nxtPress;
-            PrevPress = prvPress;
-            SelPress = selPress;
-            EscPress = escPress;
-
-            nxtPress = false;
-            prvPress = false;
-            selPress = false;
-            escPress = false;
-        }
-    }
-}
-
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() { pm1.shutdown(); }

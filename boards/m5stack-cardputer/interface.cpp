@@ -61,11 +61,6 @@ int handleSpecialKeys(uint8_t row, uint8_t col, bool pressed) {
     return 0;
 }
 
-/***************************************************************************************
-** Function name: mapRawKeyToPhysical()
-** Location: interface.cpp
-** Description:   initial mapping for keyboard
-***************************************************************************************/
 inline void mapRawKeyToPhysical(uint8_t keyvalue, uint8_t &row, uint8_t &col) {
     const uint8_t u = keyvalue % 10; // 1..8
     const uint8_t t = keyvalue / 10; // 0..6
@@ -80,11 +75,6 @@ inline void mapRawKeyToPhysical(uint8_t keyvalue, uint8_t &row, uint8_t &col) {
     }
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     //    Keyboard.begin();
     launcherGpioInput(0);
@@ -150,10 +140,6 @@ void _post_setup_gpio() {
     tca.enableInterrupts();
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = 0;
     static unsigned long nextRepeatTime = 0;

@@ -715,14 +715,109 @@ int gsetRotation(bool set) {
 **  Handles Menu to set brightness
 **********************************************************************/
 void setBrightnessMenu() {
-    options = {
-        {"100%", [=]() { setBrightness(100); }},
-        {"75 %", [=]() { setBrightness(75); } },
-        {"50 %", [=]() { setBrightness(50); } },
-        {"25 %", [=]() { setBrightness(25); } },
-        // {" 0 %", [=]() { setBrightness(1); }  },
-    };
-    loopOptions(options, true);
+    int original = bright;
+    int val = (bright / 5) * 5;
+    if (val > 100) val = 100;
+    if (val < 0) val = 0;
+
+    const int lineHeight = _fm * LH;
+    const int hintHeight = _fp * LH;
+    const int sliderH = 12;
+    const int radius = sliderH / 2;
+    const int spacing = 8;
+    const int paddingTop = 8;
+    const int paddingBottom = 8;
+    const int paddingSide = 12;
+
+    int contentWidth = static_cast<int>(tftWidth * 0.8f);
+    int contentHeight = paddingTop + lineHeight + spacing + sliderH + spacing + hintHeight + paddingBottom;
+    int boxX = (tftWidth - contentWidth) / 2;
+    int boxY = (tftHeight - contentHeight) / 2;
+
+    int trackX = boxX + paddingSide;
+    int trackW = contentWidth - 2 * paddingSide;
+    int trackY = boxY + paddingTop + lineHeight + spacing;
+
+    bool redraw = true;
+    bool first_draw = true;
+    while (1) {
+        if (redraw) {
+            if (first_draw) {
+                tft->fillRoundRect(boxX, boxY, contentWidth, contentHeight, 5, BGCOLOR);
+                tft->drawRoundRect(boxX, boxY, contentWidth, contentHeight, 5, FGCOLOR);
+                first_draw = false;
+            }
+            tft->setTextSize(_fm);
+            tft->setTextColor(FGCOLOR, BGCOLOR);
+            tft->drawCentreString(
+                " Bright: " + String(val) + "% ", boxX + contentWidth / 2, boxY + paddingTop, 1
+            );
+
+            int indicatorX = trackX + (trackW * val) / 100;
+            tft->fillRect(trackX, trackY - 3, trackW, 3, BGCOLOR);
+            tft->fillRect(trackX, trackY + sliderH, trackW, 3, BGCOLOR);
+            tft->fillRect(trackX - radius - 2, trackY - 4, radius * 2, sliderH + 8, BGCOLOR);
+            tft->fillRect(trackX + trackW - radius + 2, trackY - 4, radius * 2, sliderH + 8, BGCOLOR);
+            tft->drawRoundRect(trackX, trackY, trackW, sliderH, radius, ALCOLOR);
+            int fillW = indicatorX - trackX;
+
+            tft->fillRoundRect(trackX, trackY, fillW, sliderH, radius, ALCOLOR);
+            tft->fillRoundRect(trackX + fillW, trackY + 1, trackW - fillW, sliderH - 2, radius, BGCOLOR);
+
+            tft->fillCircle(indicatorX, trackY + sliderH / 2, radius + 2, FGCOLOR);
+
+            tft->setTextSize(_fp);
+            tft->setTextColor(FGCOLOR, BGCOLOR);
+            tft->drawCentreString("Sel to apply", boxX + contentWidth / 2, trackY + sliderH + spacing, 1);
+
+            setBrightness(val, false);
+            redraw = false;
+        }
+
+#if defined(HAS_TOUCH)
+        if (touchPoint.pressed) {
+            const int touchX = touchPoint.x;
+            const int touchY = touchPoint.y;
+            touchPoint.Clear();
+
+            const int touchPadding = 10;
+            if (touchX >= boxX && touchX <= boxX + contentWidth && touchY >= trackY - touchPadding &&
+                touchY <= trackY + sliderH + touchPadding) {
+                int clampedX = touchX;
+                if (clampedX < trackX) clampedX = trackX;
+                if (clampedX > trackX + trackW) clampedX = trackX + trackW;
+                int newVal = ((clampedX - trackX) * 100 + trackW / 2) / trackW;
+                newVal = (newVal / 5) * 5;
+                if (newVal > 100) newVal = 100;
+                if (newVal < 0) newVal = 0;
+                if (newVal != val) {
+                    val = newVal;
+                    redraw = true;
+                }
+            }
+        }
+#endif
+
+        if (check(NextPress)) {
+            val += 5;
+            if (val > 100) val = 100;
+            redraw = true;
+        }
+        if (check(PrevPress)) {
+            val -= 5;
+            if (val < 0) val = 0;
+            redraw = true;
+        }
+        if (check(SelPress)) {
+            setBrightness(val);
+            break;
+        }
+        if (check(EscPress) || returnToMenu) {
+            setBrightness(original, false);
+            break;
+        }
+    }
+    tft->fillScreen(BGCOLOR);
 }
 /*********************************************************************
 **  Function: setUiColor

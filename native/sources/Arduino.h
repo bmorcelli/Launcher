@@ -36,6 +36,11 @@ extern HardwareSerial Serial;
 inline unsigned long millis() { return lgfx::millis(); }
 inline void delay(unsigned long ms) { lgfx::delay(ms); }
 
+#ifndef CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ
+#define CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ 240
+#endif
+inline bool setCpuFrequencyMhz(uint32_t) { return true; }
+
 #ifndef PROGMEM
 #define PROGMEM
 #endif

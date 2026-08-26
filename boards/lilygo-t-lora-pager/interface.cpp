@@ -1,3 +1,4 @@
+#include "hal/bright/bright.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
@@ -13,6 +14,8 @@
 #define KEY_BACKSPACE 0x1d
 #define KEY_ENTER 0x13
 // Pinouts definitions
+#define KEYBOARD_SDA 3
+#define KEYBOARD_SCL 2
 #define KEYBOARD_BL 46
 #define ENCODER_INA 40
 #define ENCODER_INB 41
@@ -39,19 +42,28 @@
 ExtensionIOXL9555 io;
 
 // Rotary encoder
-#include <RotaryEncoder.h>
-RotaryEncoder *encoder = nullptr;
-IRAM_ATTR void checkPosition() { encoder->tick(); }
+#include "hal/inputs/encoder.h"
 
-// Battery
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-PowersBQ25896 PPM;
+static DeviceEncoder encoderCfg() {
+    DeviceEncoder cfg;
+    // A/B swapped on purpose: this board's physical wiring reports rotation
+    // opposite to lilygo-t-embed-cc1101/m5stack-dinmeter for the Next/Prev
+    // mapping hal_encoder_poll() assumes -- swapping the quadrature pins
+    // flips the sign RotaryEncoder reports, correcting for it without
+    // touching hal_encoder_poll()'s logic.
+    cfg.pin_a = ENCODER_INB;
+    cfg.pin_b = ENCODER_INA;
+    cfg.pin_sel = SEL_BTN;
+    cfg.pin_esc = BK_BTN;
+    return cfg;
+}
 
-// Fuel gauge
-#include <bq27220.h>
+// Battery: charger + fuel gauge
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 #define BATTERY_DESIGN_CAPACITY 1500
-BQ27220 bq;
 
 // Keyboard
 #include <Adafruit_TCA8418.h>
@@ -136,13 +148,9 @@ int handleSpecialKeys(uint8_t k, bool pressed) {
     return 0;
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
 
-    Wire.begin(SDA, SCL);
+    Wire.begin(KEYBOARD_SDA, KEYBOARD_SCL);
 
     launcherGpioInput(SEL_BTN);
     launcherGpioInput(BK_BTN);
@@ -153,26 +161,13 @@ void _setup_gpio() {
     launcherGpioOutput(SDCARD_CS);
     launcherGpioWrite(SDCARD_CS, HIGH);
 
-    bool pmu_ret = false;
-    pmu_ret = PPM.init(Wire, SDA, SCL, BQ25896_I2C_ADDRESS);
-    if (pmu_ret) {
-        PPM.setSysPowerDownVoltage(3300);
-        PPM.setInputCurrentLimit(3250);
-        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        PPM.disableCurrentLimitPin();
-        PPM.setChargeTargetVoltage(4208);
-        PPM.setPrechargeCurr(64);
-        PPM.setChargerConstantCurr(832);
-        PPM.getChargerConstantCurr();
-        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure();
-        PPM.enableCharge();
-        PPM.enableOTG();
-        PPM.disableOTG();
-    }
+    DevicePmic pmicCfg{SDA, SCL, BQ25896_I2C_ADDRESS};
+    if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
 
     // Battery gauge
-    if (bq.getDesignCap() != BATTERY_DESIGN_CAPACITY) { bq.setDesignCap(BATTERY_DESIGN_CAPACITY); }
+    DeviceGauge gaugeCfg{};
+    gaugeCfg.design_capacity_mah = BATTERY_DESIGN_CAPACITY;
+    hal_gauge_init(gaugeCfg);
 
     if (io.begin(Wire, 0x20)) {
         const uint8_t expands[] = {
@@ -190,12 +185,10 @@ void _setup_gpio() {
         launcherConsolePrintf("%s\n", String("Initializing expander failed").c_str());
     }
 
-    launcherGpioInput(ENCODER_KEY);
-    encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::FOUR3);
+    hal_encoder_init(encoderCfg(), EncoderLatchMode::FOUR3);
 
-    // register interrupt routine
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INA), checkPosition, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INB), checkPosition, CHANGE);
+    uint8_t blPins[] = {TFT_BL, KEYBOARD_BL};
+    hal_bright_attach(blPins, 2);
 
     // Initalise keyboard
     bool res = keyboard.begin(KB_I2C_ADDRESS, &Wire);
@@ -209,41 +202,15 @@ void _setup_gpio() {
     keyboard.flush();
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
-int getBattery() {
-    int percent = bq.getChargePcnt();
-    if (percent == 65535) return -1;
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
+int getBattery() { return hal_gauge_get_percent(); }
 
-/*********************************************************************
-**  Function: setBrightness
-**  set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(TFT_BL, brightval);
-        analogWrite(KEYBOARD_BL, brightval);
-    } else {
-        const uint8_t PWM_MIN = 85;
-        const uint8_t PWM_MAX = 255;
-        float linear = (float)brightval / 100.0;
-        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-        analogWrite(TFT_BL, value);
-        analogWrite(KEYBOARD_BL, value);
-    }
+    uint8_t blPins[] = {TFT_BL, KEYBOARD_BL};
+    hal_bright_set(blPins, 2, brightval);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
 
-    static unsigned long tm = launcherMillis();
     static unsigned long nextRepeatTime = 0;
     static unsigned long prevRepeatTime = 0;
     static unsigned long upRepeatTime = 0;
@@ -252,19 +219,6 @@ void InputHandler(void) {
     static bool prevHeld = false;
     static bool upHeld = false;
     static bool downHeld = false;
-    static int posDifference = 0;
-    static int lastPos = 0;
-    bool sel = !BTN_ACT;
-    bool esc = !BTN_ACT;
-
-    int newPos = encoder->getPosition();
-    if (newPos != lastPos) {
-        posDifference += (newPos - lastPos);
-        lastPos = newPos;
-    }
-
-    sel = launcherGpioRead(SEL_BTN);
-    esc = launcherGpioRead(BK_BTN);
 
     bool nextPulse = false;
     bool prevPulse = false;
@@ -355,33 +309,7 @@ void InputHandler(void) {
         EscPress = escPulse;
     }
 
-    if (launcherMillis() - tm < 500) {
-        if (nextPulse || prevPulse || upPulse || downPulse || selPulse || escPulse || keyPulse)
-            tm = launcherMillis();
-        return;
-    }
-
-    if (posDifference != 0 || sel == BTN_ACT || esc == BTN_ACT) {
-        if (!wakeUpScreen()) {
-            AnyKeyPress = true;
-
-            if (posDifference < 0) {
-                PrevPress = true;
-                posDifference++;
-            }
-            if (posDifference > 0) {
-                NextPress = true;
-                posDifference--;
-            }
-            if (sel == BTN_ACT) SelPress = true;
-            if (esc == BTN_ACT) EscPress = true;
-        } else goto END;
-    }
-
-END:
-    if (sel == BTN_ACT || esc == BTN_ACT || nextPulse || prevPulse || upPulse || downPulse || selPulse ||
-        escPulse || keyPulse)
-        tm = launcherMillis();
+    hal_encoder_poll(encoderCfg());
 }
 
-void powerOff() { PPM.shutdown(); }
+void powerOff() { hal_pmic_shutdown(); }

@@ -53,12 +53,14 @@ public:
     }
     size_t size() const { return 0; }
     void close() {}
+    void flush() {}
     void rewindDirectory() { _iter = 0; }
     bool seek(uint32_t) { return true; }
     int read() { return -1; }
     size_t read(uint8_t *, size_t) { return 0; }
     size_t readBytes(char *, size_t) { return 0; }
-    size_t write(const uint8_t *, size_t len) { return len; }
+    size_t write(uint8_t) override { return 1; }
+    size_t write(const uint8_t *, size_t len) override { return len; }
 
     // Matches fs::File::getNextFileName(bool*) from the ESP32 Arduino core:
     // returns the next child's full path, "" once exhausted.

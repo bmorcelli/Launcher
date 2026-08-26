@@ -6,7 +6,7 @@
 #endif
 
 #ifdef HAS_6_BUTTONS
-    #define HAS_5_BUTTON 1
+    #define HAS_5_BUTTONS 1
 #endif
 
 #ifndef LAUNCHER_DEFAULT_SPIFFS_THRESHOLD

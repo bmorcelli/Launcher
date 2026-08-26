@@ -1,3 +1,5 @@
+#include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <interface.h>
@@ -5,15 +7,14 @@
 #define UP_BTN 35
 #define DW_BTN 39
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
+static DeviceButtons buttonsCfg() {
+    DeviceButtons cfg{UP_BTN, DW_BTN, SEL_BTN};
+    cfg.pullup = false;
+    return cfg;
+}
+
 void _setup_gpio() {
-    launcherGpioInput(UP_BTN); // Sets the power btn as an INPUT
-    launcherGpioInput(SEL_BTN);
-    launcherGpioInput(DW_BTN);
+    hal_buttons_init(buttonsCfg(), 3);
     launcherGpioOutput(4);      // Keeps the Stick alive after take off the USB cable
     launcherGpioWrite(4, HIGH); // Keeps the Stick alive after take off the USB cable
     // https://github.com/pr3y/Bruce/blob/main/media/connections/cc1101_stick_SDCard.jpg
@@ -27,46 +28,14 @@ void _setup_gpio() {
     gpio_pullup_dis(GPIO_NUM_36);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = 0;
-    if (launcherMillis() - tm < 200 && !LongPress) return;
+void InputHandler(void) { hal_buttons_poll_3(buttonsCfg()); }
 
-    bool upPressed = (launcherGpioRead(UP_BTN) == LOW);
-    bool selPressed = (launcherGpioRead(SEL_BTN) == LOW);
-    bool dwPressed = (launcherGpioRead(DW_BTN) == LOW);
-
-    bool anyPressed = upPressed || selPressed || dwPressed;
-    if (anyPressed) tm = launcherMillis();
-    if (anyPressed && wakeUpScreen()) return;
-
-    AnyKeyPress = anyPressed;
-    EscPress = upPressed & dwPressed;
-    if (EscPress) return;
-    PrevPress = upPressed;
-    NextPress = dwPressed;
-    SelPress = selPressed;
-}
-
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     launcherGpioWrite(4, LOW);
     esp_sleep_enable_ext0_wakeup((gpio_num_t)UP_BTN, LOW);
     esp_deep_sleep_start();
 }
 
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to tornoff the device (name is odd btw)
-**********************************************************************/
 void checkReboot() {
     static unsigned long time_count = 0;
     static bool armed = false;

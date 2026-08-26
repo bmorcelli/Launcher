@@ -173,11 +173,6 @@ static void tab5KbPoll() {
     }
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     /*
     Can't be set in build_flags
@@ -201,28 +196,15 @@ void _late_setup_gpio() {
     // Need time to bring up the keyboard
     if (!CardKB2Installed) tab5KbSetup();
 }
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
+
 int getBattery() {
     int percent;
     percent = M5.Power.getBatteryLevel();
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     // Late keyboard hot-plug: the INT ISR flagged activity while the keyboard was
     // absent, so retry the initialization and enable the navigation flow.
@@ -251,11 +233,7 @@ void InputHandler(void) {
         } else touchPoint.pressed = false;
     }
 }
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
+
 void powerOff() { M5.Power.powerOff(); }
 
 /*********************************************************************

@@ -154,11 +154,6 @@ static void _detect_panel() {
     );
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     launcherGpioInput(BTN_LADDER_1);
     launcherGpioInput(BTN_LADDER_2);
@@ -181,18 +176,6 @@ void _setup_gpio() {
     SPI.begin(TFT_SCLK, SDCARD_MISO, TFT_MOSI, TFT_CS);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
-void _post_setup_gpio() {}
-
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     if (isX3) {
         // The gauge already reports a state of charge, so there is no curve to
@@ -231,20 +214,11 @@ int getBattery() {
     return (int)(percent + 0.5);
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // No backlight and no frontlight on this panel.
     (void)brightval;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
     if (launcherMillis() - tm > 200 || LongPress) {
@@ -272,11 +246,6 @@ void InputHandler(void) {
     else if (page == PAGE_DOWN) DownPress = true;
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     // Letting go first, or the wake-up source is already asserted when we arm it.
     while (launcherGpioRead(PWR_BTN) == LOW) launcherDelayMs(50);

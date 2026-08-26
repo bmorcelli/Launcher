@@ -1,20 +1,20 @@
+#include "hal/bright/bright.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <TouchDrvCSTXXX.hpp>
 #include <Wire.h>
 #include <interface.h>
-TouchDrvCSTXXX touch;
+
+static bool touch_OK = false;
 
 // GPIO expander
 #include <ExtensionIOXL9555.hpp>
 ExtensionIOXL9555 io;
 
-#include <bq27220.h>
-BQ27220 bq;
-
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-XPowersPPM PPM;
+#include "hal/device.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 
 #include <Adafruit_TCA8418.h>
 #define BOARD_I2C_ADDR_KEYBOARD 0x34
@@ -35,6 +35,8 @@ constexpr unsigned long TCA8418_REPEAT_MS = 150;
 #define TOUCH_RST 45
 #define TOUCH_RST2 38
 #define BOARD_I2C_ADDR_TOUCH 0x1A
+
+#define TDECKPRO_BQ25896_ADDRESS 0x6B
 
 #define BOARD_EPD_CS 34
 #define BOARD_LORA_CS 3
@@ -112,11 +114,20 @@ void detectBoardVariantAndPrepareDisplay(bool preDisplayInit) {
 }
 } // namespace
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
+// Reset pin depends on the variant detected above: 1.0/1.1 have a real GPIO
+// reset (TOUCH_RST/TOUCH_RST2, already pulsed by hand in
+// detectBoardVariantAndPrepareDisplay() before hal_touch_init() runs, same
+// as the driver's own reset via cfg.pin_rst); MAX has none (-1) -- its
+// display/touch reset line is routed through the XL9555 expander instead.
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    if (variant == 0) cfg.pin_rst = TOUCH_RST;
+    else if (variant == 1) cfg.pin_rst = TOUCH_RST2;
+    else cfg.pin_rst = -1;
+    cfg.pin_irq = TOUCH_INT;
+    return cfg;
+}
+
 void _setup_gpio() {
     // LORA、SD、EPD use the same SPI, in order to avoid mutual influence;
     // before powering on, all CS signals should be pulled high and in an unselected state;
@@ -154,29 +165,15 @@ void _setup_gpio() {
     detectBoardVariantAndPrepareDisplay(true);
 
     // BQ25896 --- 0x6B
-    Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
+    Wire.beginTransmission(TDECKPRO_BQ25896_ADDRESS);
     if (Wire.endTransmission() == 0) {
-        PPM.init(Wire, BOARD_SDA, BOARD_SCL, BQ25896_SLAVE_ADDRESS);
-        PPM.setSysPowerDownVoltage(3300);
-        PPM.setInputCurrentLimit(3250);
-        launcherConsolePrintf("getInputCurrentLimit: %d mA\n", PPM.getInputCurrentLimit());
-        PPM.disableCurrentLimitPin();
-        PPM.setChargeTargetVoltage(4208);
-        PPM.setPrechargeCurr(64);
-        PPM.setChargerConstantCurr(832);
-        PPM.getChargerConstantCurr();
-        launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
-        PPM.enableMeasure();
-        PPM.enableCharge();
-        PPM.disableOTG();
+        DevicePmic pmicCfg{BOARD_SDA, BOARD_SCL, TDECKPRO_BQ25896_ADDRESS};
+        if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
+
+        hal_gauge_init(DeviceGauge{});
     }
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 #define TFT_BL 40
 
 void scanDevices(void) {
@@ -213,9 +210,8 @@ void _post_setup_gpio() {
     keyboard->flush();
 
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 
     detectBoardVariantAndPrepareDisplay(false);
     if (variant == 2) {
@@ -234,64 +230,17 @@ void _post_setup_gpio() {
         }
     }
 
-    uint8_t address = 0xFF;
-    Wire.beginTransmission(CST328_SLAVE_ADDRESS);
-    if (Wire.endTransmission() == 0) { address = CST328_SLAVE_ADDRESS; }
-
-    uint8_t touchAddress = 0;
-    if (variant == 0) touch.setPins(TOUCH_RST, TOUCH_INT);
-    else if (variant == 1) touch.setPins(TOUCH_RST2, TOUCH_INT);
-    else touch.setPins(-1, TOUCH_INT);
-    bool hasTouch = true;
-    hasTouch = touch.begin(Wire, address, BOARD_SDA, BOARD_SCL);
-    if (!hasTouch) {
+    touch_OK = hal_touch_init(touchCfg(), BOARD_I2C_ADDR_TOUCH /* CST328_SLAVE_ADDRESS */);
+    if (!touch_OK) {
         launcherConsolePrintf("%s\n", String("Failed to find Capacitive Touch !").c_str());
     } else {
         launcherConsolePrintf("%s\n", String("Find Capacitive Touch").c_str());
     }
-    launcherConsolePrintf("%s", String("Model :").c_str());
-    launcherConsolePrintf("%s\n", String(touch.getModelName()).c_str());
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
-int getBattery() {
-    int percent = 0;
-    percent = bq.getChargePcnt();
+int getBattery() { return hal_gauge_get_percent(); }
 
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-}
-
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int dutyCycle;
-    if (brightval == 100) dutyCycle = 250;
-    else if (brightval == 75) dutyCycle = 130;
-    else if (brightval == 50) dutyCycle = 70;
-    else if (brightval == 25) dutyCycle = 20;
-    else if (brightval == 0) dutyCycle = 0;
-    else dutyCycle = ((brightval * 250) / 100);
-
-    log_i("dutyCycle for bright 0-255: %d", dutyCycle);
-    if (!ledcWrite(TFT_BL, dutyCycle)) {
-        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
-        ledcDetach(TFT_BL);
-        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(TFT_BL, dutyCycle);
-    }
-}
-
-struct LTouchPointPro {
-    int16_t x = 0;
-    int16_t y = 0;
-};
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 #define KB_ROWS 4
 #define KB_COLS 10
@@ -398,10 +347,6 @@ int handleSpecialKeys(uint8_t k, bool pressed) {
     return 0;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long _tmptmp;
     static unsigned long nextRepeatTime = 0;
@@ -413,16 +358,14 @@ void InputHandler(void) {
     static bool upHeld = false;
     static bool downHeld = false;
 
-    LTouchPointPro t;
-    uint8_t touched = 0;
+    LTouchPoint t;
+    bool touched = touch_OK && hal_touch_read(touchCfg(), t);
     vTaskDelay(pdMS_TO_TICKS(5));
-    touched = touch.getPoint(&t.x, &t.y, 1);
     if ((launcherMillis() - _tmptmp) > 200 || LongPress) { // one reading each 500ms
         if (launcherGpioRead(0) == LOW) NextPress = true;
 
         // launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d",t.x, t.y, rotation);
         if (touched) {
-            touch.reset();
 
             // launcherConsolePrintf(
             //     "\nPressed x=%d , y=%d, rot: %d, millis=%d, tmp=%d",
@@ -563,11 +506,6 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     tft->fillScreen(BGCOLOR);
     initDisplay(true);
@@ -576,6 +514,6 @@ void powerOff() {
     tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
     tft->display();
     launcherDelayMs(1000);
-    PPM.shutdown();
+    hal_pmic_shutdown();
     while (1) launcherDelayMs(100);
 }
