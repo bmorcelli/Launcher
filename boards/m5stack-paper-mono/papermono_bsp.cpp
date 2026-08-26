@@ -56,6 +56,27 @@ void runP3TouchTelemetry(PaperMonoBsp &bsp) {
 }
 #endif
 
+#if defined(PAPERMONO_P3_SD_BRINGUP)
+void runP3SdTelemetry(PaperMonoBsp &bsp) {
+    const bool mounted = bsp.prepareStorage();
+    Serial.printf("P3_SD_DET=%d\n", bsp.cardPresent());
+    Serial.printf("P3_SD_POWER=%d\n", bsp.storagePowered());
+    Serial.printf("P3_SD_MOUNT=%d\n", mounted);
+    if (mounted) {
+        Serial.printf(
+            "P3_SD_SIZE_MB=%llu\n", static_cast<unsigned long long>(bsp.storageCardSizeBytes() / 1024 / 1024)
+        );
+        uint8_t rootEntries = 0;
+        const bool rootRead = bsp.readStorageRoot(8, rootEntries);
+        Serial.printf("P3_SD_ROOT_READ=%d ENTRIES=%u\n", rootRead, rootEntries);
+    }
+    const PaperMonoStorageReleaseResult cleanup = bsp.releaseStorage();
+    Serial.printf("P3_SD_UNMOUNT=%d\n", cleanup.unmounted);
+    Serial.printf("P3_SD_POWER_OFF=%d\n", cleanup.powerOff);
+    for (;;) { delay(1000); }
+}
+#endif
+
 #endif
 
 } // namespace
@@ -81,6 +102,8 @@ void PaperMonoBsp::begin() {
     emitP2Telemetry(boardReady_);
 #if defined(PAPERMONO_P3_TOUCH_BRINGUP)
     runP3TouchTelemetry(*this);
+#elif defined(PAPERMONO_P3_SD_BRINGUP)
+    runP3SdTelemetry(*this);
 #else
     stopP2SafeRuntime();
 #endif
@@ -117,6 +140,25 @@ bool PaperMonoBsp::beginTouch() {
 bool PaperMonoBsp::touchReady() const { return touch_.ready(); }
 
 bool PaperMonoBsp::readTouch(PaperMonoTouchSample &sample) { return touch_.read(sample); }
+
+bool PaperMonoBsp::prepareStorage() {
+    if (!boardReady_) return false;
+    return storage_.prepare();
+}
+
+bool PaperMonoBsp::cardPresent() const { return storage_.cardPresent(); }
+
+bool PaperMonoBsp::storagePowered() const { return storage_.powered(); }
+
+bool PaperMonoBsp::storageReady() const { return storage_.ready(); }
+
+uint64_t PaperMonoBsp::storageCardSizeBytes() const { return storage_.cardSizeBytes(); }
+
+bool PaperMonoBsp::readStorageRoot(uint8_t maxEntries, uint8_t &entryCount) const {
+    return storage_.readRoot(maxEntries, entryCount);
+}
+
+PaperMonoStorageReleaseResult PaperMonoBsp::releaseStorage() { return storage_.release(); }
 
 int PaperMonoBsp::batteryLevel() const {
     const int percent = M5.Power.getBatteryLevel();
