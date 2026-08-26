@@ -7,12 +7,25 @@ namespace {
 
 constexpr uint8_t kBootstrapAttempts = 3;
 constexpr uint32_t kBootstrapRetryDelayMs = 150;
+constexpr uint16_t kChargerI2cIsolationPin = 1u << 10; // IO11 / PYG11 / PYB_CHG_IIC
 
 enum class BootstrapAttemptResult : uint8_t {
     success,
     pm1Failure,
     ioe1Failure,
 };
+
+bool isolateChargerI2c() {
+    // Keep the IP2315 bus switch disabled throughout configuration: preload
+    // the output latch LOW before making IO11 a push-pull output.
+    bool pinHigh = true;
+    return freeink::m5ioe1::write(kChargerI2cIsolationPin, false) &&
+           freeink::m5ioe1::updateReg16(freeink::m5ioe1::REG_GPIO_DRV_L, kChargerI2cIsolationPin, 0) &&
+           freeink::m5ioe1::updateReg16(
+               freeink::m5ioe1::REG_GPIO_MODE_L, kChargerI2cIsolationPin, kChargerI2cIsolationPin
+           ) &&
+           freeink::m5ioe1::read(kChargerI2cIsolationPin, &pinHigh) && !pinHigh;
+}
 
 BootstrapAttemptResult runFreeInkBootstrapAttempt() {
     // Keep the established FreeInk board-service order while making the
@@ -22,8 +35,8 @@ BootstrapAttemptResult runFreeInkBootstrapAttempt() {
                           freeink::m5pm1::updateReg(freeink::m5pm1::REG_PWR_CFG, freeink::m5pm1::LED_R_EN, 0);
     if (!pm1Ready) return BootstrapAttemptResult::pm1Failure;
 
-    return freeink::m5ioe1::configureOutputs() ? BootstrapAttemptResult::success
-                                               : BootstrapAttemptResult::ioe1Failure;
+    return freeink::m5ioe1::configureOutputs() && isolateChargerI2c() ? BootstrapAttemptResult::success
+                                                                      : BootstrapAttemptResult::ioe1Failure;
 }
 
 } // namespace
