@@ -2,8 +2,12 @@
 
 #include <M5Unified.h>
 
-#if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP)
+#if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
 #include "vendor/freeink_board/M5Ioe1.h"
+#endif
+
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+#include "vendor/freeink_board/M5Pm1.h"
 #endif
 
 namespace {
@@ -108,6 +112,29 @@ void runP3FrontlightTelemetry(PaperMonoBsp &bsp) {
 }
 #endif
 
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+void runP4NoRefreshTelemetry(PaperMonoBsp &bsp) {
+    Serial.println("P4_DNR_BEGIN");
+    const PaperMonoNoRefreshServiceResult result = bsp.runNoRefreshPanelService();
+    Serial.printf("P4_DNR_PWM_OFF_PRE=%d\n", result.pwmOffPre);
+    Serial.printf("P4_DNR_RST_ASSERTED=%d\n", result.resetAsserted);
+    Serial.printf("P4_DNR_RAIL_ON=%d\n", result.railOn);
+    Serial.printf("P4_DNR_SPI_INIT=%d\n", result.spiInitialized);
+    Serial.printf("P4_DNR_RST_RELEASED=%d\n", result.resetReleased);
+    Serial.printf("P4_DNR_BUSY_IDLE_PRE=%d\n", result.busyIdlePre);
+    Serial.printf("P4_DNR_SW_RESET=%d\n", result.softwareReset);
+    Serial.printf("P4_DNR_CONFIG=%d\n", result.configured);
+    Serial.printf("P4_DNR_NO_REFRESH_BOUNDARY=%d\n", result.noRefreshBoundary());
+    Serial.printf("P4_DNR_PWM_OFF_POST=%d\n", result.pwmOffPost);
+    Serial.printf("P4_DNR_RST_SAFE_POST=%d\n", result.resetSafePost);
+    Serial.printf("P4_DNR_RAIL_OFF=%d\n", result.railOff);
+    Serial.printf("P4_DNR_SPI_RELEASE=%d\n", result.spiReleased);
+    Serial.printf("P4_DNR_CLEANUP=%d\n", result.cleanup());
+    Serial.println("P4_DNR_DONE");
+    for (;;) { delay(1000); }
+}
+#endif
+
 #endif
 
 } // namespace
@@ -137,6 +164,8 @@ void PaperMonoBsp::begin() {
     runP3SdTelemetry(*this);
 #elif defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP)
     runP3FrontlightTelemetry(*this);
+#elif defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+    runP4NoRefreshTelemetry(*this);
 #else
     stopP2SafeRuntime();
 #endif
@@ -283,6 +312,67 @@ void PaperMonoBsp::abortFrontlight(bool attemptPwmOff) {
     }
     assertFrontlightEpdReset();
     setFrontlightRail(false);
+}
+#endif
+
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+PaperMonoNoRefreshServiceResult PaperMonoBsp::runNoRefreshPanelService() {
+    PaperMonoNoRefreshServiceResult result;
+    if (!boardReady_) return result;
+
+    // This retains the proven PM1 PWM0-off write/readback semantics without
+    // changing Frontlight configuration or G3 mux ownership.
+    result.pwmOffPre = p4PwmOff();
+    result.resetAsserted = p4SetReset(false);
+    if (result.resetAsserted) {
+        // Reference-derived reset-low interval before rail enable.
+        delay(10);
+    }
+    result.spiInitialized = result.pwmOffPre && result.resetAsserted && display_.beginTransport();
+    if (result.spiInitialized) {
+        result.railOn = p4SetRail(true);
+        if (result.railOn) {
+            // Reference-derived rail stabilization delay.
+            delay(10);
+            result.resetReleased = p4SetReset(true);
+            if (result.resetReleased) {
+                // Reference-derived reset release delay.
+                delay(10);
+                result.busyIdlePre = display_.waitBusyIdle(15000);
+                if (result.busyIdlePre) {
+                    result.softwareReset = display_.softwareReset();
+                    if (result.softwareReset) result.configured = display_.configureNoRefresh();
+                }
+            }
+        }
+    }
+
+    // Containment is attempted exactly once regardless of bring-up outcome.
+    result.pwmOffPost = p4PwmOff();
+    result.resetSafePost = p4SetReset(false);
+    result.railOff = p4SetRail(false);
+    result.spiReleased = display_.releaseTransport();
+    return result;
+}
+
+bool PaperMonoBsp::p4PwmOff() {
+    constexpr uint16_t kPwmEnableMask = 0x1000;
+    if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) return false;
+    uint16_t value = 0;
+    return freeink::m5pm1::readReg16(freeink::m5pm1::REG_PWM0_DUTY_L, &value) &&
+           (value & kPwmEnableMask) == 0;
+}
+
+bool PaperMonoBsp::p4SetRail(bool on) {
+    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_POWER, on)) return false;
+    bool railHigh = !on;
+    return freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_POWER, &railHigh) && railHigh == on;
+}
+
+bool PaperMonoBsp::p4SetReset(bool high) {
+    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_RESET, high)) return false;
+    bool resetHigh = !high;
+    return freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_RESET, &resetHigh) && resetHigh == high;
 }
 #endif
 

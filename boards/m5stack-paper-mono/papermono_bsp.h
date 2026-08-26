@@ -5,6 +5,32 @@
 #include "papermono_storage.h"
 #include "papermono_touch.h"
 
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+#include "papermono_display.h"
+
+struct PaperMonoNoRefreshServiceResult {
+    bool pwmOffPre = false;
+    bool resetAsserted = false;
+    bool railOn = false;
+    bool spiInitialized = false;
+    bool resetReleased = false;
+    bool busyIdlePre = false;
+    bool softwareReset = false;
+    bool configured = false;
+    bool pwmOffPost = false;
+    bool resetSafePost = false;
+    bool railOff = false;
+    bool spiReleased = false;
+
+    bool noRefreshBoundary() const {
+        return pwmOffPre && resetAsserted && railOn && spiInitialized && resetReleased && busyIdlePre &&
+               softwareReset && configured;
+    }
+    bool cleanup() const { return pwmOffPost && resetSafePost && railOff && spiReleased; }
+    bool ok() const { return noRefreshBoundary() && cleanup(); }
+};
+#endif
+
 struct PaperMonoFrontlightReleaseResult {
     bool pwmOff = false;
     bool railOff = false;
@@ -37,6 +63,9 @@ public:
     bool frontlightPwmOff() const;
     bool frontlightRailOn() const;
     bool frontlightEpdResetAsserted() const;
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+    PaperMonoNoRefreshServiceResult runNoRefreshPanelService();
+#endif
     int batteryLevel() const;
     void powerOff();
 
@@ -44,6 +73,11 @@ private:
     bool setFrontlightRail(bool on);
     bool assertFrontlightEpdReset();
     void abortFrontlight(bool attemptPwmOff);
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+    bool p4PwmOff();
+    bool p4SetRail(bool on);
+    bool p4SetReset(bool high);
+#endif
 
     bool beginAttempted_ = false;
     bool boardReady_ = false;
@@ -52,4 +86,7 @@ private:
     PaperMonoFrontlight frontlight_;
     PaperMonoStorage storage_;
     PaperMonoTouch touch_;
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+    PaperMonoDisplay display_;
+#endif
 };
