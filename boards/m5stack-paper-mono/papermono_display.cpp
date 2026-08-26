@@ -1,7 +1,8 @@
 #include "papermono_display.h"
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
 #include <Arduino.h>
+#include <cstring>
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 
@@ -14,6 +15,12 @@ constexpr gpio_num_t kDisplayChipSelect = GPIO_NUM_16;
 constexpr gpio_num_t kDisplayDataCommand = GPIO_NUM_17;
 constexpr gpio_num_t kDisplayBusy = GPIO_NUM_18;
 constexpr int kDisplaySpiHz = 20 * 1000 * 1000;
+
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+constexpr size_t kOtpBytesPerRow = 100;
+constexpr size_t kOtpFrameRows = 480;
+constexpr size_t kOtpPayloadTransferBytes = 4092;
+#endif
 
 bool configurePins() {
     gpio_config_t outputConfig = {};
@@ -48,14 +55,22 @@ bool PaperMonoDisplay::beginTransport() {
     busConfig.sclk_io_num = kDisplayClock;
     busConfig.quadwp_io_num = -1;
     busConfig.quadhd_io_num = -1;
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+    busConfig.max_transfer_sz = kOtpPayloadTransferBytes;
+    if (spi_bus_initialize(kDisplaySpiHost, &busConfig, SPI_DMA_CH_AUTO) != ESP_OK) return false;
+#else
     busConfig.max_transfer_sz = 4;
     if (spi_bus_initialize(kDisplaySpiHost, &busConfig, SPI_DMA_DISABLED) != ESP_OK) return false;
+#endif
     busOwned_ = true;
 
     spi_device_interface_config_t deviceConfig = {};
     deviceConfig.clock_speed_hz = kDisplaySpiHz;
     deviceConfig.mode = 0;
     deviceConfig.spics_io_num = -1;
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+    deviceConfig.flags = SPI_DEVICE_HALFDUPLEX;
+#endif
     deviceConfig.queue_size = 1;
 
     spi_device_handle_t device = nullptr;
@@ -99,6 +114,70 @@ bool PaperMonoDisplay::configureNoRefresh() {
            waitBusyIdle(15000) && sendCommandData(0x3C, kBorder, sizeof(kBorder)) && waitBusyIdle(15000);
 }
 
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+bool PaperMonoDisplay::configureOtpMono() {
+    // Direct port of the official OTP Demo's init_mono_mode() command order.
+    constexpr uint8_t kTemperatureSelection[] = {0x80};
+    constexpr uint8_t kBoosterSoftStart[] = {0xAE, 0xC7, 0xC3, 0xC0, 0x80};
+    constexpr uint8_t kDriverOutput[] = {0xDF, 0x01, 0x02};
+    constexpr uint8_t kBorder[] = {0x01};
+    constexpr uint8_t kNormalRamMode[] = {0x00};
+
+    return softwareReset() && waitBusyIdle(15000) &&
+           sendCommandData(0x18, kTemperatureSelection, sizeof(kTemperatureSelection)) &&
+           waitBusyIdle(15000) && sendCommandData(0x0C, kBoosterSoftStart, sizeof(kBoosterSoftStart)) &&
+           waitBusyIdle(15000) && sendCommandData(0x01, kDriverOutput, sizeof(kDriverOutput)) &&
+           waitBusyIdle(15000) && sendCommandData(0x3C, kBorder, sizeof(kBorder)) && waitBusyIdle(15000) &&
+           sendCommandData(0x21, kNormalRamMode, sizeof(kNormalRamMode)) && setOtpFullWindow();
+}
+
+bool PaperMonoDisplay::writeOtpWhiteBaseline() {
+    uint8_t whiteRow[kOtpBytesPerRow];
+    std::memset(whiteRow, 0xFF, sizeof(whiteRow));
+
+    if (!waitBusyIdle(15000) || !setOtpFullWindow() || !sendCommand(0x26)) return false;
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        if (!sendDataBlock(whiteRow, sizeof(whiteRow))) return false;
+    }
+
+    if (!setOtpFullWindow() || !sendCommand(0x24)) return false;
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        if (!sendDataBlock(whiteRow, sizeof(whiteRow))) return false;
+    }
+    return true;
+}
+
+bool PaperMonoDisplay::writeOtpInitialBlockFrame() {
+    uint8_t rowData[kOtpBytesPerRow];
+    if (!waitBusyIdle(15000) || !setOtpFullWindow() || !sendCommand(0x24)) return false;
+
+    for (size_t row = 0; row < kOtpFrameRows; ++row) {
+        // Direct port of demo_begin(): the upper-left official block is black.
+        std::memset(rowData, 0xFF, sizeof(rowData));
+        if (row < kOtpFrameRows / 2) std::memset(rowData, 0x00, kOtpBytesPerRow / 2);
+        if (!sendDataBlock(rowData, sizeof(rowData))) return false;
+    }
+    return true;
+}
+
+bool PaperMonoDisplay::stageOtpUpdateControl() {
+    constexpr uint8_t kNormalRamMode[] = {0x00};
+    constexpr uint8_t kOtpSingleActivationUpdateControl[] = {0xFF};
+    return waitBusyIdle(15000) && sendCommandData(0x21, kNormalRamMode, sizeof(kNormalRamMode)) &&
+           waitBusyIdle(15000) &&
+           sendCommandData(
+               0x22, kOtpSingleActivationUpdateControl, sizeof(kOtpSingleActivationUpdateControl)
+           );
+}
+
+bool PaperMonoDisplay::activateOtpOnce(uint8_t &activationCount) {
+    activationCount = 0;
+    if (!waitBusyIdle(15000) || !sendCommand(0x20)) return false;
+    activationCount = 1;
+    return waitBusyIdle(15000);
+}
+#endif
+
 bool PaperMonoDisplay::releaseTransport() {
     bool ok = true;
     if (device_ != nullptr) {
@@ -125,6 +204,37 @@ bool PaperMonoDisplay::sendCommandData(uint8_t command, const uint8_t *data, uin
     }
     return true;
 }
+
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+bool PaperMonoDisplay::sendDataBlock(const uint8_t *data, size_t length) {
+    if (device_ == nullptr || length == 0 || gpio_set_level(kDisplayDataCommand, 1) != ESP_OK ||
+        gpio_set_level(kDisplayChipSelect, 0) != ESP_OK) {
+        return false;
+    }
+
+    spi_transaction_t transaction = {};
+    transaction.length = length * 8;
+    transaction.tx_buffer = data;
+    const bool sent =
+        spi_device_polling_transmit(static_cast<spi_device_handle_t>(device_), &transaction) == ESP_OK;
+    return gpio_set_level(kDisplayChipSelect, 1) == ESP_OK && sent;
+}
+
+bool PaperMonoDisplay::setOtpFullWindow() {
+    constexpr uint8_t kDataEntry[] = {0x03};
+    constexpr uint8_t kRamXRange[] = {0x00, 0x00, 0x1F, 0x03};
+    constexpr uint8_t kRamYRange[] = {0x00, 0x00, 0xDF, 0x01};
+    constexpr uint8_t kRamXCounter[] = {0x00, 0x00};
+    constexpr uint8_t kRamYCounter[] = {0x00, 0x00};
+
+    return waitBusyIdle(15000) && sendCommandData(0x11, kDataEntry, sizeof(kDataEntry)) &&
+           waitBusyIdle(15000) && sendCommandData(0x44, kRamXRange, sizeof(kRamXRange)) &&
+           waitBusyIdle(15000) && sendCommandData(0x45, kRamYRange, sizeof(kRamYRange)) &&
+           waitBusyIdle(15000) && sendCommandData(0x4E, kRamXCounter, sizeof(kRamXCounter)) &&
+           waitBusyIdle(15000) && sendCommandData(0x4F, kRamYCounter, sizeof(kRamYCounter)) &&
+           waitBusyIdle(15000);
+}
+#endif
 
 bool PaperMonoDisplay::transmitByte(uint8_t value, bool dataMode) {
     if (device_ == nullptr || gpio_set_level(kDisplayDataCommand, dataMode ? 1 : 0) != ESP_OK ||

@@ -5,9 +5,11 @@
 #include "papermono_storage.h"
 #include "papermono_touch.h"
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
 #include "papermono_display.h"
+#endif
 
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
 struct PaperMonoNoRefreshServiceResult {
     bool pwmOffPre = false;
     bool resetAsserted = false;
@@ -28,6 +30,34 @@ struct PaperMonoNoRefreshServiceResult {
     }
     bool cleanup() const { return pwmOffPost && resetSafePost && railOff && spiReleased; }
     bool ok() const { return noRefreshBoundary() && cleanup(); }
+};
+#endif
+
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+struct PaperMonoOtpSingleRefreshResult {
+    bool pwmOffPre = false;
+    bool resetAsserted = false;
+    bool railOn = false;
+    bool spiInitialized = false;
+    bool resetReleased = false;
+    bool busyIdlePre = false;
+    bool configured = false;
+    bool whiteBaselineWritten = false;
+    bool frameWritten = false;
+    bool updateControl = false;
+    uint8_t activationCount = 0;
+    bool busyDone = false;
+    bool pwmOffPost = false;
+    bool resetSafePost = false;
+    bool railOff = false;
+    bool spiReleased = false;
+
+    bool cleanup() const { return pwmOffPost && resetSafePost && railOff && spiReleased; }
+    bool ok() const {
+        return pwmOffPre && resetAsserted && railOn && spiInitialized && resetReleased && busyIdlePre &&
+               configured && whiteBaselineWritten && frameWritten && updateControl && activationCount == 1 &&
+               busyDone && cleanup();
+    }
 };
 #endif
 
@@ -66,6 +96,9 @@ public:
 #if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
     PaperMonoNoRefreshServiceResult runNoRefreshPanelService();
 #endif
+#if defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
+    PaperMonoOtpSingleRefreshResult runOtpSinglePanelService();
+#endif
     int batteryLevel() const;
     void powerOff();
 
@@ -73,7 +106,7 @@ private:
     bool setFrontlightRail(bool on);
     bool assertFrontlightEpdReset();
     void abortFrontlight(bool attemptPwmOff);
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
     bool p4PwmOff();
     bool p4SetRail(bool on);
     bool p4SetReset(bool high);
@@ -86,7 +119,7 @@ private:
     PaperMonoFrontlight frontlight_;
     PaperMonoStorage storage_;
     PaperMonoTouch touch_;
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH)
+#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH)
     PaperMonoDisplay display_;
 #endif
 };
