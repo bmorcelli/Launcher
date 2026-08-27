@@ -17,6 +17,30 @@ bool submitPaperMonoPackedFrame(const uint8_t *frame, size_t bytes) {
 } // namespace
 #endif
 
+#if defined(PAPERMONO_P5_A1B4_ONE_SHOT_FULL_REFRESH) && defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+namespace {
+bool paperMonoA1b4FullRefreshLatched = false;
+
+void runPaperMonoA1b4OneShotFullRefresh() {
+    if (paperMonoA1b4FullRefreshLatched || !PaperMonoBsp::instance().submittedMonochromeFrameReady()) return;
+
+    Serial.println("[P5-A1B4] staged-frame=valid");
+
+    // Latch before entering the manager so a failure or re-entrant call cannot retry.
+    paperMonoA1b4FullRefreshLatched = true;
+    Serial.println("[P5-A1B4] full-request=issued");
+    const PaperMonoRefreshResult result =
+        PaperMonoBsp::instance().requestRefresh(PaperMonoRefreshRequest::Full);
+    Serial.printf(
+        "[P5-A1B4] result status=%u executed=%u\n",
+        static_cast<unsigned>(result.status),
+        static_cast<unsigned>(result.executedType)
+    );
+    Serial.println("[P5-A1B4] one-shot-latch=complete");
+}
+} // namespace
+#endif
+
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
@@ -34,7 +58,11 @@ void _setup_gpio() {
 ** Location: main.cpp
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
-void _post_setup_gpio() {}
+void _post_setup_gpio() {
+#if defined(PAPERMONO_P5_A1B4_ONE_SHOT_FULL_REFRESH) && defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+    runPaperMonoA1b4OneShotFullRefresh();
+#endif
+}
 
 /***************************************************************************************
 ** Function name: getBattery()
