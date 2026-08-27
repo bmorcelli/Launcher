@@ -2131,7 +2131,7 @@ void startWebUiLoopCommon(bool mode_ap) {
     if (!mode_ap) txt = launcherWifiLocalIp().c_str();
     else txt = launcherWifiApIp().c_str();
 
-#ifndef HEADLESS
+#if !defined(HEADLESS) || defined(HEADLESS_WITH_TFT)
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, ALCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
     setTftDisplay(7, 7, ALCOLOR, _fp, BGCOLOR);
@@ -2148,14 +2148,16 @@ void startWebUiLoopCommon(bool mode_ap) {
     setTftDisplay(7, tftHeight - 39, ALCOLOR, _fp);
     tft->drawCentreString("press Sel to stop", tftWidth / 2, tftHeight - 15, 1);
     tft->display(false);
+#endif
 
-    while (!check(SelPress)) {
-#else
     launcherConsolePrintln("Access: http://launcher.local");
     launcherConsolePrintf("IP %s\n", txt.c_str());
     launcherConsolePrintf("Usr: %s\n", wui_usr.c_str());
     launcherConsolePrintf("Pwd: %s\n", wui_pwd.c_str());
 
+#if !defined(HEADLESS)
+    while (!check(SelPress)) {
+#else
     while (1) {
 #endif
         if (shouldReboot) { return (void)releaseHeapObjectsAndReboot(); }

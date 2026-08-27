@@ -225,8 +225,7 @@ void setup() {
     String fileToCopy;
 
 // Init Display
-#if !defined(HEADLESS)
-    // tft->setAttribute(PSRAM_ENABLE,true);
+#if !defined(HEADLESS) || defined(HEADLESS_WITH_TFT)
     RAM_LOG("before-tft-begin");
     tft->begin();
     RAM_LOG("after-tft-begin");
@@ -706,7 +705,6 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
                         launcherConsolePrintln("Wrong Password");
                         break;
                     }
-                    vTaskDelay(pdTICKS_TO_MS(500));
 #if LED > 0
                     launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
 #endif

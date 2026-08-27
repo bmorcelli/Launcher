@@ -6,8 +6,13 @@
 #include <SD_MMC.h>
 #include <interface.h>
 
+#if defined(CONFIG_IDF_TARGET_ESP32C6)
+#define SEL_BTN 9
+#elif defined(CONFIG_IDF_TARGET_ESP32C5)
+#define SEL_BTN 28
+#else
 #define SEL_BTN 0
-
+#endif
 void _setup_gpio() {
 #ifdef USE_SD_MMC
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);

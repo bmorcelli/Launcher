@@ -15,7 +15,15 @@ void _setup_gpio() {
     pinMode(DW_BTN, INPUT);  // down button
 }
 
-void _post_setup_gpio() {}
+void _post_setup_gpio() {
+    tft->fillScreen(BGCOLOR);
+    tft->setTextSize(_fg);
+    tft->drawCentreString("LAUNCHER", TFT_WIDTH / 2, 200);
+    tft->setTextSize(_fm);
+    tft->drawCentreString("Press top Button to start", TFT_WIDTH / 2, 300);
+    tft->drawCentreString("Launcher WebUI", TFT_WIDTH / 2, 350);
+    tft->display();
+}
 
 int getBattery() {
     int percent;

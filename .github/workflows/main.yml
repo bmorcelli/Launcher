@@ -62,6 +62,7 @@
             - { env: "m5stack-paper-s3"           }
             - { env: "m5stack-paper"              }
             - { env: "m5stack-paper-color"        }
+            - { env: "m5stack-paper-mono"         }
             - { env: "m5stack-sticks3"            }
             - { env: "headless-esp32s3-4mb"       }
             - { env: "headless-esp32s3-8mb"       }
@@ -122,6 +123,9 @@
             - { env: "elecrow-esp32p4-7in"        }
             - { env: "elecrow-esp32s3-5in"        }
             - { env: "waveshare-esp32-s3-lcd-147" }
+            - { env: "waveshare-esp32-c5-lcd-147" }
+            - { env: "waveshare-esp32-c6-lcd-147" }
+            - { env: "waveshare-esp32-c6-lcd-130" }
             - { env: "ES3C28P"                    }
             - { env: "xteink-x3-x4"               }
             - { env: "xteink-x4pro"               }
