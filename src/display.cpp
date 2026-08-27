@@ -3,6 +3,7 @@
 #include "cardkb2.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
+#include "interface.h"
 #include "mykeyboard.h"
 #include "onlineLauncher.h"
 #include "powerSave.h"
@@ -1011,6 +1012,7 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
     if (_wifi && wifi != _wifi) drawWifiStatus(bat > 0);
     wifi = _wifi;
     tft->display(false);
+    _post_main_menu_display();
 }
 /***************************************************************************************
 ** Function name: launcherBootAppShortcuts

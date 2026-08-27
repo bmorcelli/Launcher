@@ -10,33 +10,94 @@
 namespace {
 constexpr size_t kPaperMonoControllerFrameBytes = 48000U;
 
+class PaperMonoInteractiveRefreshScheduler {
+public:
+    void noteFrameStaged() {
+        uint32_t generation = 0;
+        portENTER_CRITICAL(&mutex_);
+        ++frameGeneration_;
+        generation = frameGeneration_;
+        portEXIT_CRITICAL(&mutex_);
+        Serial.printf("[P5-B1] staged generation=%lu\n", static_cast<unsigned long>(generation));
+    }
+
+    void armInteraction() {
+        uint32_t generation = 0;
+        bool armed = false;
+        portENTER_CRITICAL(&mutex_);
+        if (!interactionPending_) {
+            interactionPending_ = true;
+            armedGeneration_ = frameGeneration_;
+            generation = armedGeneration_;
+            armed = true;
+        }
+        portEXIT_CRITICAL(&mutex_);
+
+        if (armed) {
+            Serial.printf(
+                "[P5-B1] interaction=armed generation=%lu\n", static_cast<unsigned long>(generation)
+            );
+        }
+    }
+
+    void service() {
+        uint32_t generation = 0;
+        bool bootRefresh = false;
+        bool interactionRefresh = false;
+
+        portENTER_CRITICAL(&mutex_);
+        const bool bootEligible = bootRefreshPending_ && frameGeneration_ != 0U;
+        const bool interactionEligible = interactionPending_ && frameGeneration_ > armedGeneration_;
+        if (bootEligible || interactionEligible) {
+            generation = frameGeneration_;
+            bootRefresh = bootEligible;
+            interactionRefresh = interactionEligible;
+            bootRefreshPending_ = false;
+            if (interactionEligible) interactionPending_ = false;
+            lastRefreshedGeneration_ = generation;
+        }
+        portEXIT_CRITICAL(&mutex_);
+
+        if (!bootRefresh && !interactionRefresh) return;
+
+        if (bootRefresh) {
+            Serial.printf(
+                "[P5-B1] boot-full=issued generation=%lu\n", static_cast<unsigned long>(generation)
+            );
+        } else {
+            Serial.printf(
+                "[P5-B1] interaction-full=issued generation=%lu\n", static_cast<unsigned long>(generation)
+            );
+        }
+
+        const PaperMonoRefreshResult result =
+            PaperMonoBsp::instance().requestRefresh(PaperMonoRefreshRequest::Full);
+        Serial.printf(
+            "[P5-B1] refresh-result status=%u executed=%u generation=%lu\n",
+            static_cast<unsigned>(result.status),
+            static_cast<unsigned>(result.executedType),
+            static_cast<unsigned long>(generation)
+        );
+
+        if (interactionRefresh) { Serial.println("[P5-B1] interaction=disarmed"); }
+    }
+
+private:
+    portMUX_TYPE mutex_ = portMUX_INITIALIZER_UNLOCKED;
+    uint32_t frameGeneration_ = 0;
+    uint32_t armedGeneration_ = 0;
+    uint32_t lastRefreshedGeneration_ = 0;
+    bool bootRefreshPending_ = true;
+    bool interactionPending_ = false;
+};
+
+PaperMonoInteractiveRefreshScheduler paperMonoRefreshScheduler;
+
 bool submitPaperMonoPackedFrame(const uint8_t *frame, size_t bytes) {
     if (frame == nullptr || bytes != kPaperMonoControllerFrameBytes) return false;
-    return PaperMonoBsp::instance().submitMonochromeFrame(frame, kPaperMonoControllerFrameBytes);
-}
-} // namespace
-#endif
-
-#if defined(PAPERMONO_P5_A1B4_ONE_SHOT_FULL_REFRESH) && defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
-namespace {
-bool paperMonoA1b4FullRefreshLatched = false;
-
-void runPaperMonoA1b4OneShotFullRefresh() {
-    if (paperMonoA1b4FullRefreshLatched || !PaperMonoBsp::instance().submittedMonochromeFrameReady()) return;
-
-    Serial.println("[P5-A1B4] staged-frame=valid");
-
-    // Latch before entering the manager so a failure or re-entrant call cannot retry.
-    paperMonoA1b4FullRefreshLatched = true;
-    Serial.println("[P5-A1B4] full-request=issued");
-    const PaperMonoRefreshResult result =
-        PaperMonoBsp::instance().requestRefresh(PaperMonoRefreshRequest::Full);
-    Serial.printf(
-        "[P5-A1B4] result status=%u executed=%u\n",
-        static_cast<unsigned>(result.status),
-        static_cast<unsigned>(result.executedType)
-    );
-    Serial.println("[P5-A1B4] one-shot-latch=complete");
+    const bool staged = PaperMonoBsp::instance().submitMonochromeFrame(frame, kPaperMonoControllerFrameBytes);
+    if (staged) paperMonoRefreshScheduler.noteFrameStaged();
+    return staged;
 }
 } // namespace
 #endif
@@ -59,8 +120,14 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-#if defined(PAPERMONO_P5_A1B4_ONE_SHOT_FULL_REFRESH) && defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
-    runPaperMonoA1b4OneShotFullRefresh();
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+    paperMonoRefreshScheduler.service();
+#endif
+}
+
+void _post_main_menu_display() {
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+    paperMonoRefreshScheduler.service();
 #endif
 }
 
@@ -84,18 +151,28 @@ void _setBrightness(uint8_t brightval) { (void)brightval; }
 **********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
+    static bool touchWasDown = false;
     if (launcherMillis() - tm > 200 || LongPress) {
         PaperMonoTouchSample sample;
         if (PaperMonoBsp::instance().readTouch(sample) && sample.touched) {
             tm = launcherMillis();
+            if (touchWasDown) {
+                touchPoint.pressed = false;
+                return;
+            }
+            touchWasDown = true;
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+            paperMonoRefreshScheduler.armInteraction();
+#endif
             touchPoint.x = sample.x;
             touchPoint.y = sample.y;
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
         } else {
+            touchWasDown = false;
             touchPoint.pressed = false;
         }
     }

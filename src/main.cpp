@@ -161,6 +161,9 @@ void _setup_gpio() {}
 void _post_setup_gpio() __attribute__((weak));
 void _post_setup_gpio() {}
 
+void _post_main_menu_display() __attribute__((weak));
+void _post_main_menu_display() {}
+
 /*********************************************************************
 **  Function: _late_setup_gpio()
 **  Sets up a weak (empty) function to be replaced by /ports/* /interface.h
