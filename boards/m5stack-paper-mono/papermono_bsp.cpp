@@ -1,26 +1,29 @@
 #include "papermono_bsp.h"
 
+#if !defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
 #include <M5Unified.h>
+#endif
 
-#if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
-    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP) ||             \
+    defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
+    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "vendor/freeink_board/M5Ioe1.h"
 #endif
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
-    defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||             \
+    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "vendor/freeink_board/M5Pm1.h"
 #endif
 
-#if defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "papermono_refresh_manager.h"
 #endif
 
 namespace {
 
-#if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP)
+#if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP) && !defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
 
 constexpr uint32_t kTelemetryAttachWindowMs = 10000;
 
@@ -320,7 +323,7 @@ void PaperMonoBsp::begin() {
 
     delay(500);
 
-#if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP)
+#if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP) && !defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
     beginP2Telemetry();
     boardReady_ = bootstrap_.begin();
 #if defined(PAPERMONO_P3_TOUCH_BRINGUP)
@@ -348,25 +351,8 @@ void PaperMonoBsp::begin() {
     stopP2SafeRuntime();
 #endif
 #else
-    auto cfg = M5.config();
-    cfg.clear_display = false;
-    cfg.internal_mic = false;
-    cfg.internal_spk = false;
-    cfg.internal_imu = false;
-#if defined(PAPERMONO_P2_BOOT_TELEMETRY)
-    Serial.println("P27D_BEGIN");
-#endif
-    M5.begin(cfg);
-#if defined(PAPERMONO_P2_BOOT_TELEMETRY)
-    Serial.println("P27D_M5_BEGIN_RETURNED");
-    Serial.printf("P27D_BOARD_PAPERMONO=%d\n", M5.getBoard() == m5::board_t::board_M5PaperMono);
-    Serial.printf("P27D_DISPLAY_COUNT=%d\n", static_cast<int>(M5.getDisplayCount()));
-    Serial.printf("P27D_PMIC_M5PM1=%d\n", M5.Power.getType() == m5::Power_Class::pmic_m5pm1);
-    Serial.println("P27D_DONE");
-#endif
-    M5.Display.setAutoDisplay(false);
-
-    boardReady_ = true;
+    boardReady_ = bootstrap_.begin();
+    if (boardReady_) beginTouch();
 #endif
 }
 
@@ -578,8 +564,8 @@ PaperMonoOtpSingleRefreshResult PaperMonoBsp::runOtpSinglePanelService() {
 }
 #endif
 
-#if defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
-    defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||               \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     PaperMonoOtpFullRefreshResult result;
     if (!boardReady_) return result;
@@ -625,16 +611,17 @@ PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     result.resetSafePost = p4SetReset(false);
     result.railOff = p4SetRail(false);
     result.spiReleased = display_.releaseTransport();
-#if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||               \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
     if (result.ok()) display_.seedOtpPreviousFromPending();
 #endif
     return result;
 }
 #endif
 
-#if defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) || defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) ||                  \
-    defined(PAPERMONO_P4_OTP_FULL_REFRESH) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||                      \
-    defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||             \
+    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoBsp::p4PwmOff() {
     constexpr uint16_t kPwmEnableMask = 0x1000;
     if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) return false;
@@ -656,10 +643,13 @@ bool PaperMonoBsp::p4SetReset(bool high) {
 }
 #endif
 
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_REPEATED_PARTIAL) ||               \
+    defined(PAPERMONO_P4_REFRESH_MANAGER)
 #if defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoBsp::prepareRepeatedPartialTarget(bool inverse) {
     return display_.prepareOtpQuadrantTarget(inverse);
 }
+#endif
 
 bool PaperMonoBsp::repeatedPartialShadowValid() const { return display_.otpPreviousFrameValid(); }
 
@@ -702,9 +692,32 @@ PaperMonoRepeatedPartialResult PaperMonoBsp::runOtpRepeatedPartialPanelService()
 }
 #endif
 
-int PaperMonoBsp::batteryLevel() const {
-    const int percent = M5.Power.getBatteryLevel();
-    return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+bool PaperMonoBsp::submitMonochromeFrame(const uint8_t *packedFrame, size_t bytes) {
+    if (!boardReady_) return false;
+    return display_.submitMonochromeFrame(packedFrame, bytes);
 }
 
-void PaperMonoBsp::powerOff() { M5.Power.powerOff(); }
+bool PaperMonoBsp::submittedMonochromeFrameReady() const { return display_.pendingFrameValid(); }
+
+PaperMonoRefreshResult PaperMonoBsp::requestRefresh(PaperMonoRefreshRequest request) {
+    static PaperMonoRefreshManager manager(*this);
+    return manager.request(request);
+}
+#endif
+
+int PaperMonoBsp::batteryLevel() const {
+    // Launcher treats 0 as the established unknown/unavailable battery sentinel.
+    // A real PaperMono PM1 percentage remains deferred pending source-backed support.
+    return 0;
+}
+
+void PaperMonoBsp::powerOff() {
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||             \
+    defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
+    defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
+    (void)freeink::m5pm1::requestShutdown();
+#else
+    M5.Power.powerOff();
+#endif
+}

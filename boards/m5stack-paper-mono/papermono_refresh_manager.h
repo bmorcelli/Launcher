@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(PAPERMONO_P4_REFRESH_MANAGER)
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include <stdint.h>
 
 class PaperMonoBsp;
@@ -44,16 +44,22 @@ public:
 
     explicit PaperMonoRefreshManager(PaperMonoBsp &bsp);
 
-    // inverseTarget is only the isolated P4 partial-target selector. The frozen
-    // full primitive has one verified original target, so Full ignores it.
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+    PaperMonoRefreshResult request(PaperMonoRefreshRequest request);
+#endif
+
+#if defined(PAPERMONO_P4_REFRESH_MANAGER)
+    // Isolated validation-only partial-target selector.
     PaperMonoRefreshResult request(PaperMonoRefreshRequest request, bool inverseTarget);
+#endif
 
     bool firstRefreshMustFull() const;
     bool refreshInProgress() const;
 
-    // Test-only: this target is compiled only by PAPERMONO_P4_REFRESH_MANAGER.
-    // It cannot establish shadow validity or bypass a backend operation.
+#if defined(PAPERMONO_P4_REFRESH_MANAGER)
+    // Test-only: this target cannot establish shadow validity or bypass a backend operation.
     bool seedPartialCountForTestNine();
+#endif
 
 private:
     PaperMonoRefreshResult resultFor(

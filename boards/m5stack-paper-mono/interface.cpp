@@ -1,6 +1,5 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <M5Unified.h>
 #include <interface.h>
 
 #include "papermono_bsp.h"
@@ -22,7 +21,7 @@ void _post_setup_gpio() {}
 /***************************************************************************************
 ** Function name: getBattery()
 ** Location: display.cpp
-** Description:   Delivers the battery value from 1-100
+** Description:   Delivers the battery value from 0-100; 0 is unavailable
 ***************************************************************************************/
 int getBattery() { return PaperMonoBsp::instance().batteryLevel(); }
 
@@ -35,21 +34,19 @@ void _setBrightness(uint8_t brightval) { (void)brightval; }
 
 /*********************************************************************
 ** Function: InputHandler
-** Handles touch input through the M5Unified abstraction. PaperMono rail/reset
-** sequencing remains deferred to a later controlled peripheral slice.
+** Handles touch through the board-local PaperMono service.
 **********************************************************************/
 void InputHandler(void) {
     static long tm = 0;
     if (launcherMillis() - tm > 200 || LongPress) {
-        M5.update();
-        auto t = M5.Touch.getDetail();
-        if (t.isPressed() || t.isHolding()) {
+        PaperMonoTouchSample sample;
+        if (PaperMonoBsp::instance().readTouch(sample) && sample.touched) {
             tm = launcherMillis();
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
 
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
+            touchPoint.x = sample.x;
+            touchPoint.y = sample.y;
             touchPoint.pressed = true;
             touchHeatMap(touchPoint);
         } else {
@@ -61,6 +58,6 @@ void InputHandler(void) {
 /*********************************************************************
 ** Function: powerOff
 ** Location: mykeyboard.cpp
-** Description: retain M5Unified's PaperMono-aware shutdown abstraction
+** Description: use the board-local PaperMono PM1 shutdown service
 **********************************************************************/
 void powerOff() { PaperMonoBsp::instance().powerOff(); }
