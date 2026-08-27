@@ -109,6 +109,22 @@
         },
         {
             "display": true,
+            "name": "Paper Mono",
+            "description": "",
+            "link": "https://shop.m5stack.com/products/m5papermono-with-lora-nfc-800x480-3-97-eink-display?ref=Pirata",
+            "family": "ESP32-S3",
+            "id": "m5stack-paper-mono"
+        },
+        {
+            "display": true,
+            "name": "Paper Color",
+            "description": "",
+            "link": "https://shop.m5stack.com/products/m5paper-color-esp32s3-dev-kit?ref=Pirata",
+            "family": "ESP32-S3",
+            "id": "m5stack-paper-color"
+        },
+        {
+            "display": true,
             "released_at": "2.6.6",
             "name": "StickS3",
             "description": "",
@@ -694,6 +710,30 @@
             "link": "https://www.waveshare.com/wiki/ESP32-S3-LCD-1.47",
             "family": "ESP32-S3",
             "id": "waveshare-esp32-s3-lcd-147"
+        },
+        {
+            "display": true,
+            "name": "Waveshare ESP32-C5 LCD 1.47in",
+            "description": "",
+            "link": "https://www.waveshare.com/wiki/ESP32-C5-LCD-1.47",
+            "family": "ESP32-C5",
+            "id": "waveshare-esp32-c5-lcd-147"
+        },
+        {
+            "display": true,
+            "name": "Waveshare ESP32-C6 LCD 1.47in",
+            "description": "",
+            "link": "https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47",
+            "family": "ESP32-C6",
+            "id": "waveshare-esp32-c6-lcd-147"
+        },
+        {
+            "display": true,
+            "name": "Waveshare ESP32-C6 LCD 1.3in",
+            "description": "",
+            "link": "https://www.waveshare.com/wiki/ESP32-C6-LCD-1.3",
+            "family": "ESP32-C6",
+            "id": "waveshare-esp32-c6-lcd-130"
         }
     ],
     "xteink": [
