@@ -2,14 +2,32 @@
 #include "powerSave.h"
 #include <interface.h>
 
+#include <DisplayDrivers.h>
+
 #include "papermono_bsp.h"
+
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+namespace {
+constexpr size_t kPaperMonoControllerFrameBytes = 48000U;
+
+bool submitPaperMonoPackedFrame(const uint8_t *frame, size_t bytes) {
+    if (frame == nullptr || bytes != kPaperMonoControllerFrameBytes) return false;
+    return PaperMonoBsp::instance().submitMonochromeFrame(frame, kPaperMonoControllerFrameBytes);
+}
+} // namespace
+#endif
 
 /***************************************************************************************
 ** Function name: _setup_gpio()
 ** Location: main.cpp
 ** Description:   initial setup for the device
 ***************************************************************************************/
-void _setup_gpio() { PaperMonoBsp::instance().begin(); }
+void _setup_gpio() {
+    PaperMonoBsp::instance().begin();
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+    tft_display::registerPaperMonoFrameSubmitCallback(submitPaperMonoPackedFrame);
+#endif
+}
 
 /***************************************************************************************
 ** Function name: _post_setup_gpio()
