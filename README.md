@@ -115,6 +115,7 @@ Things that need to be done in future updates
      * [x] **BETA**: Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html)
      * [x] **ATENTION**: Arduino **Nesso N1** and **M5Stack StickS3** Navigation has changed, Front button short press to move Next and Long press to Select, Side button short press to mode Previous an long press to Escape.. on Keyboard, holding Escape will change the moviment from Left/Up to Right/Down, so typing will be easier to handle (after you master it).
      * [x] **Added** option to opt-out from Automatically connect to a known Network.
+     * [x] **Added** possibility to create new files using the WebUI.
      * [x] **Changed** brightness control, now it uses a slider bar with 5% steps.
      * [x] Moved display drivers handling to [DisplayDrivers](https://github.com/bmorcelli/DisplayDrivers) lib, using its superclass to handle all display drivers used by Launcher. This removed `tft.h`/`tft_inits.h` and the Arduino_GFX DSI patch scripts from the project.
      * [x] Reorganized boards files to make porting easier. It now needs only 2 files and add it to CI/CD. Per-board JSON files were replaced by one per chip family (`esp32`, `esp32s2`, `esp32s3`, `esp32c3`, `esp32c5`, `esp32c6`, `esp32p4`), and envs that only differ by pinout were merged (`m5stack-plus`, `lilygo-t-embed-all`, `xteink-x3-x4`).

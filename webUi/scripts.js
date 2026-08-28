@@ -4,12 +4,10 @@ function toggleConfigOverlay(){_('configOverlay').classList.toggle('open')}
 function closeConfigOverlay(event){if(event.target.id==='configOverlay'||event.target.closest('#configBox .row'))_('configOverlay').classList.remove('open')}
 function closePmanResizeOverlay(event){if(event.target.id==='pmanResizeOverlay')_('pmanResizeOverlay').classList.remove('open')}
 function toggleRow(b){const r=b.closest('tr').nextElementSibling;r.style.display=r.style.display==='none'?'table-row':'none'}
-const editableExts = new Set(['txt','ini','conf','c','cpp','h','hpp','js','css','htm','html','ts']);
+const editableExts = new Set(['txt','ini','conf','c','cpp','h','hpp','js','css','htm','html','ts', 'json']);
 function isEditable(name) { return editableExts.has(name.split('.').pop().toLowerCase()); }
-let editingFile = '';
 function editFile(path) {
-    editingFile = path;
-    _('editor-title').textContent = path;
+    _('editor-title').value = path;
     _('editor-content').value = 'Loading...';
     _('editor').style.display = 'block';
     const xhr = new XMLHttpRequest();
@@ -18,11 +16,25 @@ function editFile(path) {
     xhr.onerror = () => { _('editor-content').value = 'Error loading file'; };
     xhr.send();
 }
+function newFile(folder) {
+    const base = folder === '/' ? '' : folder;
+    _('editor-title').value = base + '/NewFile.txt';
+    _('editor-content').value = '';
+    _('editor').style.display = 'block';
+}
 function saveFile() {
+    const fileName = _('editor-title').value.trim();
+    if (isNullOrEmpty(fileName)) {
+        window.alert('Invalid file name');
+        return;
+    }
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/editfile?name=' + encodeURIComponent(editingFile));
+    xhr.open('POST', '/editfile?name=' + encodeURIComponent(fileName));
     xhr.setRequestHeader('Content-Type', 'text/plain');
-    xhr.onload = () => { _('status').innerHTML = xhr.responseText === 'OK' ? 'File saved!' : xhr.responseText; };
+    xhr.onload = () => {
+        _('status').innerHTML = xhr.responseText === 'OK' ? 'File saved!' : xhr.responseText;
+        if (xhr.responseText === 'OK') listFilesButton(_('actualFolder').value);
+    };
     xhr.send(_('editor-content').value);
 }
 
@@ -484,7 +496,8 @@ function listFilesButton(folders) {
         "<input type='file' id='fol' webkitdirectory directory multiple style='display:none'>" +
         "<div class='row' style='margin:6px 0'><button onclick=\"_('fa').click()\">&#8679; Files</button>" +
         "<button onclick=\"_('fol').click()\">&#128193; Folder</button>" +
-        "<button onclick=\"CreateFolder('" + folders + "')\">+ New Folder</button></div>";
+        "<button onclick=\"CreateFolder('" + folders + "')\">+ New Folder</button>" +
+        "<button onclick=\"newFile('" + folders + "')\">+ New File</button></div>";
     _("fa").onchange = e => handleFileForm(e.target.files, folders);
     _("fol").onchange = e => handleFileForm(e.target.files, folders);
     _("updetails").innerHTML = "";
