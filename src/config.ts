@@ -235,6 +235,9 @@ const parseCalibration = (lines: string[]): TouchCalibration | null => {
 const firstNonEmptyLine = (lines: string[]): string =>
   lines.map((l) => l.trim()).find((l) => l.length > 0) ?? "";
 
+const findLauncherVersionLine = (lines: string[]): string =>
+  lines.map((l) => l.trim()).find((l) => l.startsWith("Launcher")) ?? "";
+
 // ---------------------------------------------------------------------------
 // Device settings ("settings get" / "settings set <json>")
 //
@@ -1723,12 +1726,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // few times in case the board is still mid-boot.
     const MAX_HANDSHAKE_ATTEMPTS = 5;
     let version = "";
+    let lastVersionReply: string[] = [];
     for (let attempt = 1; attempt <= MAX_HANDSHAKE_ATTEMPTS; attempt++) {
       setStatus(`Reading device info (attempt ${attempt}/${MAX_HANDSHAKE_ATTEMPTS})...`);
       const bannerPromise = waitForLine(activeSession, (line) => line.includes(BOOT_BANNER), 4000).catch(
         () => null
       );
       const versionLines = await sendAndCollect(activeSession, "version", { idleMs: 300, maxMs: 3000 });
+      lastVersionReply = versionLines;
       appendLog("version", "tx");
       const bannerLine = await bannerPromise;
       if (bannerLine) {
@@ -1738,7 +1743,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await sleep(1000);
         continue;
       }
-      version = firstNonEmptyLine(versionLines);
+      version = findLauncherVersionLine(versionLines);
       if (version) break;
     }
 
@@ -1746,8 +1751,9 @@ document.addEventListener("DOMContentLoaded", () => {
     appendLog("whoami", "tx");
     const whoami = firstNonEmptyLine(whoamiLines);
 
-    if (!version.startsWith("Launcher")) {
-      throw new Error("Launcher not detected");
+    if (!version) {
+      const reply = firstNonEmptyLine(lastVersionReply);
+      throw new Error(reply ? `Launcher not detected. Version reply: ${reply}` : "Launcher not detected");
     }
 
     const helpLines = await sendAndCollect(activeSession, "help", { idleMs: 500, maxMs: 5000 });
@@ -1833,10 +1839,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const msg = err instanceof Error ? err.message : String(err);
       appendLog(msg, "err");
       setStatus(`Connection failed: ${msg}`);
-      if (msg === "Launcher not detected") {
+      if (msg.startsWith("Launcher not detected")) {
         showAlertModal(
           "Launcher not detected",
-          "The connected device did not report a Launcher version banner. Make sure the Launcher app is running on the board and try again."
+          "The connected device did not report a Launcher version response. Make sure the Launcher app is running on the board and try again."
         );
         await disconnect();
       }

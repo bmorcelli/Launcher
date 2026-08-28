@@ -196,6 +196,7 @@ const parseCalibration = (lines) => {
     return null;
 };
 const firstNonEmptyLine = (lines) => lines.map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+const findLauncherVersionLine = (lines) => lines.map((l) => l.trim()).find((l) => l.startsWith("Launcher")) ?? "";
 const SETTINGS_NON_EDITABLE_KEYS = new Set(["wifi", "favorite"]);
 // Matches "aa:bb:cc:dd:ee:ff" or "aa:bb:cc:dd:ee:ff-Device Name".
 const ROTATION_KEY_RE = /^([0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2}(-.*)?$/;
@@ -1542,10 +1543,12 @@ document.addEventListener("DOMContentLoaded", () => {
         // few times in case the board is still mid-boot.
         const MAX_HANDSHAKE_ATTEMPTS = 5;
         let version = "";
+        let lastVersionReply = [];
         for (let attempt = 1; attempt <= MAX_HANDSHAKE_ATTEMPTS; attempt++) {
             setStatus(`Reading device info (attempt ${attempt}/${MAX_HANDSHAKE_ATTEMPTS})...`);
             const bannerPromise = waitForLine(activeSession, (line) => line.includes(BOOT_BANNER), 4000).catch(() => null);
             const versionLines = await sendAndCollect(activeSession, "version", { idleMs: 300, maxMs: 3000 });
+            lastVersionReply = versionLines;
             appendLog("version", "tx");
             const bannerLine = await bannerPromise;
             if (bannerLine) {
@@ -1555,15 +1558,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 await sleep(1000);
                 continue;
             }
-            version = firstNonEmptyLine(versionLines);
+            version = findLauncherVersionLine(versionLines);
             if (version)
                 break;
         }
         const whoamiLines = await sendAndCollect(activeSession, "whoami", { idleMs: 300, maxMs: 4000 });
         appendLog("whoami", "tx");
         const whoami = firstNonEmptyLine(whoamiLines);
-        if (!version.startsWith("Launcher")) {
-            throw new Error("Launcher not detected");
+        if (!version) {
+            const reply = firstNonEmptyLine(lastVersionReply);
+            throw new Error(reply ? `Launcher not detected. Version reply: ${reply}` : "Launcher not detected");
         }
         const helpLines = await sendAndCollect(activeSession, "help", { idleMs: 500, maxMs: 5000 });
         appendLog("help", "tx");
@@ -1643,8 +1647,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const msg = err instanceof Error ? err.message : String(err);
             appendLog(msg, "err");
             setStatus(`Connection failed: ${msg}`);
-            if (msg === "Launcher not detected") {
-                showAlertModal("Launcher not detected", "The connected device did not report a Launcher version banner. Make sure the Launcher app is running on the board and try again.");
+            if (msg.startsWith("Launcher not detected")) {
+                showAlertModal("Launcher not detected", "The connected device did not report a Launcher version response. Make sure the Launcher app is running on the board and try again.");
                 await disconnect();
             }
         }
