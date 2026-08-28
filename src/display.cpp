@@ -934,8 +934,13 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
 
         if (!fullRedraw && i != index && i != prevIndex) continue;
 
+#if defined(STICKY_MONOCHROME)
+        uint16_t itemColor = BLACK;
+        uint16_t selectedColor = BLACK;
+#else
         uint16_t itemColor = opt[i].active ? opt[i].color : DARKGREY;
         uint16_t selectedColor = opt[i].active ? opt[i].color : LIGHTGREY;
+#endif
         int f_size = maxIconTextSize;
         const int textLimit = w - 10;
         tft->setTextSize(f_size);

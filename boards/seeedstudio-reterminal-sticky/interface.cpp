@@ -66,6 +66,7 @@ static DeviceTouch touchCfg() {
     DeviceTouch cfg;
     cfg.pin_rst = TOUCH_RST;
     cfg.pin_irq = TOUCH_INT;
+    cfg.gt911_int_sync = true;
     return cfg;
 }
 
