@@ -402,6 +402,7 @@ Launcher:
     RAM_LOG("launcher-label");
     LongPress = false;
     tft->fillScreen(BGCOLOR);
+    launcherConsoleFlush();
 #if LED > 0 && defined(HEADLESS)
     launcherGpioWrite(LED, LED_ON ? LOW : HIGH); // turn off the LED
 #endif
@@ -636,6 +637,7 @@ END:
 #else
 void loop() { // Start SD card, If there's no SD Card installed, see if there's ssid saved on memory,
     RAM_LOG("headless-loop-start");
+
     launcherConsolePrint(
         "     _                            _               \n"
         "    | |                          | |              \n"
