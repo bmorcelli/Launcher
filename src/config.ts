@@ -14,6 +14,7 @@ class SerialSession {
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private listeners = new Set<LineListener>();
+  private closeListeners = new Set<() => void>();
   private closed = false;
 
   constructor(port: SerialPort) {
@@ -22,6 +23,16 @@ class SerialSession {
 
   async open(baudRate = 115200): Promise<void> {
     await this.port.open({ baudRate });
+    try {
+      // Many CH340/CP2102-style auto-reset circuits pulse EN low when DTR/RTS
+      // come up in whatever state the OS driver defaults to on open. Settle
+      // both lines to the non-reset combination immediately so boards don't
+      // reboot just from the port being opened, independent of any explicit
+      // hardReset() call later.
+      await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    } catch {
+      // Some OS/driver combinations don't expose RTS/DTR control.
+    }
     this.writer = this.port.writable!.getWriter();
     void this.readLoop();
   }
@@ -49,10 +60,18 @@ class SerialSession {
     } catch {
       // Port likely unplugged; onLine subscribers will simply stop hearing from us.
     } finally {
+      const wasIntentional = this.closed;
       try {
         reader.releaseLock();
       } catch {
         /* ignore */
+      }
+      // Only signal an unexpected disconnect: an intentional close() already
+      // set `closed` before tearing anything down, so callers driving that
+      // close don't need to be told about it again.
+      if (!wasIntentional) {
+        this.closed = true;
+        this.closeListeners.forEach((listener) => listener());
       }
     }
   }
@@ -64,6 +83,13 @@ class SerialSession {
   onLine(listener: LineListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  // Fires when the read loop ends without close() having been called first —
+  // i.e. the device was unplugged or the OS dropped the port.
+  onClose(listener: () => void): () => void {
+    this.closeListeners.add(listener);
+    return () => this.closeListeners.delete(listener);
   }
 
   async writeLine(command: string): Promise<void> {
@@ -653,6 +679,36 @@ const ensureConfigStyles = () => {
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .config-reboot-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-subtle);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    /* .button and .config-reboot-toggle set "display" themselves, which
+       otherwise beats the UA stylesheet's [hidden] { display: none }
+       (author rules always outrank user-agent rules regardless of
+       specificity), so the hidden attribute alone wouldn't hide them. */
+    .button[hidden],
+    .config-reboot-toggle[hidden] {
+      display: none;
+    }
+    .config-reboot-toggle input {
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .config-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .config-section-header .section__heading {
+      margin: 0;
+    }
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -830,6 +886,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const connectBtn = document.querySelector<HTMLButtonElement>("[data-config-connect]");
   const disconnectBtn = document.querySelector<HTMLButtonElement>("[data-config-disconnect]");
+  const rebootToggle = document.querySelector<HTMLInputElement>("[data-config-reboot-toggle]");
+  const rebootWrapper = document.querySelector<HTMLElement>("[data-config-reboot-wrapper]");
+  const statusSection = document.querySelector<HTMLElement>("[data-status-section]");
   const statusTile = document.querySelector<HTMLElement>("[data-config-status]");
   const logEl = document.querySelector<HTMLElement>("[data-config-log]");
   const logToggleBtn = document.querySelector<HTMLButtonElement>("[data-config-log-toggle]");
@@ -878,6 +937,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (
     !connectBtn ||
     !disconnectBtn ||
+    !rebootToggle ||
+    !rebootWrapper ||
+    !statusSection ||
     !statusTile ||
     !logEl ||
     !logToggleBtn ||
@@ -1634,7 +1696,9 @@ document.addEventListener("DOMContentLoaded", () => {
     versionEl.textContent = "—";
     whoamiEl.textContent = "—";
     connectBtn.hidden = false;
-    disconnectBtn.hidden = true;
+    rebootWrapper.hidden = false;
+    statusSection.hidden = true;
+    logLinesEl.innerHTML = "";
   };
 
   const disconnect = async () => {
@@ -1651,30 +1715,48 @@ document.addEventListener("DOMContentLoaded", () => {
     void disconnect();
   });
 
+  const BOOT_BANNER = "Press the button to enter the Launcher!";
+
   const runHandshake = async (activeSession: SerialSession) => {
-    setStatus("Resetting device...");
-    appendLog("(hardware reset via RTS/EN)", "tx");
-    await activeSession.hardReset();
+    if (rebootToggle.checked) {
+      setStatus("Resetting device...");
+      appendLog("(hardware reset via RTS/EN)", "tx");
+      await activeSession.hardReset();
+    }
 
-    setStatus('Waiting for the "Press the button to enter the Launcher!" banner...');
-    await waitForLine(
-      activeSession,
-      (line) => line.includes("Press the button to enter the Launcher!"),
-      20000
-    );
-
-    appendLog("nav SelPress", "tx");
-    await activeSession.writeLine("nav SelPress");
-    await sleep(1000);
-
-    setStatus("Reading device info...");
-    const versionLines = await sendAndCollect(activeSession, "version", { idleMs: 300, maxMs: 4000 });
-    appendLog("version", "tx");
-    const version = firstNonEmptyLine(versionLines);
+    // Whether or not we asked for a reset, some boards reboot on their own
+    // when the serial port opens (a DTR/RTS glitch some USB-serial drivers
+    // introduce right on open). So on every attempt race the boot banner
+    // against a "version" reply and handle whichever shows up, retrying a
+    // few times in case the board is still mid-boot.
+    const MAX_HANDSHAKE_ATTEMPTS = 5;
+    let version = "";
+    for (let attempt = 1; attempt <= MAX_HANDSHAKE_ATTEMPTS; attempt++) {
+      setStatus(`Reading device info (attempt ${attempt}/${MAX_HANDSHAKE_ATTEMPTS})...`);
+      const bannerPromise = waitForLine(activeSession, (line) => line.includes(BOOT_BANNER), 4000).catch(
+        () => null
+      );
+      const versionLines = await sendAndCollect(activeSession, "version", { idleMs: 300, maxMs: 3000 });
+      appendLog("version", "tx");
+      const bannerLine = await bannerPromise;
+      if (bannerLine) {
+        setStatus("Boot banner seen — pressing through to the Launcher menu...");
+        appendLog("nav SelPress", "tx");
+        await activeSession.writeLine("nav SelPress");
+        await sleep(1000);
+        continue;
+      }
+      version = firstNonEmptyLine(versionLines);
+      if (version) break;
+    }
 
     const whoamiLines = await sendAndCollect(activeSession, "whoami", { idleMs: 300, maxMs: 4000 });
     appendLog("whoami", "tx");
     const whoami = firstNonEmptyLine(whoamiLines);
+
+    if (!version.startsWith("Launcher")) {
+      throw new Error("Launcher not detected");
+    }
 
     const helpLines = await sendAndCollect(activeSession, "help", { idleMs: 500, maxMs: 5000 });
     appendLog("help", "tx");
@@ -1740,8 +1822,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     session = newSession;
     logSession(newSession);
+    newSession.onClose(() => {
+      if (session !== newSession) return;
+      session = null;
+      resetUi();
+      setBusy(false);
+      setStatus("Device disconnected. Click \"Connect Device\" to reconnect.");
+    });
     connectBtn.hidden = true;
-    disconnectBtn.hidden = false;
+    rebootWrapper.hidden = true;
+    statusSection.hidden = false;
     connectBtn.disabled = false;
 
     setBusy(true);
@@ -1751,6 +1841,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const msg = err instanceof Error ? err.message : String(err);
       appendLog(msg, "err");
       setStatus(`Connection failed: ${msg}`);
+      if (msg === "Launcher not detected") {
+        showAlertModal(
+          "Launcher not detected",
+          "The connected device did not report a Launcher version banner. Make sure the Launcher app is running on the board and try again."
+        );
+        await disconnect();
+      }
     } finally {
       setBusy(false);
     }

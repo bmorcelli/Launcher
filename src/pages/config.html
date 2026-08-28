@@ -46,13 +46,19 @@
           Connect over WebSerial to set up WiFi networks and, on boards with a resistive touchscreen, fine-tune the touch calibration — no firmware flashing required.
         </p>
         <div class="hero__actions">
+          <label class="config-reboot-toggle" data-config-reboot-wrapper>
+            <input type="checkbox" data-config-reboot-toggle />
+            Reboot on Connect
+          </label>
           <button class="button button--primary" data-config-connect type="button">Connect Device</button>
-          <button class="button button--ghost" data-config-disconnect type="button" hidden>Disconnect</button>
         </div>
       </section>
 
-      <section class="section section--compact reveal-on-scroll" tabindex="-1">
-        <h2 class="section__heading">Connection status</h2>
+      <section class="section section--compact reveal-on-scroll" tabindex="-1" data-status-section hidden>
+        <div class="config-section-header">
+          <h2 class="section__heading">Connection status</h2>
+          <button class="button button--ghost" data-config-disconnect type="button">Disconnect</button>
+        </div>
         <div class="card card--compact">
           <div class="tile" data-config-status>
             <span class="tile__value">Not connected. Click "Connect Device" and select your board's serial port.</span>
