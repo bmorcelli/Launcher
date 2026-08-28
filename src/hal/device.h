@@ -28,6 +28,7 @@ struct DeviceTouch {
     void *i2c_bus = nullptr;
     uint16_t raw_width = 0;
     uint16_t raw_height = 0;
+    bool gt911_int_sync = false;
 };
 
 struct DeviceEncoder {

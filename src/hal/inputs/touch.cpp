@@ -49,6 +49,28 @@ CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 static TouchDrvGT911 touch;
 static uint8_t touchLastRot = 0xFF;
 
+static bool gt911ResetAndSync(const DeviceTouch &cfg, uint8_t i2c_addr) {
+    if (cfg.pin_rst < 0 || cfg.pin_irq < 0) return false;
+
+    // Select the address during reset, then synchronize INT before the controller starts scanning.
+    // 在复位期间选择地址，再同步 INT，使控制器开始触摸扫描。
+    gpio_hold_dis(static_cast<gpio_num_t>(cfg.pin_rst));
+    gpio_hold_dis(static_cast<gpio_num_t>(cfg.pin_irq));
+    launcherGpioOutput(cfg.pin_rst);
+    launcherGpioOutput(cfg.pin_irq);
+    launcherGpioWrite(cfg.pin_rst, LOW);
+    launcherDelayMs(20);
+    launcherGpioWrite(cfg.pin_irq, i2c_addr == 0x14 ? HIGH : LOW);
+    launcherDelayMs(1);
+    launcherGpioWrite(cfg.pin_rst, HIGH);
+    launcherDelayMs(10);
+    launcherGpioWrite(cfg.pin_irq, LOW);
+    launcherDelayMs(50);
+    launcherGpioInput(cfg.pin_irq);
+    launcherDelayMs(10);
+    return true;
+}
+
 #elif defined(TOUCH_CTRL_CST8XX)
 #include <TouchDrvCSTXXX.hpp>
 #include <Wire.h>
@@ -89,6 +111,16 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
 #elif defined(TOUCH_CTRL_GT911)
     (void)xpt_shared_spi;
     if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    if (cfg.gt911_int_sync) {
+        if (!gt911ResetAndSync(cfg, i2c_addr)) return false;
+
+        // Preserve the synchronized state while SensorLib probes and reads the native resolution.
+        // 在 SensorLib 探测芯片并读取原生分辨率期间保持已同步状态。
+        touch.setPins(-1, -1);
+        const bool ready = touch.begin(wireFor(cfg), i2c_addr);
+        touch.setPins(cfg.pin_rst, cfg.pin_irq);
+        return ready;
+    }
     touch.setPins(cfg.pin_rst, cfg.pin_irq);
     return touch.begin(wireFor(cfg), i2c_addr);
 #elif defined(TOUCH_CTRL_CST8XX)
