@@ -23,16 +23,8 @@ class SerialSession {
 
   async open(baudRate = 115200): Promise<void> {
     await this.port.open({ baudRate });
-    try {
-      // Many CH340/CP2102-style auto-reset circuits pulse EN low when DTR/RTS
-      // come up in whatever state the OS driver defaults to on open. Settle
-      // both lines to the non-reset combination immediately so boards don't
-      // reboot just from the port being opened, independent of any explicit
-      // hardReset() call later.
-      await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
-    } catch {
-      // Some OS/driver combinations don't expose RTS/DTR control.
-    }
+    // Do not touch DTR/RTS here. Changing those lines on open can pulse EN on
+    // ESP32 auto-reset circuits, so reset is reserved for explicit hardReset().
     this.writer = this.port.writable!.getWriter();
     void this.readLoop();
   }

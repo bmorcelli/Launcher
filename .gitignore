@@ -19,3 +19,4 @@ include
 .claude
 test/
 platformio.ini
+docs
