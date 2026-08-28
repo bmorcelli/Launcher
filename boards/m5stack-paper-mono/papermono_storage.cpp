@@ -1,12 +1,17 @@
 #include "papermono_storage.h"
 
 #include <Arduino.h>
+#include <cerrno>
+#include <cstdio>
 #include <dirent.h>
 #include <driver/sdmmc_host.h>
 #include <esp_err.h>
 #include <esp_vfs_fat.h>
 #include <sdmmc_cmd.h>
+#include <sys/stat.h>
 
+#include "papermono_bsp.h"
+#include "papermono_sys_i2c_lock.h"
 #include "vendor/freeink_board/M5Ioe1.h"
 
 namespace {
@@ -21,6 +26,15 @@ constexpr gpio_num_t kData0Pin = GPIO_NUM_11;
 constexpr gpio_num_t kCmdPin = GPIO_NUM_12;
 constexpr gpio_num_t kClkPin = GPIO_NUM_13;
 
+bool handlesConfigPath(const String &path) { return path == "/config.conf"; }
+
+String configHostPath(const String &path) { return String(kMountPoint) + path; }
+
+String storageHostPath(const String &path) {
+    if (!path.startsWith("/")) return String();
+    return String(kMountPoint) + path;
+}
+
 } // namespace
 
 bool PaperMonoStorage::prepare() {
@@ -31,11 +45,18 @@ bool PaperMonoStorage::prepare() {
     }
 
     bool detectHigh = true;
-    if (!freeink::m5ioe1::read(freeink::m5ioe1::PIN_TF_DETECT, &detectHigh)) return false;
+    {
+        PaperMonoSysI2cGuard guard;
+        if (!guard.locked() || !freeink::m5ioe1::read(freeink::m5ioe1::PIN_TF_DETECT, &detectHigh))
+            return false;
+    }
     cardPresent_ = !detectHigh;
     if (!cardPresent_) return false;
 
-    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_SD_POWER, true)) return false;
+    {
+        PaperMonoSysI2cGuard guard;
+        if (!guard.locked() || !freeink::m5ioe1::write(freeink::m5ioe1::PIN_SD_POWER, true)) return false;
+    }
     powerEnabled_ = true;
     delay(kPowerSettleMs);
 
@@ -85,6 +106,41 @@ bool PaperMonoStorage::readRoot(uint8_t maxEntries, uint8_t &entryCount) const {
     return true;
 }
 
+bool PaperMonoStorage::enumerate(const String &folder, std::vector<LauncherStorageEntry> &entries) const {
+    entries.clear();
+    if (!ready_) return false;
+
+    String normalized = folder;
+    if (!normalized.startsWith("/")) normalized = "/" + normalized;
+    if (!normalized.endsWith("/")) normalized += "/";
+    const String hostPath = String(kMountPoint) + normalized;
+
+    DIR *root = opendir(hostPath.c_str());
+    if (root == nullptr) return false;
+    while (struct dirent *entry = readdir(root)) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        bool isDirectory = entry->d_type == DT_DIR;
+        bool isRegular = entry->d_type == DT_REG;
+        if (!isDirectory && !isRegular && entry->d_type == DT_UNKNOWN) {
+            struct stat info = {};
+            const String entryPath = hostPath + entry->d_name;
+            if (stat(entryPath.c_str(), &info) != 0) continue;
+            isDirectory = S_ISDIR(info.st_mode);
+            isRegular = S_ISREG(info.st_mode);
+        }
+        if (!isDirectory && !isRegular) continue;
+
+        LauncherStorageEntry item;
+        item.name = entry->d_name;
+        item.fullPath = normalized + entry->d_name;
+        item.isDirectory = isDirectory;
+        entries.push_back(item);
+    }
+    closedir(root);
+    return true;
+}
+
 PaperMonoStorageReleaseResult PaperMonoStorage::release() {
     PaperMonoStorageReleaseResult result;
     if (card_ != nullptr) {
@@ -93,9 +149,97 @@ PaperMonoStorageReleaseResult PaperMonoStorage::release() {
     }
     ready_ = false;
     if (powerEnabled_) {
-        result.powerOff = freeink::m5ioe1::write(freeink::m5ioe1::PIN_SD_POWER, false);
+        PaperMonoSysI2cGuard guard;
+        result.powerOff = guard.locked() && freeink::m5ioe1::write(freeink::m5ioe1::PIN_SD_POWER, false);
         if (result.powerOff) powerEnabled_ = false;
     }
     if (!result.unmounted) cleanupFailed_ = true;
     return result;
+}
+
+LauncherStorageResult launcherStoragePrepare() {
+    return PaperMonoBsp::instance().prepareStorage() ? LauncherStorageResult::Ready
+                                                     : LauncherStorageResult::Failed;
+}
+
+LauncherStorageResult
+launcherStorageEnumerate(const String &folder, std::vector<LauncherStorageEntry> &entries) {
+    PaperMonoBsp &bsp = PaperMonoBsp::instance();
+    if (!bsp.storageReady()) {
+        entries.clear();
+        return LauncherStorageResult::Failed;
+    }
+    return bsp.enumerateStorage(folder, entries) ? LauncherStorageResult::Ready
+                                                 : LauncherStorageResult::Failed;
+}
+
+LauncherStorageFileResult launcherStorageReadText(const String &path, String &contents) {
+    if (!handlesConfigPath(path)) return LauncherStorageFileResult::NotHandled;
+
+    FILE *file = fopen(configHostPath(path).c_str(), "rb");
+    if (file == nullptr)
+        return errno == ENOENT ? LauncherStorageFileResult::NotFound : LauncherStorageFileResult::Failed;
+
+    String loaded;
+    char buffer[256];
+    size_t count = 0;
+    while ((count = fread(buffer, 1, sizeof(buffer), file)) != 0) loaded.concat(buffer, count);
+    const bool readOk = ferror(file) == 0;
+    const bool closed = fclose(file) == 0;
+    const bool ok = readOk && closed;
+    if (!ok) return LauncherStorageFileResult::Failed;
+
+    contents = loaded;
+    return LauncherStorageFileResult::Ready;
+}
+
+LauncherStorageFileResult launcherStorageWriteText(const String &path, const String &contents) {
+    if (!handlesConfigPath(path)) return LauncherStorageFileResult::NotHandled;
+
+    FILE *file = fopen(configHostPath(path).c_str(), "wb");
+    if (file == nullptr) return LauncherStorageFileResult::Failed;
+
+    const size_t expected = contents.length();
+    const size_t written = fwrite(contents.c_str(), 1, expected, file);
+    const bool flushed = fflush(file) == 0;
+    const bool closed = fclose(file) == 0;
+    return written == expected && flushed && closed ? LauncherStorageFileResult::Ready
+                                                    : LauncherStorageFileResult::Failed;
+}
+
+LauncherStorageFileResult launcherStorageFileSize(const String &path, uint32_t &size) {
+    if (!PaperMonoBsp::instance().storageReady()) return LauncherStorageFileResult::Failed;
+
+    const String hostPath = storageHostPath(path);
+    if (hostPath.isEmpty()) return LauncherStorageFileResult::NotHandled;
+    FILE *file = fopen(hostPath.c_str(), "rb");
+    if (file == nullptr)
+        return errno == ENOENT ? LauncherStorageFileResult::NotFound : LauncherStorageFileResult::Failed;
+
+    const bool seekOk = fseek(file, 0, SEEK_END) == 0;
+    const long end = seekOk ? ftell(file) : -1;
+    const bool closed = fclose(file) == 0;
+    if (!seekOk || end < 0 || static_cast<uint64_t>(end) > UINT32_MAX || !closed)
+        return LauncherStorageFileResult::Failed;
+
+    size = static_cast<uint32_t>(end);
+    return LauncherStorageFileResult::Ready;
+}
+
+LauncherStorageFileResult
+launcherStorageReadAt(const String &path, uint32_t offset, uint8_t *buffer, size_t length) {
+    if (!PaperMonoBsp::instance().storageReady() || (buffer == nullptr && length != 0))
+        return LauncherStorageFileResult::Failed;
+
+    const String hostPath = storageHostPath(path);
+    if (hostPath.isEmpty()) return LauncherStorageFileResult::NotHandled;
+    FILE *file = fopen(hostPath.c_str(), "rb");
+    if (file == nullptr)
+        return errno == ENOENT ? LauncherStorageFileResult::NotFound : LauncherStorageFileResult::Failed;
+
+    const bool seekOk = fseek(file, static_cast<long>(offset), SEEK_SET) == 0;
+    const size_t received = seekOk ? fread(buffer, 1, length, file) : 0;
+    const bool readOk = received == length && ferror(file) == 0;
+    const bool closed = fclose(file) == 0;
+    return readOk && closed ? LauncherStorageFileResult::Ready : LauncherStorageFileResult::Failed;
 }

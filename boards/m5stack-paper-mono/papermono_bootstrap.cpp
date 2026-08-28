@@ -1,4 +1,5 @@
 #include "papermono_bootstrap.h"
+#include "papermono_sys_i2c_lock.h"
 
 #if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP)
 #include "vendor/freeink_board/PaperMonoBoard.h"
@@ -28,6 +29,8 @@ bool isolateChargerI2c() {
 }
 
 BootstrapAttemptResult runFreeInkBootstrapAttempt() {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return BootstrapAttemptResult::ioe1Failure;
     // Keep the established FreeInk board-service order while making the
     // official UserDemo's bounded attempt envelope Bootstrap-owned.
     freeink::m5pm1::beginBus();

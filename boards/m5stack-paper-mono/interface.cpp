@@ -131,6 +131,12 @@ void _post_main_menu_display() {
 #endif
 }
 
+void _post_options_display() {
+#if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
+    paperMonoRefreshScheduler.service();
+#endif
+}
+
 /***************************************************************************************
 ** Function name: getBattery()
 ** Location: display.cpp

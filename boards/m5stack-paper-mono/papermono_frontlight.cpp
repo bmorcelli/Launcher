@@ -1,6 +1,7 @@
 #include "papermono_frontlight.h"
 
 #if defined(PAPERMONO_P3_FRONTLIGHT_BRINGUP)
+#include "papermono_sys_i2c_lock.h"
 #include "vendor/freeink_board/M5Pm1.h"
 
 namespace {
@@ -18,6 +19,8 @@ bool readPm1(uint8_t reg, uint8_t &value) { return freeink::m5pm1::readReg(reg, 
 } // namespace
 
 bool PaperMonoFrontlight::prepare() {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     lastFailureWasCommunication_ = false;
     // The retained PM1 PWM state is made safe before changing the G3 mux.
     if (!off()) return false;
@@ -39,6 +42,8 @@ bool PaperMonoFrontlight::prepare() {
 }
 
 bool PaperMonoFrontlight::setPercent(uint8_t percent) {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     lastFailureWasCommunication_ = false;
     if (percent == 0) return off();
     if (!configured_) return false;
@@ -63,6 +68,8 @@ bool PaperMonoFrontlight::setPercent(uint8_t percent) {
 }
 
 bool PaperMonoFrontlight::off() {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     lastFailureWasCommunication_ = false;
     if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) {
         lastFailureWasCommunication_ = true;
@@ -78,6 +85,8 @@ bool PaperMonoFrontlight::off() {
 }
 
 bool PaperMonoFrontlight::pwmOff() const {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     uint16_t value = 0;
     return freeink::m5pm1::readReg16(freeink::m5pm1::REG_PWM0_DUTY_L, &value) &&
            (value & kPwmEnableMask) == 0;
@@ -86,6 +95,8 @@ bool PaperMonoFrontlight::pwmOff() const {
 bool PaperMonoFrontlight::lastFailureWasCommunication() const { return lastFailureWasCommunication_; }
 
 bool PaperMonoFrontlight::releaseLowPower() {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     if (!pwmOff()) return false;
 
     bool released = freeink::m5pm1::updateReg(freeink::m5pm1::REG_GPIO_FUNC0, kPm1Gpio3FunctionMask, 0);

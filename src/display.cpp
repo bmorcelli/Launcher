@@ -850,6 +850,7 @@ Opt_Coord drawOptions(
 #endif
     if (partialRedraw) {
         tft->display(false);
+        _post_options_display();
         return coord;
     }
     if (rowIndex < rowsForHeight) {
@@ -865,6 +866,7 @@ Opt_Coord drawOptions(
     }
     TouchFooter(FGCOLOR);
     tft->display(false);
+    _post_options_display();
 
     return coord;
 }

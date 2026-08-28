@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "papermono_sys_i2c_lock.h"
 #include "vendor/freeink_board/M5Ioe1.h"
 
 namespace {
@@ -29,12 +30,18 @@ bool PaperMonoTouch::begin() {
 
     // This sequence is the local PaperMono reference's enableTouch(): power
     // TP_VDD, assert TP_RST, then release it after the recorded delays.
-    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_TOUCH_POWER, true) ||
-        !freeink::m5ioe1::write(freeink::m5ioe1::PIN_TOUCH_RESET, false)) {
-        return false;
+    {
+        PaperMonoSysI2cGuard guard;
+        if (!guard.locked() || !freeink::m5ioe1::write(freeink::m5ioe1::PIN_TOUCH_POWER, true) ||
+            !freeink::m5ioe1::write(freeink::m5ioe1::PIN_TOUCH_RESET, false)) {
+            return false;
+        }
     }
     delay(kTouchResetAssertMs);
-    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_TOUCH_RESET, true)) return false;
+    {
+        PaperMonoSysI2cGuard guard;
+        if (!guard.locked() || !freeink::m5ioe1::write(freeink::m5ioe1::PIN_TOUCH_RESET, true)) return false;
+    }
     delay(kTouchResetReleaseMs);
 
     // Polling is sufficient for the minimal bring-up. GPIO4 is configured as
@@ -73,6 +80,8 @@ bool PaperMonoTouch::read(PaperMonoTouchSample &sample) {
 }
 
 bool PaperMonoTouch::writeRegister(uint8_t reg, uint8_t value) {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     Wire.beginTransmission(kFt6336Address);
     Wire.write(reg);
     Wire.write(value);
@@ -80,6 +89,8 @@ bool PaperMonoTouch::writeRegister(uint8_t reg, uint8_t value) {
 }
 
 bool PaperMonoTouch::readRegisters(uint8_t reg, uint8_t *data, uint8_t length) {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     Wire.beginTransmission(kFt6336Address);
     Wire.write(reg);
     if (Wire.endTransmission(false) != 0) return false;

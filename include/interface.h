@@ -26,6 +26,13 @@ void _post_setup_gpio();
 void _post_main_menu_display();
 
 /***************************************************************************************
+** Function name: _post_options_display()
+** Location: display.cpp
+** Description: board-local service hook after an options frame is submitted
+***************************************************************************************/
+void _post_options_display();
+
+/***************************************************************************************
 ** Function name: getBattery()
 ** location: display.cpp
 ** Description:   Delivers the battery value from 1-100

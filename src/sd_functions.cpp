@@ -2,9 +2,12 @@
 #include "backup_manager.h"
 #include "display.h"
 #include "esp_log.h"
+#include "firmware_inspect.h"
 #include "idf/idf_update.h"
 #include "idf/launcher_platform.h"
 #include "install_shared.h"
+#include "launcher_capabilities.h"
+#include "launcher_storage.h"
 #include "littlefs_patch.h"
 #include "mykeyboard.h"
 #include "partition_install_layout.h"
@@ -22,6 +25,42 @@ SPIClass sdcardSPI;
 String fileToCopy;
 String fileToUse;
 
+__attribute__((weak)) LauncherStorageResult launcherStoragePrepare() {
+    return LauncherStorageResult::NotHandled;
+}
+
+__attribute__((weak)) LauncherStorageResult
+launcherStorageEnumerate(const String &, std::vector<LauncherStorageEntry> &) {
+    return LauncherStorageResult::NotHandled;
+}
+
+__attribute__((weak)) LauncherStorageFileResult launcherStorageReadText(const String &, String &) {
+    return LauncherStorageFileResult::NotHandled;
+}
+
+__attribute__((weak)) LauncherStorageFileResult launcherStorageWriteText(const String &, const String &) {
+    return LauncherStorageFileResult::NotHandled;
+}
+
+__attribute__((weak)) LauncherStorageFileResult launcherStorageFileSize(const String &path, uint32_t &size) {
+    File file = SDM.open(path, FILE_READ);
+    if (!file) return LauncherStorageFileResult::NotFound;
+    size = file.size();
+    file.close();
+    return LauncherStorageFileResult::Ready;
+}
+
+__attribute__((weak)) LauncherStorageFileResult
+launcherStorageReadAt(const String &path, uint32_t offset, uint8_t *buffer, size_t length) {
+    if (buffer == nullptr && length != 0) return LauncherStorageFileResult::Failed;
+    File file = SDM.open(path, FILE_READ);
+    if (!file) return LauncherStorageFileResult::NotFound;
+    const bool seekOk = file.seek(offset);
+    const size_t received = seekOk ? file.read(buffer, length) : 0;
+    file.close();
+    return received == length ? LauncherStorageFileResult::Ready : LauncherStorageFileResult::Failed;
+}
+
 static inline void pauseSdInstallInput() {
     if (xHandle != nullptr) vTaskSuspend(xHandle);
 }
@@ -31,8 +70,21 @@ static inline void resumeSdInstallInput() {
 }
 
 bool setupSdCard() {
-#if !defined(SDM_SD)
     if (sdcardMounted) return true;
+
+    const LauncherStorageResult boardStorage = launcherStoragePrepare();
+    if (boardStorage != LauncherStorageResult::NotHandled) {
+        if (boardStorage == LauncherStorageResult::Ready) {
+            launcherConsolePrintln("[P5-D1] PaperMono SDMMC mounted");
+            sdcardMounted = true;
+            return true;
+        }
+        launcherConsolePrintln("[P5-D1] PaperMono SDMMC mount failed");
+        sdcardMounted = false;
+        return false;
+    }
+
+#if !defined(SDM_SD)
     bool OnebitMode = true; // default to one bit mode
 #if defined(USE_SD_MMC) && defined(PIN_SD_CLK) && defined(PIN_SD_CMD) && defined(PIN_SD_D0)
 #if defined(SD_MMC_4BIT) && defined(PIN_SD_D1) && defined(PIN_SD_D2) && defined(PIN_SD_D3)
@@ -247,6 +299,38 @@ void readFs(String &folder, std::vector<Option> &opt) {
         displayError("SD not found or not formatted in FAT32");
         return; // Retornar imediatamente em caso de falha
     }
+
+    std::vector<LauncherStorageEntry> boardEntries;
+    const LauncherStorageResult boardEnumeration = launcherStorageEnumerate(folder, boardEntries);
+    if (boardEnumeration != LauncherStorageResult::NotHandled) {
+        if (boardEnumeration == LauncherStorageResult::Failed) {
+            launcherConsolePrintln("[P5-D1] PaperMono SDMMC root browse failed");
+            displayError("SD browse failed");
+            return;
+        }
+        for (const LauncherStorageEntry &entry : boardEntries) {
+            String nameOnly = entry.name;
+            if (noDotFiles && nameOnly.startsWith(".")) continue;
+
+            uint16_t color = FGCOLOR - 0x1111;
+            if (!entry.isDirectory) {
+                int dotIndex = nameOnly.lastIndexOf(".");
+                String ext = dotIndex >= 0 ? nameOnly.substring(dotIndex + 1) : "";
+                ext.toUpperCase();
+                if (onlyBins && !ext.equals("BIN")) continue;
+                color = FGCOLOR;
+            } else {
+                nameOnly = "/" + nameOnly;
+            }
+            const String fullPath = entry.fullPath;
+            opt.push_back({nameOnly, [fullPath]() { fileToUse = fullPath; }, color});
+        }
+        std::sort(opt.begin(), opt.end(), sortList);
+        opt.push_back({"> Back", [&]() { fileToUse = ""; }, ALCOLOR});
+        launcherConsolePrintf("[P5-D1] PaperMono browse %s: %u entries\n", folder.c_str(), opt.size());
+        return;
+    }
+
     File root = SDM.open(folder);
     if (!root || !root.isDirectory()) {
         displayError("Fail open root");
@@ -428,16 +512,20 @@ RESTART:
             );
         }
     } else {
-        std::vector<Option> opt = {
-            {"Install",    [=]() { updateFromSD(fileToUse); }                    },
-            {"New Folder", [=]() { createFolder(Folder); }                       },
-            {"Rename",     [=]() { renameFile(fileToUse, options[index].label); }},
-            {"Copy",       [=]() { copyFile(fileToUse); }                        },
-        };
+        std::vector<Option> opt;
+        String upperFile = fileToUse;
+        upperFile.toUpperCase();
+        if (launcherFirmwareInstallAllowed()) {
+            opt.push_back({"Install", [=]() { updateFromSD(fileToUse); }});
+        }
+        if (launcherFirmwareInspectAllowed() && upperFile.endsWith(".BIN")) {
+            opt.push_back({"Inspect", [=]() { launcherInspectFirmwareFile(fileToUse); }});
+        }
+        opt.push_back({"New Folder", [=]() { createFolder(Folder); }});
+        opt.push_back({"Rename", [=]() { renameFile(fileToUse, options[index].label); }});
+        opt.push_back({"Copy", [=]() { copyFile(fileToUse); }});
 #if defined(HAS_KEYBOARD)
         {
-            String upperFile = fileToUse;
-            upperFile.toUpperCase();
             if (upperFile.endsWith(".BIN")) {
                 opt.insert(opt.begin() + 1, {"Bind to key", [=]() { bindFileToKeyMenu(fileToUse); }});
             }
@@ -792,6 +880,12 @@ DONE:
 ** Description:   this function analyse the .bin and calls installFromSdDynamic
 ***************************************************************************************/
 void updateFromSD(const String &path) {
+    if (!launcherFirmwareInstallAllowed()) {
+        launcherConsolePrintln("[P5-D1] PaperMono firmware Install disabled");
+        displayError("Firmware install disabled");
+        return;
+    }
+
     uint8_t partitionEntry[LAUNCHER_PARTITION_ENTRY_SIZE];
     uint32_t app_size = 0;
     uint32_t app_offset = 0;

@@ -1,4 +1,5 @@
 #include "papermono_bsp.h"
+#include "papermono_sys_i2c_lock.h"
 
 #if !defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
 #include <M5Unified.h>
@@ -321,6 +322,11 @@ void PaperMonoBsp::begin() {
     if (beginAttempted_) return;
     beginAttempted_ = true;
 
+    if (!paperMonoSysI2cLockInit()) {
+        boardReady_ = false;
+        return;
+    }
+
     delay(500);
 
 #if defined(PAPERMONO_P2_NO_REFRESH_BOOTSTRAP) && !defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND)
@@ -382,6 +388,10 @@ uint64_t PaperMonoBsp::storageCardSizeBytes() const { return storage_.cardSizeBy
 
 bool PaperMonoBsp::readStorageRoot(uint8_t maxEntries, uint8_t &entryCount) const {
     return storage_.readRoot(maxEntries, entryCount);
+}
+
+bool PaperMonoBsp::enumerateStorage(const String &folder, std::vector<LauncherStorageEntry> &entries) const {
+    return storage_.enumerate(folder, entries);
 }
 
 PaperMonoStorageReleaseResult PaperMonoBsp::releaseStorage() { return storage_.release(); }
@@ -451,11 +461,15 @@ bool PaperMonoBsp::frontlightPwmOff() const { return frontlight_.pwmOff(); }
 bool PaperMonoBsp::frontlightRailOn() const { return frontlightRailOn_; }
 
 bool PaperMonoBsp::frontlightEpdResetAsserted() const {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     bool resetHigh = true;
     return freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_RESET, &resetHigh) && !resetHigh;
 }
 
 bool PaperMonoBsp::setFrontlightRail(bool on) {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_POWER, on)) return false;
     bool railHigh = !on;
     if (!freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_POWER, &railHigh) || railHigh != on) return false;
@@ -464,6 +478,8 @@ bool PaperMonoBsp::setFrontlightRail(bool on) {
 }
 
 bool PaperMonoBsp::assertFrontlightEpdReset() {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_RESET, false)) return false;
     return frontlightEpdResetAsserted();
 }
@@ -623,6 +639,8 @@ PaperMonoOtpFullRefreshResult PaperMonoBsp::runOtpFullPanelService() {
     defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
     defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 bool PaperMonoBsp::p4PwmOff() {
+    PaperMonoSysI2cGuard guard;
+    if (!guard.locked()) return false;
     constexpr uint16_t kPwmEnableMask = 0x1000;
     if (!freeink::m5pm1::writeReg16(freeink::m5pm1::REG_PWM0_DUTY_L, 0)) return false;
     uint16_t value = 0;
@@ -630,16 +648,83 @@ bool PaperMonoBsp::p4PwmOff() {
            (value & kPwmEnableMask) == 0;
 }
 
-bool PaperMonoBsp::p4SetRail(bool on) {
-    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_POWER, on)) return false;
-    bool railHigh = !on;
-    return freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_POWER, &railHigh) && railHigh == on;
+namespace {
+
+constexpr uint8_t kP4EpdControlMaxAttempts = 2;
+constexpr uint32_t kP4EpdControlRetryDelayMs = 50;
+
+bool p4SetEpdOutput(uint16_t pinMask, bool requestedHigh, const char *pinName) {
+    for (uint8_t attempt = 0; attempt < kP4EpdControlMaxAttempts; ++attempt) {
+        uint16_t outputBefore = 0;
+        uint16_t outputLatch = 0;
+        bool preReadOk = false;
+        bool outputWriteOk = false;
+        bool latchReadOk = false;
+        bool latchMatches = false;
+        bool attemptSucceeded = false;
+        bool inputReadOk = false;
+        bool inputHigh = false;
+        {
+            PaperMonoSysI2cGuard guard;
+            if (guard.locked()) {
+                preReadOk = freeink::m5ioe1::readReg16(freeink::m5ioe1::REG_GPIO_OUT_L, &outputBefore);
+                const uint16_t outputTarget = requestedHigh ? static_cast<uint16_t>(outputBefore | pinMask)
+                                                            : static_cast<uint16_t>(outputBefore & ~pinMask);
+                outputWriteOk =
+                    preReadOk && freeink::m5ioe1::writeReg16(freeink::m5ioe1::REG_GPIO_OUT_L, outputTarget);
+                latchReadOk = outputWriteOk &&
+                              freeink::m5ioe1::readReg16(freeink::m5ioe1::REG_GPIO_OUT_L, &outputLatch);
+                latchMatches = latchReadOk && (((outputLatch & pinMask) != 0) == requestedHigh);
+                if (latchMatches) {
+                    inputReadOk = freeink::m5ioe1::read(pinMask, &inputHigh);
+                    attemptSucceeded = true;
+                }
+            }
+        }
+        if (attemptSucceeded) {
+            if (attempt > 0) {
+                Serial.printf(
+                    "[P5-D1-S2D] ctrl-recovered pin=%s req=%d attempt=%u\n",
+                    pinName,
+                    requestedHigh ? 1 : 0,
+                    static_cast<unsigned>(attempt + 1)
+                );
+            }
+            if (!inputReadOk) {
+                Serial.printf("[P5-D1-S2C] input-read-fail pin=%s\n", pinName);
+            } else if (inputHigh != requestedHigh) {
+                Serial.printf(
+                    "[P5-D1-S2C] input-mismatch pin=%s req=%d observed=%d\n",
+                    pinName,
+                    requestedHigh ? 1 : 0,
+                    inputHigh ? 1 : 0
+                );
+            }
+            return true;
+        }
+
+        Serial.printf(
+            "[P5-D1-S2D] ctrl-fail pin=%s req=%d attempt=%u pre=%d write=%d latch-read=%d latch-match=%d\n",
+            pinName,
+            requestedHigh ? 1 : 0,
+            static_cast<unsigned>(attempt + 1),
+            preReadOk ? 1 : 0,
+            outputWriteOk ? 1 : 0,
+            latchReadOk ? 1 : 0,
+            latchMatches ? 1 : 0
+        );
+        if (attempt + 1 < kP4EpdControlMaxAttempts) delay(kP4EpdControlRetryDelayMs);
+    }
+    Serial.printf("[P5-D1-S2D] ctrl-final pin=%s req=%d success=0\n", pinName, requestedHigh ? 1 : 0);
+    return false;
 }
 
+} // namespace
+
+bool PaperMonoBsp::p4SetRail(bool on) { return p4SetEpdOutput(freeink::m5ioe1::PIN_EPD_POWER, on, "rail"); }
+
 bool PaperMonoBsp::p4SetReset(bool high) {
-    if (!freeink::m5ioe1::write(freeink::m5ioe1::PIN_EPD_RESET, high)) return false;
-    bool resetHigh = !high;
-    return freeink::m5ioe1::read(freeink::m5ioe1::PIN_EPD_RESET, &resetHigh) && resetHigh == high;
+    return p4SetEpdOutput(freeink::m5ioe1::PIN_EPD_RESET, high, "reset");
 }
 #endif
 
@@ -716,7 +801,12 @@ void PaperMonoBsp::powerOff() {
 #if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_DISPLAY_NO_REFRESH) ||             \
     defined(PAPERMONO_P4_OTP_SINGLE_REFRESH) || defined(PAPERMONO_P4_OTP_FULL_REFRESH) ||                    \
     defined(PAPERMONO_P4_REPEATED_PARTIAL) || defined(PAPERMONO_P4_REFRESH_MANAGER)
-    (void)freeink::m5pm1::requestShutdown();
+    // Preserve requestShutdown()'s PM1 settle interval without holding the
+    // SYS-I2C mutex while the terminal power-down wait runs.
+    delay(120);
+    PaperMonoSysI2cGuard guard;
+    if (guard.locked())
+        (void)freeink::m5pm1::writeReg(freeink::m5pm1::REG_SYS_CMD, freeink::m5pm1::SYS_CMD_SHUTDOWN);
 #else
     M5.Power.powerOff();
 #endif

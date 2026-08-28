@@ -4,6 +4,7 @@
 #include "esp_mac.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
+#include "launcher_storage.h"
 #include "mykeyboard.h"
 #include "nvs.h"
 #include "nvs_helpers.h"
@@ -1049,24 +1050,44 @@ void getConfigs() {
         return;
     }
 
-    if (!SDM.exists(CONFIG_FILE)) {
-        launcherConsolePrintln("getConfigs: config.conf not found, creating with defaults");
-        defaultValues();
-        saveConfigs();
-        return;
-    }
+    String boardConfig;
+    const LauncherStorageFileResult boardRead = launcherStorageReadText(CONFIG_FILE, boardConfig);
+    DeserializationError error;
+    if (boardRead != LauncherStorageFileResult::NotHandled) {
+        if (boardRead == LauncherStorageFileResult::NotFound) {
+            launcherConsolePrintln("getConfigs: config.conf not found, creating with defaults");
+            defaultValues();
+            saveConfigs();
+            return;
+        }
+        if (boardRead == LauncherStorageFileResult::Failed) {
+            launcherConsolePrintln("getConfigs: failed to open config.conf, resetting to defaults");
+            defaultValues();
+            saveConfigs();
+            return;
+        }
+        favorite = JsonArray();
+        error = deserializeJson(settings, boardConfig);
+    } else {
+        if (!SDM.exists(CONFIG_FILE)) {
+            launcherConsolePrintln("getConfigs: config.conf not found, creating with defaults");
+            defaultValues();
+            saveConfigs();
+            return;
+        }
 
-    File file = SDM.open(CONFIG_FILE, FILE_READ);
-    if (!file) {
-        launcherConsolePrintln("getConfigs: failed to open config.conf, resetting to defaults");
-        defaultValues();
-        saveConfigs();
-        return;
-    }
+        File file = SDM.open(CONFIG_FILE, FILE_READ);
+        if (!file) {
+            launcherConsolePrintln("getConfigs: failed to open config.conf, resetting to defaults");
+            defaultValues();
+            saveConfigs();
+            return;
+        }
 
-    favorite = JsonArray();
-    DeserializationError error = deserializeJson(settings, file);
-    file.close();
+        favorite = JsonArray();
+        error = deserializeJson(settings, file);
+        file.close();
+    }
 
     if (error) {
         launcherConsolePrintf("getConfigs: parse error (%s), resetting to defaults", error.c_str());
@@ -1131,13 +1152,20 @@ void saveConfigs() {
         }
     }
 
-    // Overwrite config.conf directly (FILE_WRITE truncates on open)
-    File file = SDM.open(CONFIG_FILE, FILE_WRITE, true);
     size_t written = 0;
-    if (file) {
-        written = serializeJsonPretty(settings, file);
-        file.flush();
-        file.close();
+    String serialized;
+    serializeJsonPretty(settings, serialized);
+    const LauncherStorageFileResult boardWrite = launcherStorageWriteText(CONFIG_FILE, serialized);
+    if (boardWrite == LauncherStorageFileResult::Ready) {
+        written = serialized.length();
+    } else if (boardWrite == LauncherStorageFileResult::NotHandled) {
+        // Overwrite config.conf directly (FILE_WRITE truncates on open)
+        File file = SDM.open(CONFIG_FILE, FILE_WRITE, true);
+        if (file) {
+            written = serializeJsonPretty(settings, file);
+            file.flush();
+            file.close();
+        }
     } else {
         launcherConsolePrintln("saveConfigs: failed to open config.conf for writing");
         sdcardMounted = false;

@@ -153,6 +153,7 @@ public:
     bool storageReady() const;
     uint64_t storageCardSizeBytes() const;
     bool readStorageRoot(uint8_t maxEntries, uint8_t &entryCount) const;
+    bool enumerateStorage(const String &folder, std::vector<LauncherStorageEntry> &entries) const;
     PaperMonoStorageReleaseResult releaseStorage();
     bool prepareFrontlight();
     bool setFrontlight(uint8_t percent);

@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <sdmmc_cmd.h>
 
+#include "launcher_storage.h"
+
 struct PaperMonoStorageReleaseResult {
     bool unmounted = true;
     bool powerOff = true;
@@ -18,6 +20,7 @@ public:
     bool ready() const;
     uint64_t cardSizeBytes() const;
     bool readRoot(uint8_t maxEntries, uint8_t &entryCount) const;
+    bool enumerate(const String &folder, std::vector<LauncherStorageEntry> &entries) const;
     PaperMonoStorageReleaseResult release();
 
 private:

@@ -1,5 +1,7 @@
 #include "papermono_refresh_manager.h"
 
+#include <Arduino.h>
+
 #if defined(PAPERMONO_PRODUCTION_DISPLAY_BACKEND) || defined(PAPERMONO_P4_REFRESH_MANAGER)
 #include "papermono_bsp.h"
 
@@ -52,7 +54,37 @@ PaperMonoRefreshResult PaperMonoRefreshManager::request(PaperMonoRefreshRequest 
     bool success = false;
     if (selected == PaperMonoRefreshExecuted::Full) {
         executed = PaperMonoRefreshExecuted::Full;
-        success = bsp_.runOtpFullPanelService().ok() && bsp_.repeatedPartialShadowValid();
+        const bool boardReadyAtRequest = bsp_.boardReady();
+        const PaperMonoOtpFullRefreshResult fullResult = bsp_.runOtpFullPanelService();
+        const bool fullOk = fullResult.ok();
+        bool shadowChecked = false;
+        bool shadowValid = false;
+        success = fullOk;
+        if (success) {
+            shadowChecked = true;
+            shadowValid = bsp_.repeatedPartialShadowValid();
+            success = shadowValid;
+        }
+        if (!success) {
+            Serial.printf(
+                "[P5-D1-S1C] full-tail board=%u activations=%u full-ok=%u\n",
+                static_cast<unsigned>(boardReadyAtRequest),
+                static_cast<unsigned>(fullResult.activationCount),
+                static_cast<unsigned>(fullOk)
+            );
+            Serial.printf(
+                "[P5-D1-S1C] cleanup pwm=%u reset=%u rail=%u spi=%u\n",
+                static_cast<unsigned>(fullResult.pwmOffPost),
+                static_cast<unsigned>(fullResult.resetSafePost),
+                static_cast<unsigned>(fullResult.railOff),
+                static_cast<unsigned>(fullResult.spiReleased)
+            );
+            Serial.printf(
+                "[P5-D1-S1C] shadow checked=%u valid=%u\n",
+                static_cast<unsigned>(shadowChecked),
+                static_cast<unsigned>(shadowValid)
+            );
+        }
     } else {
         executed = PaperMonoRefreshExecuted::Partial;
         success = bsp_.runOtpRepeatedPartialPanelService().ok() && bsp_.repeatedPartialShadowValid();
