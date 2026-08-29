@@ -9,7 +9,11 @@
 #define DW_BTN 3
 
 void _setup_gpio() {
-    M5.begin();
+    M5.Display.setBrightness(0);
+
+    auto cfg = M5.config();
+    cfg.clear_display = false;
+    M5.begin(cfg);
     // UP_BTN -> Prev (single click) / Esc (600ms hold)
     // DW_BTN -> Next (single click) / Sel (600ms hold)
     hal_buttons_init_2(DeviceButtons{DW_BTN, UP_BTN}, 500);
