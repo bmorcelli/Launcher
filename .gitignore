@@ -1,9 +1,9 @@
 .pio
 .vscode
 *.bin
+!boards/_jsonfiles/papermono-recovery-bootloader.bin
 include/webFiles.h
 checksum.sha256
 build
 node_modules
 __pycache__
-

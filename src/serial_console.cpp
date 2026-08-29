@@ -5,6 +5,7 @@
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "install_shared.h"
+#include "launcher_capabilities.h"
 #include "nvs_helpers.h"
 #include "partition_install_layout.h"
 #include "partition_table_model.h"
@@ -287,6 +288,10 @@ static void printPartitionTable() {
 }
 
 static void handlePartitionCommand(const std::vector<String> &tokens) {
+    if (!launcherFirmwareMutationAllowed()) {
+        launcherConsolePrintln("ERR firmware/partition mutation disabled on this target");
+        return;
+    }
     const String &sub = tokens[1];
     LauncherPartitionTable table;
     String error;
@@ -401,6 +406,10 @@ static void handlePartitionCommand(const std::vector<String> &tokens) {
 }
 
 static void handleFlashCommand(const String &name, uint32_t size) {
+    if (!launcherFirmwareMutationAllowed()) {
+        launcherConsolePrintln("ERR firmware/partition mutation disabled on this target");
+        return;
+    }
     if (size == 0) {
         launcherConsolePrintln("ERR invalid size");
         return;

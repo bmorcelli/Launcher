@@ -3,6 +3,7 @@
 #include "ble_bonds.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
+#include "launcher_capabilities.h"
 #include "mykeyboard.h"
 #include "nvs_helpers.h"
 #include "settings.h"
@@ -17,6 +18,10 @@
 
 namespace {
 constexpr const char *kNamespace = "l_apps";
+constexpr uint32_t kPaperMonoLauncherAddress = 0x10000;
+constexpr uint32_t kPaperMonoLauncherSize = 0x180000;
+constexpr uint32_t kPaperMonoPayloadAddress = 0x1A0000;
+constexpr uint32_t kPaperMonoPayloadSize = 0xE60000;
 
 String loadAppNameForLabel(const char *label) {
     if (!label || !label[0]) return "";
@@ -133,6 +138,56 @@ bool isBootableOtaEntry(const LauncherPartitionEntry &entry) {
     uint8_t firstByte = 0;
     return esp_flash_read(nullptr, &firstByte, entry.offset, 1) == ESP_OK &&
            firstByte == ESP_IMAGE_HEADER_MAGIC;
+}
+
+bool paperMonoSelectPayloadBoot(const LauncherPartitionTable &table, String *error) {
+    if (!launcherAppBootSelectAllowed()) {
+        if (error) *error = "PaperMono app boot selection disabled";
+        return false;
+    }
+
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (!running || running->type != ESP_PARTITION_TYPE_APP ||
+        running->subtype != ESP_PARTITION_SUBTYPE_APP_FACTORY || strcmp(running->label, "launcher") != 0 ||
+        running->address != kPaperMonoLauncherAddress || running->size != kPaperMonoLauncherSize) {
+        if (error) *error = "Running app is not the PaperMono factory Launcher";
+        return false;
+    }
+
+    const LauncherPartitionEntry *target = launcherPartitionFindByLabel(table, "payload");
+    if (!target || target->type != ESP_PARTITION_TYPE_APP ||
+        target->subtype != ESP_PARTITION_SUBTYPE_APP_OTA_0 || target->offset != kPaperMonoPayloadAddress ||
+        target->size != kPaperMonoPayloadSize) {
+        if (error) *error = "PaperMono payload partition does not match the approved layout";
+        return false;
+    }
+    if (!isBootableOtaEntry(*target)) {
+        if (error) *error = "PaperMono payload image is not bootable";
+        return false;
+    }
+
+    const esp_partition_t *payload =
+        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, "payload");
+    if (!payload || payload->address != kPaperMonoPayloadAddress || payload->size != kPaperMonoPayloadSize ||
+        payload->type != ESP_PARTITION_TYPE_APP || payload->subtype != ESP_PARTITION_SUBTYPE_APP_OTA_0 ||
+        strcmp(payload->label, "payload") != 0 || payload->address == running->address) {
+        if (error) *error = "PaperMono payload target is not the approved OTA_0 partition";
+        return false;
+    }
+
+    if (esp_ota_set_boot_partition(payload) != ESP_OK) {
+        if (error) *error = "Could not select the PaperMono payload boot partition";
+        return false;
+    }
+
+    const esp_partition_t *selected = esp_ota_get_boot_partition();
+    if (!selected || selected->address != payload->address || selected->size != payload->size ||
+        selected->type != payload->type || selected->subtype != payload->subtype ||
+        strcmp(selected->label, payload->label) != 0) {
+        if (error) *error = "PaperMono payload boot selection verification failed";
+        return false;
+    }
+    return true;
 }
 
 void normalizeOtaSubtypes(LauncherPartitionTable &table) {
@@ -296,6 +351,11 @@ String launcherSelectedBootAppName() {
 }
 bool launcherBootCurrentApp() {
     if (!bootToApp) return false;
+    const esp_partition_t *bootPartition = esp_ota_get_boot_partition();
+    if (!bootPartition || bootPartition->type != ESP_PARTITION_TYPE_APP ||
+        bootPartition->subtype < ESP_PARTITION_SUBTYPE_APP_OTA_0) {
+        return false;
+    }
     std::vector<LauncherAppMetadata> apps = launcherListInstalledApps();
     if (apps.empty()) return false;
     return true;
@@ -385,9 +445,15 @@ bool launcherBootAppByLabel(const char *label) {
     const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label);
     if (!entry || !entry->isOtaApp()) return reportAppNotFound();
 
+#if defined(FREEINK_DEVICE_PAPERMONO)
+    if (strcmp(label, "payload") != 0 || !paperMonoSelectPayloadBoot(table, &error)) {
+        return reportStepFailed(error, "PaperMono payload boot selection failed");
+    }
+#else
     if (!launcherPartitionSetOtaBoot(table, entry->subtype, &error)) {
         return reportStepFailed(error, "Boot set failed");
     }
+#endif
 
     // Firmwares dump BLE bonds as raw structs whose layout depends on their own
     // NimBLE build, so one left behind by another app bootloops this one. Hand the
@@ -402,6 +468,10 @@ bool launcherBootAppByLabel(const char *label) {
 }
 
 bool launcherDeleteAppByLabel(const char *label) {
+    if (!launcherFirmwareMutationAllowed()) {
+        displayError("Firmware changes disabled");
+        return false;
+    }
     if (!label || !label[0]) return reportAppNotFound();
 
     LauncherPartitionTable table;

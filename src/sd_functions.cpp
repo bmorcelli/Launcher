@@ -16,8 +16,10 @@
 #include "settings.h"
 #include "utils.h"
 #include <algorithm>
+#include <cstring>
 #include <esp_app_format.h>
 #include <esp_image_format.h>
+#include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <globals.h>
 #include <memory>
@@ -406,6 +408,26 @@ static void bindFileToKeyMenu(const String &path) {
 }
 #endif
 
+static bool paperMonoInstallEligible(const String &path, const String &upperFile) {
+    if (!launcherFirmwareInstallAllowed() || !upperFile.endsWith(".BIN")) return false;
+
+    LauncherFirmwareValidation validation;
+    return launcherValidateFirmwareFile(path, validation) &&
+           validation.kind == LauncherFirmwareKind::StandaloneApp && validation.esp32S3 &&
+           validation.imageBytes != 0 && validation.imageBytes <= validation.fileBytes;
+}
+
+static bool confirmPaperMonoInstall() {
+    bool confirmed = false;
+    std::vector<Option> confirmOptions = {
+        {"Install", [&]() { confirmed = true; } },
+        {"Cancel",  [&]() { confirmed = false; }},
+    };
+    displayRedStripe("Install payload; reboot to it? KEY1=Launcher");
+    loopOptions(confirmOptions);
+    return confirmed;
+}
+
 /*********************************************************************
 **  Function: loopSD
 **  Where you choose what to do wuth your SD Files
@@ -515,8 +537,10 @@ RESTART:
         std::vector<Option> opt;
         String upperFile = fileToUse;
         upperFile.toUpperCase();
-        if (launcherFirmwareInstallAllowed()) {
-            opt.push_back({"Install", [=]() { updateFromSD(fileToUse); }});
+        if (paperMonoInstallEligible(fileToUse, upperFile)) {
+            opt.push_back({"Install", [=]() {
+                               if (confirmPaperMonoInstall()) updateFromSD(fileToUse);
+                           }});
         }
         if (launcherFirmwareInspectAllowed() && upperFile.endsWith(".BIN")) {
             opt.push_back({"Inspect", [=]() { launcherInspectFirmwareFile(fileToUse); }});
@@ -718,6 +742,54 @@ static uint32_t effectiveSdAppSize(File &file, uint32_t appOffset, uint32_t fall
     return fallbackSize;
 }
 
+static bool installPaperMonoFixedAppFromSd(const String &path) {
+    if (!launcherFirmwareInstallAllowed()) {
+        launcherConsolePrintln("PM_INSTALL_FAIL source-validation install-disabled");
+        return false;
+    }
+
+    LauncherFirmwareValidation image;
+    if (!launcherValidateFirmwareFile(path, image) || image.kind != LauncherFirmwareKind::StandaloneApp ||
+        !image.esp32S3 || image.imageBytes == 0 || image.imageBytes > image.fileBytes) {
+        launcherConsolePrintln("PM_INSTALL_FAIL source-validation");
+        return false;
+    }
+
+    constexpr uint32_t kPayloadOffset = 0x1A0000;
+    constexpr uint32_t kPayloadSize = 0xE60000;
+    const esp_partition_t *payload =
+        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, "payload");
+    if (!payload || payload->type != ESP_PARTITION_TYPE_APP ||
+        payload->subtype != ESP_PARTITION_SUBTYPE_APP_OTA_0 || payload->address != kPayloadOffset ||
+        payload->size != kPayloadSize || image.imageBytes > payload->size) {
+        launcherConsolePrintln("PM_INSTALL_FAIL destination-partition");
+        return false;
+    }
+
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    const bool exactFactoryLauncher = running && running->type == ESP_PARTITION_TYPE_APP &&
+                                      running->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY &&
+                                      running->address == 0x10000 && running->size == 0x180000 &&
+                                      strcmp(running->label, "launcher") == 0;
+    if (!exactFactoryLauncher || running == payload) {
+        launcherConsolePrintln("PM_INSTALL_FAIL running-partition");
+        return false;
+    }
+
+    uint32_t reopenedBytes = 0;
+    if (launcherStorageFileSize(path, reopenedBytes) != LauncherStorageFileResult::Ready ||
+        reopenedBytes < image.imageBytes) {
+        launcherConsolePrintf("PM_INSTALL_FAIL source-open path=%s\n", path.c_str());
+        return false;
+    }
+
+    pauseSdInstallInput();
+    launcherConsolePrintf("PM_INSTALL_BEGIN image=%u\n", static_cast<unsigned>(image.imageBytes));
+    const bool ok = launcherInstallAppToPartition(path, payload, image.imageBytes, progressHandler);
+    resumeSdInstallInput();
+    return ok;
+}
+
 static bool installFromSdDynamic(
     File &file, const String &path, uint32_t appSize, uint32_t appOffset,
     std::vector<LauncherInstallDataPartition> &dataPartitions
@@ -881,10 +953,19 @@ DONE:
 ***************************************************************************************/
 void updateFromSD(const String &path) {
     if (!launcherFirmwareInstallAllowed()) {
-        launcherConsolePrintln("[P5-D1] PaperMono firmware Install disabled");
+        launcherConsolePrintln("PM_INSTALL_FAIL source-validation install-disabled");
         displayError("Firmware install disabled");
         return;
     }
+
+#if defined(FREEINK_DEVICE_PAPERMONO)
+    if (!installPaperMonoFixedAppFromSd(path)) {
+        displayError("PaperMono APP install failed");
+        return;
+    }
+    tft->fillScreen(BGCOLOR);
+    return (void)releaseHeapObjectsAndReboot();
+#endif
 
     uint8_t partitionEntry[LAUNCHER_PARTITION_ENTRY_SIZE];
     uint32_t app_size = 0;

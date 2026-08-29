@@ -1,5 +1,6 @@
 # Name,     Type, SubType,   Offset,   Size,    Flags
 nvs,        data, nvs,       0x9000,   0x5000,
 otadata,    data, ota,       0xE000,   0x2000,
-app0,       app,  test,      0x10000,  0x180000,
+launcher,   app,  factory,   0x10000,  0x180000,
 coredump,   data, coredump,  0x190000, 0x10000,
+payload,    app,  ota_0,     0x1A0000, 0xE60000,

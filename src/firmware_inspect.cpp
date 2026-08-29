@@ -100,8 +100,7 @@ bool inspectAppImage(const String &path, uint32_t fileBytes, uint32_t offset, Im
         cursor += segmentBytes;
     }
 
-    uint64_t end = (cursor + 15U) & ~uint64_t(15U);
-    end += 1; // image checksum
+    uint64_t end = cursor + 1; // image checksum follows the final segment immediately
     if (header.hash_appended) end += kImageHashBytes;
     end = (end + 15U) & ~uint64_t(15U);
     if (!spanFits(fileBytes, offset, end - offset) || end <= offset) return false;
@@ -131,7 +130,7 @@ bool inspectFullFlashImage(const String &path, uint32_t fileBytes, ImageInfo &im
 
         const uint32_t appOffset = readLe32(entry + 4);
         const uint32_t declaredBytes = readLe32(entry + 8);
-        if (appOffset == 0 || declaredBytes == 0 || !spanFits(fileBytes, appOffset, declaredBytes)) continue;
+        if (appOffset == 0 || declaredBytes == 0 || !spanFits(fileBytes, appOffset, 1)) continue;
 
         ImageInfo candidate;
         if (!inspectAppImage(path, fileBytes, appOffset, candidate)) continue;
@@ -208,4 +207,21 @@ void showInspection(const String &path, const InspectionResult &result) {
 void launcherInspectFirmwareFile(const String &path) {
     if (!launcherFirmwareInspectAllowed()) return;
     showInspection(path, inspectFirmware(path));
+}
+
+bool launcherValidateFirmwareFile(const String &path, LauncherFirmwareValidation &validation) {
+    validation = LauncherFirmwareValidation();
+    const InspectionResult result = inspectFirmware(path);
+    validation.fileBytes = result.fileBytes;
+    if (result.kind == FirmwareKind::FullFlashImage) {
+        validation.kind = LauncherFirmwareKind::FullFlash;
+        validation.esp32S3 = result.app.esp32S3;
+        validation.imageBytes = result.app.imageBytes;
+        return false;
+    }
+    if (result.kind != FirmwareKind::AppImage || !result.app.valid || !result.app.esp32S3) return false;
+    validation.kind = LauncherFirmwareKind::StandaloneApp;
+    validation.esp32S3 = true;
+    validation.imageBytes = result.app.imageBytes;
+    return validation.fileBytes != 0 && validation.imageBytes != 0;
 }

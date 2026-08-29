@@ -2,6 +2,7 @@
 #define LAUNCHER_IDF_UPDATE_H
 
 #include <Stream.h>
+#include <WString.h>
 #include <cstddef>
 #include <cstdint>
 #include <esp_partition.h>
@@ -47,6 +48,13 @@ bool launcherUpdateCopyPartition(
 bool launcherUpdateRepairPartitionTable(uint32_t removeOtaAddress, bool *removedOta = nullptr);
 bool launcherRawUpdateStream(
     Stream &source, uint32_t address, size_t partitionSize, size_t imageSize, bool appImage,
+    LauncherUpdateProgress cb = nullptr
+);
+
+// Fixed app-slot writer. This deliberately uses only the firmware-install
+// capability; raw/runtime mutation capabilities are not prerequisites.
+bool launcherInstallAppToPartition(
+    const String &sourcePath, const esp_partition_t *partition, size_t imageSize,
     LauncherUpdateProgress cb = nullptr
 );
 

@@ -1,6 +1,7 @@
 #include "backup_manager.h"
 #include "display.h"
 #include "idf/launcher_platform.h"
+#include "launcher_capabilities.h"
 #include "littlefs_patch.h"
 #include "partition_table_model.h"
 #include "ram_profile.h"
@@ -396,6 +397,7 @@ bool hasRestorableBackup(const BackupInstallInfo &info) {
 }
 
 bool restoreLastBackupForApp(const String &appNum) {
+    if (!launcherFirmwareMutationAllowed()) return false;
     BackupInstallInfo info = loadInstalledFromConfig(appNum);
     if (!hasRestorableBackup(info)) return false;
 
@@ -408,6 +410,7 @@ bool restoreLastBackupForApp(const String &appNum) {
 }
 
 bool restorePartitionFromBackup(const char *partitionLabel, const char *backupFilePath) {
+    if (!launcherFirmwareMutationAllowed()) return false;
     RAM_LOG("restorePartition-start");
     if (!setupSdCard()) return false;
 
@@ -480,6 +483,7 @@ bool restorePartitionFromBackup(const char *partitionLabel, const char *backupFi
 bool restorePartitionFromBackupDirect(
     const char *partitionLabel, const char *backupFilePath, uint32_t flashOffset, uint32_t flashSize
 ) {
+    if (!launcherFirmwareMutationAllowed()) return false;
     RAM_LOG("restorePartitionDirect-start");
     if (!setupSdCard()) return false;
 

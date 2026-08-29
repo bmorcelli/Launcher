@@ -6,6 +6,7 @@
 #include "esp_heap_caps.h"
 #include "idf/idf_update.h"
 #include "idf/launcher_platform.h"
+#include "launcher_capabilities.h"
 #include "littlefs_patch.h"
 #include "mykeyboard.h"
 #include "partition_table_model.h"
@@ -994,6 +995,10 @@ void restorePartition(const char *partitionLabel) {
 #endif
 // Função principal
 void partitionCrawler() {
+    if (!launcherFirmwareMutationAllowed()) {
+        launcherConsolePrintln("Firmware/partition mutation disabled on this target");
+        return;
+    }
     const esp_partition_t *running_partition = esp_ota_get_running_partition();
     if (running_partition == NULL) {
         ESP_LOGE(TAG, "Failed to get running partition");

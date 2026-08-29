@@ -4,7 +4,9 @@
 #include "esp_image_format.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "launcher_capabilities.h"
 #include "launcher_platform.h"
+#include "launcher_storage.h"
 #include "partition_table_model.h"
 #include <Arduino.h>
 #include <algorithm>
@@ -47,6 +49,14 @@ struct LauncherUpdateContext {
 };
 
 LauncherUpdateContext ctx;
+
+bool mutationAllowed() {
+    if (launcherFirmwareMutationAllowed()) return true;
+    ctx.error = LAUNCHER_UPDATE_ERROR_ABORT;
+    ctx.running = false;
+    launcherConsolePrintln("Firmware/partition mutation disabled on this target");
+    return false;
+}
 
 size_t roundUpToSector(size_t value) { return (value + kSectorSize - 1) & ~(kSectorSize - 1); }
 
@@ -292,6 +302,7 @@ bool writeData(const uint8_t *data, size_t len) {
 } // namespace
 
 size_t launcherUpdateWrite(const uint8_t *data, size_t len) {
+    if (!mutationAllowed()) return 0;
     if (!ctx.running || ctx.error != LAUNCHER_UPDATE_ERROR_OK || !data || len == 0) return 0;
 
     if (ctx.written >= ctx.size) return 0;
@@ -302,6 +313,7 @@ size_t launcherUpdateWrite(const uint8_t *data, size_t len) {
 }
 
 bool launcherRawUpdateEnd() {
+    if (!mutationAllowed()) return false;
     if (!ctx.running || ctx.error != LAUNCHER_UPDATE_ERROR_OK) return false;
     if (ctx.raw && !flushRawTail()) return false;
     if (ctx.written != ctx.size) {
@@ -371,6 +383,7 @@ const char *launcherUpdateLastErrorName() {
 
 bool launcherRawUpdateBegin(uint32_t address, size_t partitionSize, size_t imageSize, bool appImage) {
     ctx = LauncherUpdateContext();
+    if (!mutationAllowed()) return false;
     ctx.raw = true;
     ctx.raw_address = address;
     ctx.partition_size = partitionSize;
@@ -400,6 +413,7 @@ bool launcherRawUpdateBegin(uint32_t address, size_t partitionSize, size_t image
 size_t launcherRawUpdateWrite(const uint8_t *data, size_t len) { return launcherUpdateWrite(data, len); }
 
 bool launcherRawErase(uint32_t address, size_t size) {
+    if (!mutationAllowed()) return false;
     ctx.error = LAUNCHER_UPDATE_ERROR_OK;
     if (!validRawRange(address, size)) {
         ctx.error = LAUNCHER_UPDATE_ERROR_BAD_ARGUMENT;
@@ -419,6 +433,7 @@ bool launcherRawPrepareDataPartition(uint32_t address, size_t size) {
 }
 
 bool launcherUpdateErasePartition(const esp_partition_t *partition) {
+    if (!mutationAllowed()) return false;
     ctx.error = LAUNCHER_UPDATE_ERROR_OK;
     if (!partition) {
         ctx.error = LAUNCHER_UPDATE_ERROR_NO_PARTITION;
@@ -436,6 +451,7 @@ bool launcherUpdateErasePartition(const esp_partition_t *partition) {
 bool launcherUpdateCopyPartition(
     const esp_partition_t *source, const esp_partition_t *destination, LauncherUpdateProgress cb
 ) {
+    if (!mutationAllowed()) return false;
     ctx.error = LAUNCHER_UPDATE_ERROR_OK;
     if (!source || !destination) {
         ctx.error = LAUNCHER_UPDATE_ERROR_NO_PARTITION;
@@ -470,6 +486,7 @@ bool launcherUpdateCopyPartition(
 }
 
 bool launcherUpdateRepairPartitionTable(uint32_t removeOtaAddress, bool *removedOta) {
+    if (!mutationAllowed()) return false;
     ctx.error = LAUNCHER_UPDATE_ERROR_OK;
     if (removedOta) *removedOta = false;
 
@@ -531,6 +548,7 @@ bool launcherUpdateRepairPartitionTable(uint32_t removeOtaAddress, bool *removed
 }
 
 bool launcherClearCoredump() {
+    if (!mutationAllowed()) return false;
     const esp_partition_t *partition =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "coredump");
     launcherConsolePrintf("Coredump partition address: 0x%08X\n", partition ? partition->address : 0);
@@ -557,6 +575,7 @@ bool launcherRawUpdateStream(
     Stream &source, uint32_t address, size_t partitionSize, size_t imageSize, bool appImage,
     LauncherUpdateProgress cb
 ) {
+    if (!mutationAllowed()) return false;
     if (!launcherRawUpdateBegin(address, partitionSize, imageSize, appImage)) return false;
 
     uint8_t buffer[1024];
@@ -590,4 +609,84 @@ bool launcherRawUpdateStream(
     }
 
     return launcherRawUpdateEnd();
+}
+
+bool launcherInstallAppToPartition(
+    const String &sourcePath, const esp_partition_t *partition, size_t imageSize, LauncherUpdateProgress cb
+) {
+    if (!launcherFirmwareInstallAllowed()) {
+        launcherConsolePrintln("PM_INSTALL_FAIL source-validation install-disabled");
+        return false;
+    }
+    if (!partition || partition->type != ESP_PARTITION_TYPE_APP || imageSize == 0 ||
+        imageSize > partition->size) {
+        launcherConsolePrintln("PM_INSTALL_FAIL destination-partition");
+        return false;
+    }
+
+    esp_ota_handle_t handle = 0;
+    esp_err_t err = esp_ota_begin(partition, imageSize, &handle);
+    if (err != ESP_OK) {
+        launcherConsolePrintf("PM_INSTALL_FAIL ota-begin %s\n", esp_err_to_name(err));
+        return false;
+    }
+
+    uint8_t buffer[4096];
+    size_t written = 0;
+    if (cb) cb(0, imageSize);
+    while (written < imageSize) {
+        const size_t requested = std::min(sizeof(buffer), imageSize - written);
+        const LauncherStorageFileResult readResult =
+            launcherStorageReadAt(sourcePath, written, buffer, requested);
+        if (readResult != LauncherStorageFileResult::Ready) {
+            launcherConsolePrintf(
+                "PM_INSTALL_FAIL source-read offset=%u expected=%u actual=%u\n",
+                static_cast<unsigned>(written),
+                static_cast<unsigned>(requested),
+                0U
+            );
+            esp_ota_abort(handle);
+            return false;
+        }
+        const size_t received = requested;
+        err = esp_ota_write(handle, buffer, received);
+        if (err != ESP_OK) {
+            launcherConsolePrintf(
+                "PM_INSTALL_FAIL ota-write %s offset=%u\n",
+                esp_err_to_name(err),
+                static_cast<unsigned>(written)
+            );
+            esp_ota_abort(handle);
+            return false;
+        }
+        written += received;
+        if (cb) cb(written, imageSize);
+    }
+    launcherConsolePrintf("PM_INSTALL_WRITE_DONE bytes=%u\n", static_cast<unsigned>(written));
+
+    err = esp_ota_end(handle);
+    if (err != ESP_OK) {
+        launcherConsolePrintf("PM_INSTALL_FAIL ota-end %s\n", esp_err_to_name(err));
+        return false;
+    }
+
+    esp_image_metadata_t metadata;
+    const esp_partition_pos_t position = {
+        .offset = partition->address,
+        .size = partition->size,
+    };
+    err = esp_image_verify(ESP_IMAGE_VERIFY, &position, &metadata);
+    if (err != ESP_OK) {
+        launcherConsolePrintf("PM_INSTALL_FAIL image-verify %s\n", esp_err_to_name(err));
+        return false;
+    }
+    launcherConsolePrintln("PM_INSTALL_VERIFY_PASS");
+
+    err = esp_ota_set_boot_partition(partition);
+    if (err != ESP_OK) {
+        launcherConsolePrintf("PM_INSTALL_FAIL set-boot %s\n", esp_err_to_name(err));
+        return false;
+    }
+    launcherConsolePrintln("PM_INSTALL_BOOT_SELECTED");
+    return true;
 }

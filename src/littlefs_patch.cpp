@@ -1,6 +1,7 @@
 #include "littlefs_patch.h"
 
 #include "idf/launcher_platform.h"
+#include "launcher_capabilities.h"
 
 #include <Arduino.h>
 #include <algorithm>
@@ -155,6 +156,10 @@ bool patchLittlefsRootCommit(uint8_t *block, uint32_t blockSize, uint32_t newBlo
 bool launcherPatchReducedLittlefsSuperblocks(
     uint32_t address, uint32_t partitionSize, String *error, bool *patched
 ) {
+    if (!launcherFirmwareMutationAllowed()) {
+        setError(error, "Firmware/partition mutation disabled on this target");
+        return false;
+    }
     if (patched) *patched = false;
     if (address == 0 || partitionSize < kProbeSize) return true;
 

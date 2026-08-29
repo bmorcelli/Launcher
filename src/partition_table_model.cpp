@@ -1,6 +1,7 @@
 #include "partition_table_model.h"
 
 #include "idf/launcher_platform.h"
+#include "launcher_capabilities.h"
 #include "littlefs_patch.h"
 #include "pre_compiler.h"
 
@@ -389,6 +390,10 @@ bool launcherPartitionCompact(LauncherPartitionTable &table, String *error) {
 bool launcherPartitionMigrateMovedData(
     const LauncherPartitionTable &currentTable, const LauncherPartitionTable &targetTable, String *error
 ) {
+    if (!launcherFirmwareMutationAllowed()) {
+        setError(error, "Firmware/partition mutation disabled on this target");
+        return false;
+    }
     if (!launcherPartitionValidate(currentTable, error) || !launcherPartitionValidate(targetTable, error)) {
         return false;
     }
@@ -489,6 +494,10 @@ bool launcherPartitionMigrateMovedData(
 }
 
 bool launcherPartitionWriteGeneratedTable(const LauncherPartitionTable &table, String *error) {
+    if (!launcherFirmwareMutationAllowed()) {
+        setError(error, "Firmware/partition mutation disabled on this target");
+        return false;
+    }
     HeapBuffer partitionTable = makeInternalBuffer(LAUNCHER_PARTITION_TABLE_SIZE);
     HeapBuffer verifyTable = makeInternalBuffer(LAUNCHER_PARTITION_TABLE_SIZE);
     if (!partitionTable || !verifyTable) {
@@ -937,6 +946,10 @@ LauncherPartitionPayloadPlan launcherPartitionFatPayloadPlan(
 }
 
 bool launcherPartitionSetOtaBoot(const LauncherPartitionTable &table, uint8_t appSubtype, String *error) {
+    if (!launcherFirmwareMutationAllowed()) {
+        setError(error, "Firmware/partition mutation disabled on this target");
+        return false;
+    }
     const int otaIndex = launcherPartitionOtaIndex(appSubtype);
     if (otaIndex < 0) {
         setError(error, "Target app subtype is not an OTA subtype");
@@ -999,6 +1012,10 @@ bool launcherPartitionSetOtaBoot(const LauncherPartitionTable &table, uint8_t ap
 }
 
 bool launcherPartitionClearOtaBoot(const LauncherPartitionTable &table, String *error) {
+    if (!launcherFirmwareMutationAllowed()) {
+        setError(error, "Firmware/partition mutation disabled on this target");
+        return false;
+    }
     const LauncherPartitionEntry *otadata = launcherPartitionFindOtaData(table);
     if (!otadata) {
         setError(error, "otadata partition not found in generated table");
