@@ -1102,10 +1102,10 @@ bool getFromNVS() {
 
     return true;
 }
-bool getWifiFromNVS() {
+bool getWifiFromNVS(bool mergeExisting) {
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
-    wifiList.clear();
+    if (!mergeExisting) wifiList.clear();
 
     launcherConsolePrintln("NVS: Finding keys in NVS...");
     lnvs::Handle handle("l_wifi", false);
@@ -1175,6 +1175,7 @@ void getConfigs() {
     log_i("getConfigs: deserialized correctly");
     JsonObject setting = settings[0];
     int count = applySettingsFromRoot(setting);
+    getWifiFromNVS(true);
     if (count > 0) saveConfigs();
 
     log_i("Brightness: %d", bright);

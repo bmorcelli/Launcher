@@ -44,7 +44,7 @@ void saveConfigs();
 bool saveIntoNVS();
 bool saveWifiIntoNVS();
 bool getFromNVS();
-bool getWifiFromNVS();
+bool getWifiFromNVS(bool mergeExisting = false);
 bool eraseNamespace(const char *ns);
 bool ensureM5StackUiFlowNVSDefaults();
 bool getWifiCredential(const String &ssid, String &password);

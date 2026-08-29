@@ -5,7 +5,10 @@
 #include <interface.h>
 
 void _setup_gpio() {
-    M5.begin();
+    M5.Display.setBrightness(0);
+    auto cfg = M5.config();
+    cfg.clear_display = false;
+    M5.begin(cfg);
 #if defined(ARDUINO_M5STACK_PAPER)
     // Draw directly into the IT8951 panel memory and present complete frames
     // explicitly. Repeated full-screen M5Canvas pushes leave this hardware on

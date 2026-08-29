@@ -9,10 +9,18 @@
 #define DW_BTN 10
 
 void _setup_gpio() {
-    M5.begin();
+    M5.Display.setBrightness(0);
+    auto cfg = M5.config();
+    cfg.clear_display = false;
+    M5.begin(cfg);
     pinMode(SEL_BTN, INPUT); // Top button
     pinMode(UP_BTN, INPUT);  // upper button
     pinMode(DW_BTN, INPUT);  // down button
+
+    _cs = 47;
+    _sck = 15;
+    _miso = 14;
+    _mosi = 13;
 }
 
 void _post_setup_gpio() {
@@ -20,8 +28,9 @@ void _post_setup_gpio() {
     tft->setTextSize(_fg);
     tft->drawCentreString("LAUNCHER", TFT_WIDTH / 2, 200);
     tft->setTextSize(_fm);
-    tft->drawCentreString("Press top Button to start", TFT_WIDTH / 2, 300);
-    tft->drawCentreString("Launcher WebUI", TFT_WIDTH / 2, 350);
+    tft->drawCentreString("Press top Button", TFT_WIDTH / 2, 300);
+    tft->drawCentreString("to start Launcher", TFT_WIDTH / 2, 350);
+    tft->drawCentreString("WebUI", TFT_WIDTH / 2, 400);
     tft->display();
 }
 

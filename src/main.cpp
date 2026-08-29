@@ -635,10 +635,58 @@ END:
 }
 
 #else
+static bool headlessTrySavedWifi(const std::vector<LauncherWifiAp> &networks) {
+    std::vector<LauncherSavedWifiNetwork> savedNetworks = getSavedWifiNetworks();
+    if (savedNetworks.empty()) {
+        launcherConsolePrintln("No saved WiFi networks found.");
+        return false;
+    }
+
+    if (networks.empty()) {
+        launcherConsolePrintln("No WiFi networks found in scan.");
+        return false;
+    }
+
+    for (const LauncherWifiAp &network : networks) {
+        String networkSsid = network.ssid.c_str();
+        if (networkSsid.isEmpty()) continue;
+
+        for (const LauncherSavedWifiNetwork &saved : savedNetworks) {
+            if (networkSsid != saved.ssid) continue;
+
+            String savedPwd;
+            if (!getWifiCredential(saved.ssid, savedPwd)) continue;
+
+            ssid = saved.ssid;
+            pwd = savedPwd;
+            int count = 0;
+            launcherConsolePrintf("Connecting to saved SSID: %s\n", ssid.c_str());
+
+            LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
+            while (connectState != LauncherWifiConnectState::Connected) {
+                connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
+                if (connectState == LauncherWifiConnectState::Connected) return true;
+                if (connectState == LauncherWifiConnectState::WrongPassword) {
+                    launcherConsolePrintln("Wrong Password");
+                    break;
+                }
+#if LED > 0
+                launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
+#endif
+                launcherConsolePrint(".");
+                count++;
+                if (connectState == LauncherWifiConnectState::Failed || count > 20) break;
+            }
+            launcherConsolePrintln("");
+        }
+    }
+
+    return launcherWifiIsConnected();
+}
+
 void loop() { // Start SD card, If there's no SD Card installed, see if there's ssid saved on memory,
     RAM_LOG("headless-loop-start");
-
-    launcherConsolePrint(
+    launcherConsolePrintLong(
         "     _                            _               \n"
         "    | |                          | |              \n"
         "    | |     __ _ _   _ _ __   ___| |__   ___ _ __ \n"
@@ -646,87 +694,25 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
         "    | |___| (_| | |_| | | | | (__| | | |  __/ |   \n"
         "    |______\\__,_|\\__,_|_| |_|\\___|_| |_|\\___|_|   \n"
         "    ----------------------------------------------\n"
-
         "Welcome to Launcher, an ESP32 firmware where you can have\n"
         "a better control on what you are running on it.\n\n"
         "Now it will Start a web interface, where you can flash a new\n"
         "firmware on a dedicated partition, and swap it whenever you\n"
         "want using this Launcher.\n\n\n"
     );
-
     getConfigs();
     launcherConsolePrintln("Scanning networks...");
     std::vector<LauncherWifiAp> networks;
     int nets = launcherWifiScan(networks);
     bool mode_ap = true;
 
-    if (sdcardMounted) {
-        JsonObject setting = settings[0];
-        JsonArray WifiList = setting["wifi"].as<JsonArray>();
-        for (int i = 0; i < nets; i++) {
-            String networkSsid = networks[i].ssid.c_str();
-            for (auto wifientry : WifiList) {
-                launcherConsolePrintf("Target: %s Network: %s\n", ssid.c_str(), networkSsid.c_str());
-                if (networkSsid == wifientry["ssid"].as<String>()) {
-                    ssid = wifientry["ssid"].as<String>();
-                    pwd = wifientry["pwd"].as<String>();
-                    int count = 0;
-                    launcherConsolePrintf("Connecting to %s\n", ssid.c_str());
-                    LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
-                    while (connectState != LauncherWifiConnectState::Connected) {
-                        connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
-                        if (connectState == LauncherWifiConnectState::Connected) break;
-                        if (connectState == LauncherWifiConnectState::WrongPassword) {
-                            launcherConsolePrintln("Wrong Password");
-                            break;
-                        }
-                        vTaskDelay(pdTICKS_TO_MS(500));
-#if LED > 0
-                        launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
-#endif
-                        launcherConsolePrint(".");
-                        count++;
-                        if (connectState == LauncherWifiConnectState::Failed || count > 20) {
-                            break; // stops trying this network, will try the others, if there are some other
-                                   // with same SSID
-                        }
-                    }
-                    if (!launcherWifiIsConnected()) { saveIntoNVS(); }
-                }
-            }
-        }
-    } else if (ssid != "") { // will try to connect to a saved network
-        for (int i = 0; i < nets; i++) {
-            String networkSsid = networks[i].ssid.c_str();
-            launcherConsolePrintf("Target: %s Network: %s\n", ssid.c_str(), networkSsid.c_str());
-            if (ssid == networkSsid) {
-                launcherConsolePrintln("Network matches the SSID, starting connection\n");
-                int count = 0;
-                launcherConsolePrintf("Connecting to %s\n", ssid.c_str());
-                LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
-                while (connectState != LauncherWifiConnectState::Connected) {
-                    connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
-                    if (connectState == LauncherWifiConnectState::Connected) break;
-                    if (connectState == LauncherWifiConnectState::WrongPassword) {
-                        launcherConsolePrintln("Wrong Password");
-                        break;
-                    }
-#if LED > 0
-                    launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
-#endif
-                    launcherConsolePrint(".");
-                    count++;
-                    if (connectState == LauncherWifiConnectState::Failed || count > 20) {
-                        break; // stops trying this network, will try the others, if there are some other with
-                               // same SSID, it can take quite sometime :/
-                    }
-                }
-            }
-        }
-    } else {
+    if (nets >= 0) headlessTrySavedWifi(networks);
+    else launcherConsolePrintln("WiFi scan failed.");
+
+    if (!launcherWifiIsConnected()) {
         launcherConsolePrintln(
-            "Couldn't find SD Card and SSID Saved,\n"
-            "you can configure it on the WEB Ui,\n\n"
+            "Couldn't connect to a saved WiFi network,\n"
+            "you can configure it on the WebUI.\n\n"
             "Starting the Launcher in Access point mode\n"
             "Connect into the following network\n"
             "with no other network (mobile data off and unplug wired connections)"
