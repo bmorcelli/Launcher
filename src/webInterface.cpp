@@ -1265,6 +1265,13 @@ esp_err_t systemInfoHandler(httpd_req_t *req) {
     sd["usedBytes"] = static_cast<double>(SDUsedBytes);
     sd["totalBytes"] = static_cast<double>(SDTotalBytes);
 
+    JsonArray apps = doc["APPS"].to<JsonArray>();
+    for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
+        JsonObject appObj = apps.add<JsonObject>();
+        appObj["label"] = app.label;
+        appObj["name"] = app.name.isEmpty() ? app.label : app.name;
+    }
+
     String json;
     serializeJson(doc, json);
     sendText(req, "application/json", json);
@@ -1276,6 +1283,45 @@ esp_err_t rebootHandler(httpd_req_t *req) {
         shouldReboot = true;
         sendText(req, "text/html", "Rebooting");
     }
+    return ESP_OK;
+}
+
+// Sets the OTA boot partition for the given app label and queues a reboot into it, mirroring
+// launcherBootAppByLabel()'s on-device flow but reporting failures back to the browser instead
+// of showing a device dialog (this handler runs from the web request, not the main loop).
+esp_err_t bootAppHandler(httpd_req_t *req) {
+    if (!checkUserWebAuth(req)) return ESP_OK;
+    String label = queryValue(req, "label");
+    WebParamMap params = readParams(req);
+    if (label.isEmpty() && params.has("label")) label = params.get("label");
+    if (label.isEmpty()) {
+        sendText(req, 400, "text/plain", "Missing label");
+        return ESP_OK;
+    }
+
+    LauncherPartitionTable table;
+    String error;
+    if (!launcherPartitionReadCurrent(table, &error)) {
+        sendText(req, 400, "text/plain", error.length() ? error : "Partition read failed");
+        return ESP_OK;
+    }
+
+    const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label.c_str());
+    if (!entry || !entry->isOtaApp()) {
+        sendText(req, 400, "text/plain", "App not found");
+        return ESP_OK;
+    }
+
+    if (!launcherPartitionSetOtaBoot(table, entry->subtype, &error)) {
+        sendText(req, 400, "text/plain", error.length() ? error : "Boot set failed");
+        return ESP_OK;
+    }
+
+    launcherBleBondsSwitchTo(label.c_str());
+    lastInstalledApp = launcherAppDisplayNameForLabel(label.c_str());
+    saveIntoNVS();
+    shouldReboot = true;
+    sendText(req, "text/plain", "OK");
     return ESP_OK;
 }
 
@@ -2099,6 +2145,8 @@ void configureWebServer() {
     registerHandler("/", HTTP_POST, rootHandler);
     registerHandler("/systeminfo", HTTP_GET, systemInfoHandler);
     registerHandler("/reboot", HTTP_GET, rebootHandler);
+    registerHandler("/bootapp", HTTP_GET, bootAppHandler);
+    registerHandler("/bootapp", HTTP_POST, bootAppHandler);
     registerHandler("/listfiles", HTTP_GET, listFilesHandler);
     registerHandler("/file", HTTP_GET, fileHandler);
     registerHandler("/editfile", HTTP_GET, editfileHandler);

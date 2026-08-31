@@ -1,3 +1,4 @@
+#include "app_registry.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <M5GFX.h>
@@ -31,6 +32,13 @@ void _post_setup_gpio() {
     tft->drawCentreString("Press top Button", TFT_WIDTH / 2, 300);
     tft->drawCentreString("to start Launcher", TFT_WIDTH / 2, 350);
     tft->drawCentreString("WebUI", TFT_WIDTH / 2, 400);
+    if (bootToApp) {
+        String bootAppName = launcherSelectedBootAppName();
+        if (!bootAppName.isEmpty()) {
+            tft->drawCentreString("Booting into", TFT_WIDTH / 2, 460);
+            tft->drawCentreString(bootAppName, TFT_WIDTH / 2, 510);
+        }
+    }
     tft->display();
 }
 

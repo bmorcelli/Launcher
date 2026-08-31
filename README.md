@@ -100,19 +100,19 @@ Things that need to be done in future updates
 * 2.9.0:
      * [x] Port to [M5-Paper](https://shop.m5stack.com/products/m5paper-esp32-development-kit-v1-1-960x540-4-7-eink-display-235-ppi?ref=Pirata)
      * [x] Port to [M5-Paper Mono](https://shop.m5stack.com/products/m5papermono-with-lora-nfc-800x480-3-97-eink-display?ref=Pirata)
-     * [x] Port to [M5-Paper Color](https://shop.m5stack.com/products/m5paper-color-esp32s3-dev-kit?ref=Pirata) - Different workflow, Prints on scren but works onl through WebUI. Display takes long time to render, making navigation almost impossible for Launcher.
+     * [x] Port to [M5-Paper Color](https://shop.m5stack.com/products/m5paper-color-esp32s3-dev-kit?ref=Pirata) - Different workflow, Prints on scren but works only through WebUI. Display takes long time to render, making navigation almost impossible for Launcher.
      * [x] Port to [T-Display P4](https://lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO)
      * [x] Port to [T-Display C5](https://lilygo.cc/products/t-display-c5?bg_ref=sDI8Bh4HmO)
      * [x] Port to [ESP32-S3 ES3C28P 2.8"](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display) aka `Cheap Black Display`, thanks to @AlexeOnTheShip
      * [x] Port to [Elecrow Crowpanel Advance ESP32-S3 5.0in](https://www.elecrow.com/crowpanel-advance-5-0-hmi-esp32-ai-display-800x480-ips-artificial-intelligent-touch-screen.html)
      * [x] Port to [Elecrow Crowpanel Advance ESP32-P4 7.0in](https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html)
      * [x] Port to [ESP32 E32R40T 4"](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display)
+     * [x] Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html)
+     * [x] Port to [Waveshare-ESP32-C5-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C5-LCD-1.47)
+     * [x] Port to [Waveshare-ESP32-C6-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
+     * [x] Port to [Waveshare-ESP32-C6-LCD-1.3](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
      * [x] Port to [XTeink X3](https://www.xteink.com/products/xteink-x3)
      * [x] **BETA**: Port to [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) - Need validating touchscreen and display
-     * [x] **BETA**: Port to [Waveshare-ESP32-C5-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C5-LCD-1.47)
-     * [x] **BETA**: Port to [Waveshare-ESP32-C6-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
-     * [x] **BETA**: Port to [Waveshare-ESP32-C6-LCD-1.3](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
-     * [x] **BETA**: Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html)
      * [x] **ATENTION**: Arduino **Nesso N1** and **M5Stack StickS3** Navigation has changed, Front button short press to move Next and Long press to Select, Side button short press to mode Previous an long press to Escape.. on Keyboard, holding Escape will change the moviment from Left/Up to Right/Down, so typing will be easier to handle (after you master it).
      * [x] **Added** option to opt-out from Automatically connect to a known Network.
      * [x] **Added** possibility to create new files using the WebUI.

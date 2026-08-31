@@ -394,6 +394,25 @@ function rebootButton() {
         httpRequest("GET", "/reboot");
     }
 }
+function renderInstalledApps(apps) {
+    const card = _("installedAppsCard");
+    if (!apps.length) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    _("installedAppsList").innerHTML = apps.map(app =>
+        '<button onclick="bootIntoApp(\'' + app.label.replace(/'/g, "\\'") + '\', \'' + app.name.replace(/'/g, "\\'") + '\')">' +
+        app.name + '</button>'
+    ).join('');
+}
+function bootIntoApp(label, name) {
+    if (!confirm('Restart into "' + name + '"?')) return;
+    httpRequest("POST", "/bootapp", {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "label=" + encodeURIComponent(label),
+        onload: (xhr) => {
+            _("status").innerHTML = xhr.status === 200 ? 'Rebooting into ' + name + '...' : xhr.responseText;
+        }
+    });
+}
 let _sdInfo = null;
 let _currentSection = '';
 function systemInfo() {
@@ -405,6 +424,7 @@ function systemInfo() {
                     _("firmwareVersion").innerHTML = data.VERSION;
                     _sdInfo = data.SD;
                     if (_currentSection === 'files') _("detailsheader").innerHTML = "<h3>Files</h3>" + sdUsageBar();
+                    renderInstalledApps(data.APPS || []);
                 } catch (error) {
                     console.error("JSON Parsing Error: ", error);
                 }
