@@ -826,7 +826,7 @@ void installFirmwareFromManifest(const String &fid, const String &version, Strin
     }
 
     String fileAddr = buildSourceUrl(fid, file, true);
-    if (!file.startsWith("https://")) file = M5_SERVER_PATH + file;
+    if (!file.startsWith("http")) file = M5_SERVER_PATH + file;
     if (fid == "") fileAddr = file;
 
     String manifestName = detail["name"].as<String>();
@@ -1104,7 +1104,7 @@ static bool padMergedFile(File &file, size_t &pos, size_t target) {
 
 static String buildSourceUrl(const String &fid, const String &sourceUrl, bool useProxy) {
     String url = sourceUrl;
-    if (!url.startsWith("https://")) url = M5_SERVER_PATH + url;
+    if (!url.startsWith("http")) url = M5_SERVER_PATH + url;
     if (useProxy && !fid.isEmpty()) {
         url = String("https://api.launcherhub.net/download?fid=") + fid + "&file=" + url;
     }
@@ -1461,7 +1461,7 @@ void installFirmware(
     std::vector<LauncherInstallDataPartition> &dataPartitions, String installedName
 ) {
     String fileAddr = buildSourceUrl(fid, file, true);
-    if (!file.startsWith("https://")) file = M5_SERVER_PATH + file;
+    if (!file.startsWith("http")) file = M5_SERVER_PATH + file;
     if (fid == "") fileAddr = file;
 
     {
