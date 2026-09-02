@@ -112,25 +112,33 @@ static uint8_t readTouchPoint(int16_t *x, int16_t *y) {
     LTouchPoint raw;
     if (!hal_touch_read_raw(raw)) return 0;
 
+    // The sensor is mounted portrait (480x800). Map the raw point into the
+    // portrait frame (rotation 3) first, then turn it into the other three
+    // rotations with the same 90-degree steps GxEPD2 uses for the framebuffer.
+    // 触摸传感器按竖屏(480x800)安装：先算出竖屏(rotation 3)坐标，
+    // 再按屏幕库相同的 90 度旋转步骤推出其余三个方向。
     const uint16_t rawX = (uint16_t)raw.x;
-    const uint16_t rawY = (uint16_t)raw.y;
+    const uint16_t rawY = (uint16_t)raw.y > touchNativeHeight ? touchNativeHeight : (uint16_t)raw.y;
+    const int16_t px = scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
+    const int16_t py = scaleTouchCoordinate(touchNativeHeight - rawY, touchNativeHeight, TFT_WIDTH - 1);
 
-    if (rotation == 3) {
-        *x = scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
-        *y = scaleTouchCoordinate(
-            touchNativeHeight - (rawY > touchNativeHeight ? touchNativeHeight : rawY),
-            touchNativeHeight,
-            TFT_WIDTH - 1
-        );
-    } else if (rotation == 1) {
-        *x = (TFT_HEIGHT - 1) - scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
-        *y = scaleTouchCoordinate(rawY, touchNativeHeight, TFT_WIDTH - 1);
-    } else if (rotation == 0) {
-        *x = scaleTouchCoordinate(rawY, touchNativeHeight, TFT_WIDTH - 1);
-        *y = scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
-    } else {
-        *x = (TFT_WIDTH - 1) - scaleTouchCoordinate(rawY, touchNativeHeight, TFT_WIDTH - 1);
-        *y = (TFT_HEIGHT - 1) - scaleTouchCoordinate(rawX, touchNativeWidth, TFT_HEIGHT - 1);
+    switch (rotation) {
+        case 0:
+            *x = py;
+            *y = (TFT_HEIGHT - 1) - px;
+            break;
+        case 1:
+            *x = (TFT_HEIGHT - 1) - px;
+            *y = (TFT_WIDTH - 1) - py;
+            break;
+        case 2:
+            *x = (TFT_WIDTH - 1) - py;
+            *y = px;
+            break;
+        default:
+            *x = px;
+            *y = py;
+            break;
     }
     return 1;
 }
@@ -250,6 +258,19 @@ void InputHandler(void) {
         t.pressed = true;
         hal_touch_apply(t);
     }
+}
+
+/***************************************************************************************
+** Function name: reboot()
+** Description:   Power-cycles the microSD rail before the CPU resets, so the
+**                firmware being launched finds the card in its power-on state.
+**                重启 CPU 前先给 microSD 断电，让被启动的固件拿到一张刚上电的卡。
+***************************************************************************************/
+void reboot() {
+    launcherGpioWrite(SDCARD_CS, HIGH);
+    launcherGpioWrite(SD_PWR_EN, LOW);
+    launcherDelayMs(200);
+    ESP.restart();
 }
 
 void powerOff() {
