@@ -1,5 +1,5 @@
 # Launcher
-Application launcher for M5Stack, Lilygo, CYD, Marauder, and ESP32 devices.
+Application launcher for M5Stack, Lilygo, SeeedStudio, Waveshare, CYD, Marauder, and many other ESP32 devices.
 
 
 <p align="center" width="100%">
@@ -15,7 +15,7 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 
 ## How to Use
 * Turn your device on
-* Press M5/Sel (Enter) on the Launcher start screen to get into Launcher
+* Press Sel (Enter) on the Launcher start screen to get into Launcher
 * Choose OTA to install new binaries from online services (M5Burner or GitHub links)
 * After installation, when you turn on the device, the installed program will launch if you don't press anything.
 
@@ -24,6 +24,7 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 * Use a maximum size of 32GB (I use 8 or 16GB)
 * Format it as FAT32 (use [Rufus](https://rufus.ie/) to format your SD card)
 * Ensure the partition scheme is MBR, not GPT
+* Although exFAT and bigger SDCards are supported since 2.8.0, smaller ones are recommended.
 
 ## With Launcher you'll be able to:
 <details>
