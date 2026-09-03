@@ -107,7 +107,7 @@ Things that need to be done in future updates
      * [x] Port to [Elecrow Crowpanel Advance ESP32-S3 5.0in](https://www.elecrow.com/crowpanel-advance-5-0-hmi-esp32-ai-display-800x480-ips-artificial-intelligent-touch-screen.html)
      * [x] Port to [Elecrow Crowpanel Advance ESP32-P4 7.0in](https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html)
      * [x] Port to [ESP32 E32R40T 4"](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display)
-     * [x] Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html)
+     * [x] Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html), thaks to @limengdu
      * [x] Port to [Waveshare-ESP32-C5-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C5-LCD-1.47)
      * [x] Port to [Waveshare-ESP32-C6-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
      * [x] Port to [Waveshare-ESP32-C6-LCD-1.3](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
