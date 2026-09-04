@@ -33,9 +33,7 @@
 #define PINK TFT_PINK
 #define PALERED 0xF9A0
 
-#if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
-#define NATIVE_BGCOLOR WHITE
-#elif defined(E_PAPER_DISPLAY)
+#if defined(E_PAPER_DISPLAY)
 #define NATIVE_BGCOLOR WHITE
 #else
 #define NATIVE_BGCOLOR BLACK

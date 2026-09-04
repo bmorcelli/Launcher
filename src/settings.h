@@ -60,6 +60,7 @@ std::vector<LauncherSavedWifiNetwork> getSavedWifiNetworks();
 void printSettingsJson();
 bool loadSettingsJson(const String &json);
 void setdimmerSet();
+void setBootTimer();
 void setUiColor();
 void chargeMode();
 JsonObject ensureSettingsRoot();

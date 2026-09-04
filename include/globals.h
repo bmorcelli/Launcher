@@ -225,6 +225,21 @@ extern bool askSpiffs;
 // Used to control boot process
 extern bool bootToApp;
 
+// Boot time control
+extern uint8_t bootTimer;
+
+// Disable Deepsleep Launcher Boot: when true, the bootloader only starts the
+// Launcher UI on a power-on reset or via LauncherOnKey/LauncherOnKeyLevel,
+// bypassing it on other reset reasons (e.g. deep sleep wake).
+extern bool DDLB;
+
+// GPIO checked by the bootloader to force entry into the Launcher regardless
+// of DDLB. -1 disables the check.
+extern int LauncherOnKey;
+
+// GPIO level (LOW=false/HIGH=true) that counts as LauncherOnKey being pressed.
+extern bool LauncherKeyLvl;
+
 // Used to set Autoconnection after list networks
 extern bool autoConnect;
 

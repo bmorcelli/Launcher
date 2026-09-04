@@ -157,6 +157,33 @@ int applySettingsFromRoot(JsonObject setting) {
         log_i("applySettingsFromRoot: missing bootToApp");
     }
 
+    if (setting["DDLB"].is<bool>()) DDLB = setting["DDLB"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing DDLB");
+    }
+
+    // LauncherOnKey is bound to this specific device's MAC (same as rotation) so an SD
+    // card shared across multiple physical units of the same board doesn't cross-apply it.
+    String key_dev_name = get_efuse_mac_as_string() + "-" + device_name + "-key";
+    if (setting[key_dev_name].is<int>()) LauncherOnKey = setting[key_dev_name].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing LauncherOnKey");
+    }
+
+    if (setting["LauncherKeyLvl"].is<bool>()) LauncherKeyLvl = setting["LauncherKeyLvl"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing LauncherKeyLvl");
+    }
+
+    if (setting["bootTimer"].is<int>()) bootTimer = setting["bootTimer"].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing bootTimer");
+    }
+
     if (setting["noDotFiles"].is<bool>()) noDotFiles = setting["noDotFiles"].as<bool>();
     else {
         count++;
@@ -283,6 +310,9 @@ void populateSettingsFromGlobals(JsonObject setting) {
 
     setting["onlyBins"] = onlyBins;
     setting["bootToApp"] = bootToApp;
+    setting["bootTimer"] = bootTimer;
+    setting["DDLB"] = DDLB;
+    setting["LauncherKeyLvl"] = LauncherKeyLvl;
     setting["noDotFiles"] = noDotFiles;
     setting["autoBackup"] = autoBackup;
     setting["askSpiffs"] = askSpiffs;
@@ -290,6 +320,8 @@ void populateSettingsFromGlobals(JsonObject setting) {
     setting["dimmerSet"] = dimmerSet;
     String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
     setting[rot_dev_name] = rotation;
+    String key_dev_name = get_efuse_mac_as_string() + "-" + device_name + "-key";
+    setting[key_dev_name] = LauncherOnKey;
     setting["FGCOLOR"] = FGCOLOR;
     setting["BGCOLOR"] = BGCOLOR;
     setting["ALCOLOR"] = ALCOLOR;
@@ -492,6 +524,31 @@ bool clearKeyBindings() {
     return true;
 }
 
+// Valid GPIOs for LauncherOnKey: -1 (disabled) plus either every pin up to
+// GPIO_NUM_MAX, or, when the board defines LAUNCHER_GPIO_KEYS (e.g.
+// LAUNCHER_GPIO_KEYS = {0, 2, 4, 12, 13}), only that explicit set.
+std::vector<int> launcherOnKeyGpioOptions() {
+    std::vector<int> pins = {-1};
+#if defined(LAUNCHER_GPIO_KEYS)
+    static constexpr int allowed[] = LAUNCHER_GPIO_KEYS;
+    for (int pin : allowed) pins.push_back(pin);
+#else
+    for (int pin = 0; pin < GPIO_NUM_MAX; pin++) pins.push_back(pin);
+#endif
+    return pins;
+}
+
+static void selectLauncherOnKeyGpio() {
+    std::vector<int> pins = launcherOnKeyGpioOptions();
+    options.clear();
+    for (int pin : pins) {
+        String label = pin < 0 ? "Disabled" : ("GPIO " + String(pin));
+        options.push_back({label, [pin]() { LauncherOnKey = pin; }, _CLR_(LauncherOnKey, pin)});
+    }
+    loopOptions(options);
+    saveConfigs();
+}
+
 #if defined(HAS_KEYBOARD)
 static void manageKeyBindings() {
     int idx = 0;
@@ -560,11 +617,6 @@ void settings_menu() {
                                    saveConfigs();
                                }});
         }
-
-        options.push_back({bootToApp ? "[ ] Boot to Launcher" : "[x] Boot to Launcher", [=]() {
-                               bootToApp = !bootToApp;
-                               saveConfigs();
-                           }});
         options.push_back({askSpiffs ? "[x] Ask to copy SPIFFS" : "[ ] Ask to copy SPIFFS", [=]() {
                                askSpiffs = !askSpiffs;
                                saveConfigs();
@@ -575,6 +627,29 @@ void settings_menu() {
                  saveConfigs();
              }}
         );
+        options.push_back({bootToApp ? "[ ] Boot to Launcher" : "[x] Boot to Launcher", [=]() {
+                               bootToApp = !bootToApp;
+                               saveConfigs();
+                           }});
+        options.push_back({"[1+" + String(bootTimer) + "s] Boot Timer", [=]() {
+                               setBootTimer();
+                               saveConfigs();
+                           }});
+        // DDLB: Disable DeepSleep to Launcher Boot. This is a toggle for the user to choose whether to boot
+        // into the launcher or not when waking from deep sleep.
+        options.push_back({DDLB ? "[ ] DeepSleep to Launcher" : "[x] DeepSleep to Launcher", [=]() {
+                               DDLB = !DDLB;
+                               saveConfigs();
+                           }});
+#if defined(LAUNCHER_GPIO_KEYS)
+        options.push_back({"[" + String(LauncherOnKey) + "] Launch on Key Press", [=]() {
+                               selectLauncherOnKeyGpio();
+                           }});
+        options.push_back({LauncherKeyLvl ? "[1] Key Level" : "[0] Key Level", [=]() {
+                               LauncherKeyLvl = !LauncherKeyLvl;
+                               saveConfigs();
+                           }});
+#endif
         options.push_back({"Partition Manager", [=]() { partList(); }});
 #if defined(HAS_KEYBOARD)
         options.push_back({"Manage shortcuts", [=]() { manageKeyBindings(); }});
@@ -906,6 +981,24 @@ void setdimmerSet() {
 }
 
 /*********************************************************************
+**  Function: setBootTimer
+**  set bootTimer (extra seconds added to the 1s boot-screen minimum)
+**********************************************************************/
+void setBootTimer() {
+    uint8_t time = bootTimer;
+    options = {
+        {"1+0s", [&]() { time = 0; }, _CLR_(bootTimer, 0)},
+        {"1+1s", [&]() { time = 1; }, _CLR_(bootTimer, 1)},
+        {"1+2s", [&]() { time = 2; }, _CLR_(bootTimer, 2)},
+        {"1+3s", [&]() { time = 3; }, _CLR_(bootTimer, 3)},
+        {"1+4s", [&]() { time = 4; }, _CLR_(bootTimer, 4)},
+    };
+
+    loopOptions(options);
+    bootTimer = time;
+}
+
+/*********************************************************************
 **  Function: chargeMode
 **  Enter in Charging mode
 **********************************************************************/
@@ -949,6 +1042,10 @@ bool saveIntoNVS() {
     ok &= lnvs::setInt(h, "bright", bright);
     ok &= lnvs::setBool(h, "onlyBins", onlyBins);
     ok &= lnvs::setBool(h, "bootToApp", bootToApp);
+    ok &= nvs_set_u8(h, "bootTimer", bootTimer) == ESP_OK;
+    ok &= lnvs::setBool(h, "DDLB", DDLB);
+    ok &= lnvs::setInt(h, "LauncherOnKey", LauncherOnKey);
+    ok &= lnvs::setBool(h, "LauncherKeyLvl", LauncherKeyLvl);
     ok &= lnvs::setBool(h, "noDotFiles", noDotFiles);
     ok &= lnvs::setBool(h, "autoBackup", autoBackup);
     ok &= lnvs::setBool(h, "askSpiffs", askSpiffs);
@@ -1032,6 +1129,10 @@ void defaultValues() {
     bright = 100;
     onlyBins = true;
     bootToApp = true;
+    bootTimer = 4;
+    DDLB = false;
+    LauncherOnKey = -1;
+    LauncherKeyLvl = false;
     noDotFiles = true;
     askSpiffs = true;
     autoBackup = true;
@@ -1075,6 +1176,10 @@ bool getFromNVS() {
     lnvs::getInt(h, "bright", bright);
     lnvs::getBool(h, "onlyBins", onlyBins);
     lnvs::getBool(h, "bootToApp", bootToApp);
+    nvs_get_u8(h, "bootTimer", &bootTimer);
+    lnvs::getBool(h, "DDLB", DDLB);
+    lnvs::getInt(h, "LauncherOnKey", LauncherOnKey);
+    lnvs::getBool(h, "LauncherKeyLvl", LauncherKeyLvl);
     lnvs::getBool(h, "noDotFiles", noDotFiles);
     lnvs::getBool(h, "autoBackup", autoBackup);
     lnvs::getBool(h, "askSpiffs", askSpiffs);

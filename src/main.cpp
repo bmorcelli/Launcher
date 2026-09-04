@@ -116,6 +116,10 @@ int rotation = ROTATION;
 bool sdcardMounted;
 bool onlyBins;
 bool bootToApp = true;
+uint8_t bootTimer = 4;
+bool DDLB = false;
+int LauncherOnKey = -1;
+bool LauncherKeyLvl = false;
 bool noDotFiles;
 bool autoBackup = true;
 bool returnToMenu;
@@ -297,12 +301,6 @@ void setup() {
         &serialConsoleHandle
     );
 
-    // Start Bootscreen timer
-    int i = launcherMillis();
-    int j = 0;
-    LongPress = true;
-    RAM_LOG("before-bootscreen");
-
 #if defined(HAS_KEYBOARD) || defined(USE_CARDKB2)
     std::vector<LauncherAppMetadata> bootApps = launcherListInstalledApps();
 #endif
@@ -316,8 +314,13 @@ void setup() {
     // Init any device specific hardware after TFT+SD+CardKb
     _late_setup_gpio();
 
-    while (launcherMillis() < i + (2000 + bootToApp * 3000)) { // increased from 2500 to 5000
-        initDisplay();                                         // Inicia o display
+    // Start Bootscreen timer
+    int i = launcherMillis();
+    int j = 0;
+    LongPress = true;
+    RAM_LOG("before-bootscreen");
+    while (launcherMillis() < i + (1000 + bootToApp * bootTimer * 1000)) { // increased from 2500 to 5000
+        initDisplay();                                                     // Inicia o display
 
         if (launcherMillis() > (i + j * 500)) { // Serial message each ~500ms
             launcherConsolePrintln("Press the button to enter the Launcher!");

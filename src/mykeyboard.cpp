@@ -991,7 +991,7 @@ String generalKeyboard(
     CardKB2TextMode = false;
 #endif
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
-    M5.Display.setEpdMode(epd_mode_t::epd_quality);
+    M5.Display.setEpdMode(epd_mode_t::epd_fast);
 #endif
     return current_text;
 }

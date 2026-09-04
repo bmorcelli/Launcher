@@ -141,13 +141,11 @@ void initDisplay(bool doAll) {
 
 #ifdef E_PAPER_DISPLAY // epaper display draws only once
     static bool runOnce = false;
-    static long lastMillis = 0;
-    if (runOnce && launcherMillis() - lastMillis < 5000) {
+    if (runOnce) {
         vTaskDelay(50 / portTICK_PERIOD_MS);
         return;
     } else {
         runOnce = true;
-        lastMillis = launcherMillis();
     }
 #endif
 
@@ -438,7 +436,7 @@ void displayRedStripe(const String &text, uint16_t fgcolor, uint16_t bgcolor, bo
     tft->display(false);
 #if E_PAPER_DISPLAY
 #if defined(USE_M5GFX)
-    M5.Display.setEpdMode(epd_mode_t::epd_quality);
+    M5.Display.setEpdMode(epd_mode_t::epd_fast);
 #endif
 #endif
     // return previous tft settings
@@ -1286,7 +1284,7 @@ int loopOptions(std::vector<Option> &options, bool bright, uint16_t al, uint16_t
     }
 
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
-    M5.Display.setEpdMode(epd_mode_t::epd_quality);
+    M5.Display.setEpdMode(epd_mode_t::epd_fast);
 #endif
     return index;
 }
