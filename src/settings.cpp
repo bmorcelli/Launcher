@@ -771,6 +771,7 @@ void setBrightnessMenu() {
             tft->drawCentreString("Sel to apply", boxX + contentWidth / 2, trackY + sliderH + spacing, 1);
 
             setBrightness(val, false);
+            tft->display();
             redraw = false;
         }
 

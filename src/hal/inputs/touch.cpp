@@ -217,6 +217,7 @@ bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
     out.x = x;
     out.y = y;
     out.pressed = true;
+    touch.reset();
     return true;
 #else
     (void)cfg;
@@ -240,6 +241,7 @@ bool hal_touch_read_raw(LTouchPoint &out) {
     out.x = x;
     out.y = y;
     out.pressed = true;
+    touch.reset();
     return true;
 #else
     (void)out;

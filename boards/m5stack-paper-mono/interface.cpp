@@ -14,8 +14,15 @@ void _setup_gpio() {
     auto cfg = M5.config();
     cfg.clear_display = false;
     M5.begin(cfg);
+    // M5.Power.setLed() targets a PWM/AXP LED path other boards use; this
+    // board's LED is m5::LED_PaperMono_Class (M5.Led), whose red channel is
+    // driven straight off the PMIC and defaults on until explicitly told
+    // to display black.
+    M5.Led.setAllColor(0, 0, 0);
+    M5.Display.setAutoDisplay(false);
     // UP_BTN -> Prev (single click) / Esc (600ms hold)
     // DW_BTN -> Next (single click) / Sel (600ms hold)
+    M5.Display.setEpdMode(epd_mode_t::epd_fast);
     hal_buttons_init_2(DeviceButtons{DW_BTN, UP_BTN}, 500);
 }
 
@@ -41,21 +48,26 @@ void InputHandler(void) {
             tm = launcherMillis();
             if (!wakeUpScreen()) AnyKeyPress = true;
             else return;
+            int tmp = t.y;
+
             if (rotation == 0) {
+                t.y = map(t.x, 0, 480, 0, 800);
+                t.y = 800 - t.y;
+                t.x = map(tmp, 0, 800, 0, 480);
             } else if (rotation == 2) {
-                t.y = (tftHeight + (_fm * LH + 4)) - t.y;
-                t.x = tftWidth - t.x;
+                t.y = map(t.x, 0, 480, 0, 800);
+                t.x = map(tmp, 0, 800, 0, 480);
+                t.x = 480 - t.x;
+            } else if (rotation == 1) {
+                t.y = map(t.x, 0, 800, 0, 480);
+                t.y = 480 - t.y;
+                t.x = map(tmp, 0, 480, 0, 800);
+            } else if (rotation == 3) {
+                t.y = map(t.x, 0, 800, 0, 480);
+                t.x = map(tmp, 0, 480, 0, 800);
+                t.y = 480 - t.y;
             }
-            if (rotation == 3) {
-                int tmp = t.x;
-                t.x = tftWidth - t.y;
-                t.y = tmp;
-            }
-            if (rotation == 1) {
-                int tmp = t.x;
-                t.x = t.y;
-                t.y = (tftHeight + (_fm * LH + 4)) - tmp;
-            }
+
             launcherConsolePrintf("x2=%d, y2=%d, rot=%d\n", t.x, t.y, rotation);
 
             // Touch point global variable

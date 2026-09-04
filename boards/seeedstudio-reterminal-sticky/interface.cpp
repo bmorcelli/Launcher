@@ -166,20 +166,51 @@ void _setup_gpio() {
 
     powerOnHold();
 
+    // Release any RTC GPIO hold left over from a deep sleep entered by a
+    // launched app (e.g. an e-paper app that calls gpio_hold_en()/
+    // gpio_deep_sleep_hold_en() on these pins to keep rails/reset lines
+    // fixed while asleep, then wakes via reset back into the launcher).
+    // gpio_reset_pin() below does NOT clear a hold latch by itself -- an
+    // unreleased hold silently discards every write this function makes,
+    // which is what "display never powers, GT911 never answers" looks
+    // like after returning from such an app.
+    gpio_hold_dis((gpio_num_t)TOUCH_EN);
+    gpio_hold_dis((gpio_num_t)TOUCH_RST);
+    gpio_hold_dis((gpio_num_t)TOUCH_INT);
+    gpio_hold_dis((gpio_num_t)SD_PWR_EN);
+    gpio_hold_dis((gpio_num_t)EPD_EN);
+    gpio_hold_dis((gpio_num_t)BAT_CHG_EN);
+    gpio_deep_sleep_hold_dis();
+
     // Powered up here, well ahead of the first setupSdCard() call later in
     // boot, so the confirmed 100ms settle time is already spent by then.
+    gpio_reset_pin((gpio_num_t)TOUCH_INT);
+    gpio_reset_pin((gpio_num_t)TOUCH_EN);
+    gpio_reset_pin((gpio_num_t)SD_PWR_EN);
+    gpio_reset_pin((gpio_num_t)EPD_EN);
+    gpio_reset_pin((gpio_num_t)BAT_CHG_EN);
     launcherGpioOutput(TOUCH_EN);
-    launcherGpioWrite(TOUCH_EN, HIGH);
     launcherGpioOutput(SD_PWR_EN);
-    launcherGpioWrite(SD_PWR_EN, HIGH);
     launcherGpioOutput(EPD_EN);
-    launcherGpioWrite(EPD_EN, HIGH);
     launcherGpioOutput(BAT_CHG_EN);
+    launcherGpioOutput(TFT_CS);
+    launcherGpioOutput(SDCARD_CS);
+
+    launcherGpioOutput(TOUCH_INT);
+    launcherGpioWrite(TOUCH_INT, LOW);
+
+    launcherGpioWrite(TOUCH_EN, LOW);
+    launcherGpioWrite(SD_PWR_EN, LOW);
+    launcherGpioWrite(EPD_EN, LOW);
+    launcherGpioWrite(BAT_CHG_EN, HIGH);
+    launcherDelayMs(100); // Wait for 3.3V rails to settle before touching the bus
+
+    launcherGpioWrite(TOUCH_EN, HIGH);
+    launcherGpioWrite(SD_PWR_EN, HIGH);
+    launcherGpioWrite(EPD_EN, HIGH);
     launcherGpioWrite(BAT_CHG_EN, LOW); // Active low; left undriven the charger stays disabled.
     // Drive CS Pins High
-    launcherGpioOutput(TFT_CS);
     launcherGpioWrite(TFT_CS, HIGH);
-    launcherGpioOutput(SDCARD_CS);
     launcherGpioWrite(SDCARD_CS, HIGH);
 
     // Setup Inputs

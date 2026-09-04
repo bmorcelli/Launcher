@@ -98,6 +98,11 @@ Things that need to be done in future updates
 * [ ] Move to ESP-IDF Platform
 
 ## Latest Changelog
+* 2.9.1:
+     * [x] Fix **M5-Paper Mono** rendering and touch issues.
+     * [x] Fix **SeeedStudio ReTerminal Sticky** back from Deepsleep issue, allowing CrossPoint and other firmware to reboot.
+     * [x] Fix **Lilygo T-Deck Pro** touchscreen issue.
+
 * 2.9.0:
      * [x] Port to [M5-Paper](https://shop.m5stack.com/products/m5paper-esp32-development-kit-v1-1-960x540-4-7-eink-display-235-ppi?ref=Pirata)
      * [x] Port to [M5-Paper Mono](https://shop.m5stack.com/products/m5papermono-with-lora-nfc-800x480-3-97-eink-display?ref=Pirata)
