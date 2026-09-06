@@ -157,10 +157,10 @@
             with:
               path: |
                 .pio/core
-              key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
+              key: ${{ runner.os }}-platformio-v2-${{ hashFiles('platformio.ini') }}
               restore-keys: |
-                ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
-                ${{ runner.os }}-platformio-
+                ${{ runner.os }}-platformio-v2-${{ hashFiles('platformio.ini') }}
+                ${{ runner.os }}-platformio-v2-
 
           - name: PIO libraries cache
             uses: actions/cache@v5
@@ -175,7 +175,7 @@
           - name: Install dependencies
             run: |
               python -m pip install --upgrade pip
-              python -m pip install --retries 5 --timeout 120 requests esptool platformio "scons<4.9"
+              python -m pip install --retries 5 --timeout 120 requests esptool platformio
 
               if [[ "${{ github.ref_type }}" == "tag" ]]; then
                 version=${{ github.ref_name }}
@@ -232,6 +232,17 @@
 
                 if [ "$status" -eq 0 ]; then
                   exit 0
+                fi
+
+                if grep -Eiq "ModuleNotFoundError.*SCons" "$log_file"; then
+                  echo "Corrupted PlatformIO core packages detected (stale/broken cache); wiping core dir and retrying."
+                  rm -rf "$PLATFORMIO_CORE_DIR" .pio/build/"$env_name"
+                  if [ "$attempt" -eq "$max_attempts" ]; then
+                    echo "Build failed after ${max_attempts} attempts."
+                    exit "$status"
+                  fi
+                  sleep $((attempt * 30))
+                  continue
                 fi
 
                 if ! grep -Eiq "(unrecognized status code '5[0-9][0-9]'|RemoteDisconnected|ConnectionError|Connection aborted|Read timed out|ConnectTimeout|Temporary failure in name resolution|Please read https://bit.ly/package-manager-ioerror)" "$log_file"; then
