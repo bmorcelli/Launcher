@@ -130,11 +130,16 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
     if (touch.begin(wireFor(cfg), i2c_addr, cfg.pin_sda, cfg.pin_scl)) return true;
     return touch.begin(wireFor(cfg), CST816_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl);
 #elif defined(TOUCH_CTRL_FT6X36)
-    (void)i2c_addr;
     (void)xpt_shared_spi;
     if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
     touch.setPins(cfg.pin_rst, cfg.pin_irq);
-    if (!touch.begin(wireFor(cfg), FT6X36_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl)) return false;
+    // Most FT6X36-family boards answer on SensorLib's own default (0x38);
+    // a few (e.g. the FT6336U on seeedstudio-sensecap) ship at 0x48 instead
+    // -- try whatever the board passed in first, then fall back to the
+    // family default so existing boards that never override it keep working.
+    if (!touch.begin(wireFor(cfg), i2c_addr, cfg.pin_sda, cfg.pin_scl) &&
+        !touch.begin(wireFor(cfg), FT6X36_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl))
+        return false;
     launcherConsolePrintf("[FT6X36] model: %s\n", touch.getModelName());
     // hal_touch_read() polls (no IRQ line wired into the read path) -- every
     // SensorLib example for this chip calls this right after begin() for
@@ -195,6 +200,9 @@ bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
     out.x = x;
     out.y = y;
     out.pressed = true;
+#if !defined(TOUCH_CTRL_XPT2046)
+    touch.reset();
+#endif
     return true;
 #elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_GT9895) ||               \
     defined(TOUCH_CTRL_HI8561)

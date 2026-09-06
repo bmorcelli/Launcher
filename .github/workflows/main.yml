@@ -105,6 +105,7 @@
             - { env: "lilygo-t-watch-ultra"       }
             - { env: "reaper"                     }
             - { env: "seeedstudio-reterminal-sticky" }
+            - { env: "seeedstudio-sensecap"       }
             - { env: "smoochiee-board"            }
             - { env: "Marauder-v4-OG"             }
             - { env: "Marauder-v61"               }
