@@ -473,7 +473,6 @@ void displayMsg(String txt, bool waitKeyPress) { displayError(txt, waitKeyPress)
 ***************************************************************************************/
 void progressHandler(size_t progress, size_t total) {
     vTaskDelay(pdMS_TO_TICKS(2));
-    tft->drawPixel(0, 0, 0);
 #if defined(E_PAPER_DISPLAY)
     static unsigned long lastUpdate = 0;
 #endif
@@ -486,6 +485,7 @@ void progressHandler(size_t progress, size_t total) {
     if (progress == 0) {
         lastProgressDraw = launcherMillis();
         lastProgressBarWidth = 0;
+        tft->drawPixel(0, 0, 0);
         tft->setTextSize(_fm);
         tft->setTextColor(ALCOLOR);
         tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
@@ -513,7 +513,7 @@ void progressHandler(size_t progress, size_t total) {
         lastProgressDraw = now;
         lastProgressBarWidth = barWidth;
     }
-
+    tft->drawPixel(0, 0, 0);
     if (prog_handler == 1) tft->fillRect(20, tftHeight - 26, barWidth, 13, ALCOLOR);
     else tft->fillRect(20, tftHeight - 45, barWidth, 13, FGCOLOR);
 
