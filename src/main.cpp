@@ -442,7 +442,7 @@ void loop() {
         {"OTA", "Online Installer", [=]() { ota_function(); }},
 #endif
         {"WUI", tiny ? "Start WebUI" : "Start Web User Interface", [=]() { loopOptionsWebUi(); }},
-#if defined(SOC_USB_OTG_SUPPORTED)
+#if defined(SOC_USB_OTG_SUPPORTED) && !defined(DISABLE_MASS_STORAGE)
         {"USB",
          tiny ? "SD->USB" : "SD->USB Interface",
          [=]() {

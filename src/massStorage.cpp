@@ -3,7 +3,7 @@
 #include "display.h"
 #include "idf/launcher_platform.h"
 #include "sd_functions.h"
-#ifdef SOC_USB_OTG_SUPPORTED
+#if defined(SOC_USB_OTG_SUPPORTED) && !defined(DISABLE_MASS_STORAGE)
 #include "esp_private/usb_phy.h"
 #include "tusb.h"
 #include <algorithm>
@@ -419,4 +419,4 @@ void drawUSBStickIcon(bool plugged) {
     tft->display(false);
 }
 
-#endif // SOC_USB_OTG_SUPPORTED
+#endif // SOC_USB_OTG_SUPPORTED && !DISABLE_MASS_STORAGE

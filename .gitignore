@@ -7,3 +7,5 @@ build
 node_modules
 __pycache__
 docs
+managed_components
+sdkconfig.*
