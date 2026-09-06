@@ -71,18 +71,13 @@ void _setup_gpio() {
 void _post_setup_gpio() {
     hal_bright_attach(TFT_BL);
     hal_bright_set(TFT_BL, bright);
-
-#ifdef USE_CARDKB2
-    // CardKB2 on the Grove port (G9/G10). Probing reconfigures G9 as I2C SDA,
-    // so restore the RF433 anti-jam state if no keyboard is attached.
-    if (!CardKB2Installed) {
-        pm1.setBoostEnable(false);
-        launcherGpioOutput(9);
-        launcherGpioWrite(9, LOW); // M5RF433 avoid Jamming
-    }
-#endif
 }
 
+void _late_setup_gpio() {
+#ifdef USE_CARDKB2
+    if (!CardKB2Installed) { pm1.setBoostEnable(false); }
+#endif
+}
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 int getBattery() {
