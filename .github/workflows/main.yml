@@ -177,6 +177,13 @@
               python -m pip install --upgrade pip
               python -m pip install --retries 5 --timeout 120 requests esptool platformio
 
+              # Pin tool-scons: newer releases on the PlatformIO registry have
+              # dropped SCons/Tool/FortranCommon.py, which the espressif32
+              # ESP-IDF-component build path (triggered by custom_sdkconfig,
+              # e.g. seeedstudio-sensecap) still imports, breaking the build
+              # with "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'".
+              python -m platformio pkg install -g -t "platformio/tool-scons@4.40801.0"
+
               if [[ "${{ github.ref_type }}" == "tag" ]]; then
                 version=${{ github.ref_name }}
               else
@@ -235,8 +242,9 @@
                 fi
 
                 if grep -Eiq "ModuleNotFoundError.*SCons" "$log_file"; then
-                  echo "Corrupted PlatformIO core packages detected (stale/broken cache); wiping core dir and retrying."
-                  rm -rf "$PLATFORMIO_CORE_DIR" .pio/build/"$env_name"
+                  echo "tool-scons is missing SCons.Tool.FortranCommon; re-pinning known-good version and retrying."
+                  rm -rf "$PLATFORMIO_CORE_DIR"/packages/tool-scons .pio/build/"$env_name"
+                  python -m platformio pkg install -g -t "platformio/tool-scons@4.40801.0"
                   if [ "$attempt" -eq "$max_attempts" ]; then
                     echo "Build failed after ${max_attempts} attempts."
                     exit "$status"
