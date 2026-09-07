@@ -9,7 +9,7 @@ httpd_handle_t launcherWebServerStart(uint16_t port) {
     // lru_purge_enable silently killed a queued upload whenever a third connection
     // appeared. LWIP is built with 16 sockets, so five is comfortably within budget.
     config.max_open_sockets = 5;
-    config.max_uri_handlers = 24;
+    config.max_uri_handlers = 32;
     config.lru_purge_enable = true;
     // A queued upload can sit idle while the previous file is written to the SD card;
     // ten seconds was short enough for slow cards to time it out mid-batch. Kept a bit
