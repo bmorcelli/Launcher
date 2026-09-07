@@ -2123,7 +2123,12 @@ void registerHandler(const char *uri, httpd_method_t method, esp_err_t (*handler
     route.method = method;
     route.handler = handler;
     route.user_ctx = nullptr;
-    httpd_register_uri_handler(server, &route);
+    esp_err_t err = httpd_register_uri_handler(server, &route);
+    if (err != ESP_OK) {
+        launcherConsolePrintf(
+            "ERR: Failed to register %s (method %d): %s", uri, method, esp_err_to_name(err)
+        );
+    }
 }
 
 void configureWebServer() {
