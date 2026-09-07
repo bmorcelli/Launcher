@@ -157,10 +157,10 @@
             with:
               path: |
                 .pio/core
-              key: ${{ runner.os }}-platformio-v2-${{ hashFiles('platformio.ini') }}
+              key: ${{ runner.os }}-platformio-v3-${{ hashFiles('platformio.ini') }}
               restore-keys: |
-                ${{ runner.os }}-platformio-v2-${{ hashFiles('platformio.ini') }}
-                ${{ runner.os }}-platformio-v2-
+                ${{ runner.os }}-platformio-v3-${{ hashFiles('platformio.ini') }}
+                ${{ runner.os }}-platformio-v3-
 
           - name: PIO libraries cache
             uses: actions/cache@v5
@@ -175,14 +175,13 @@
           - name: Install dependencies
             run: |
               python -m pip install --upgrade pip
-              python -m pip install --retries 5 --timeout 120 requests esptool platformio
-
-              # Pin tool-scons: newer releases on the PlatformIO registry have
-              # dropped SCons/Tool/FortranCommon.py, which the espressif32
-              # ESP-IDF-component build path (triggered by custom_sdkconfig,
-              # e.g. seeedstudio-sensecap) still imports, breaking the build
-              # with "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'".
-              python -m platformio pkg install -g -t "platformio/tool-scons@4.40801.0"
+              # PlatformIO Core is pinned: newer releases pull in tool-scons
+              # ~4.41101.0 (SCons 4.11.1) internally, which dropped
+              # SCons/Tool/FortranCommon.py -- the espressif32 ESP-IDF-component
+              # build path (triggered by custom_sdkconfig, e.g.
+              # seeedstudio-sensecap) still imports it, breaking the build with
+              # "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'".
+              python -m pip install --retries 5 --timeout 120 requests esptool platformio==6.1.19
 
               if [[ "${{ github.ref_type }}" == "tag" ]]; then
                 version=${{ github.ref_name }}
@@ -241,19 +240,7 @@
                   exit 0
                 fi
 
-                if grep -Eiq "ModuleNotFoundError.*SCons" "$log_file"; then
-                  echo "tool-scons is missing SCons.Tool.FortranCommon; re-pinning known-good version and retrying."
-                  rm -rf "$PLATFORMIO_CORE_DIR"/packages/tool-scons .pio/build/"$env_name"
-                  python -m platformio pkg install -g -t "platformio/tool-scons@4.40801.0"
-                  if [ "$attempt" -eq "$max_attempts" ]; then
-                    echo "Build failed after ${max_attempts} attempts."
-                    exit "$status"
-                  fi
-                  sleep $((attempt * 30))
-                  continue
-                fi
-
-                if ! grep -Eiq "(unrecognized status code '5[0-9][0-9]'|RemoteDisconnected|ConnectionError|Connection aborted|Read timed out|ConnectTimeout|Temporary failure in name resolution|Please read https://bit.ly/package-manager-ioerror)" "$log_file"; then
+                if ! grep -Eiq "(unrecognized status code '5[0-9][0-9]'|RemoteDisconnected|ConnectionError|Connection aborted|Read timed out|ConnectTimeout|Temporary failure in name resolution|Please read https://bit.ly/package-manager-ioerror|ModuleNotFoundError.*SCons)" "$log_file"; then
                   echo "Build failed with a non-transient error; not retrying."
                   exit "$status"
                 fi
