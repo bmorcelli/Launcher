@@ -700,6 +700,14 @@
             "link": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html",
             "family": "ESP32-S3",
             "id": "seeedstudio-reterminal-sticky"
+        },
+        {
+            "display": true,
+            "name": "SenseCAP Indicator",
+            "description": "No SD Card",
+            "link": "https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html",
+            "family": "ESP32-S3",
+            "id": "seeedstudio-sensecap"
         }
     ],
     "Waveshare": [
