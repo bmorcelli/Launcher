@@ -69,6 +69,68 @@ void drawCharAt(int32_t x, int32_t y, char c, uint16_t fg, uint16_t bg) {
     tft->setTextColor(oldFg, oldBg);
 }
 
+/***************************************************************************************
+** Function name: drawOutlinedText
+** Description:   Draw outlined text using a transparent sprite
+***************************************************************************************/
+static void drawOutlinedText(
+    const String &text, int32_t x, int32_t y, uint16_t textColor, uint16_t outlineColor, uint8_t outline
+) {
+    if (outline == 0) {
+        tft->setTextColor(textColor);
+        tft->drawString(text, x, y, 1);
+        return;
+    }
+
+    const uint8_t textSize = tft->getTextSize();
+    const int16_t textW = tft->textWidth(text, 1);
+    const int16_t textH = tft->fontHeight(1);
+    const int16_t spriteW = textW + 2 * outline;
+    const int16_t spriteH = textH + 2 * outline;
+
+    static tft_sprite sprite(tft);
+    static int16_t cachedW = 0;
+    static int16_t cachedH = 0;
+
+    if (cachedW != spriteW || cachedH != spriteH) {
+        sprite.deleteSprite();
+
+        if (!sprite.createSprite(spriteW, spriteH)) {
+            cachedW = 0;
+            cachedH = 0;
+
+            tft->setTextColor(textColor);
+            tft->drawString(text, x, y, 1);
+            return;
+        }
+
+        cachedW = spriteW;
+        cachedH = spriteH;
+    }
+
+    uint16_t transparentColor = 0;
+    while (transparentColor == textColor || transparentColor == outlineColor) { ++transparentColor; }
+
+    sprite.fillScreen(transparentColor);
+    sprite.setTextSize(textSize);
+    sprite.setTextColor(outlineColor);
+
+    const int8_t radius = static_cast<int8_t>(outline);
+
+    for (int8_t dx = -radius; dx <= radius; ++dx) {
+        for (int8_t dy = -radius; dy <= radius; ++dy) {
+            if (dx == 0 && dy == 0) continue;
+
+            sprite.drawString(text, outline + dx, outline + dy, 1);
+        }
+    }
+
+    sprite.setTextColor(textColor);
+    sprite.drawString(text, outline, outline, 1);
+
+    sprite.pushSprite(x - outline, y - outline, transparentColor);
+}
+
 static inline void drawOptionsErase(const Opt_Coord &coord) {
     if (coord.boxW == 0 || coord.boxH == 0) return;
     tft->fillRect(coord.boxX, coord.boxY, coord.boxW, coord.boxH, coord.bgcolor);
@@ -248,9 +310,12 @@ void initDisplay(bool doAll) {
     }
 #endif
     tft->setTextSize(_fg);
-    tft->setTextColor(FGCOLOR);
-    // Both arms of the old #if TFT_HEIGHT > 200 here were the same line.
-    tft->drawCentreString("Launcher", tftWidth / 2, tftHeight / 2 - 10, 1);
+
+    const String title = "Launcher";
+    const int32_t titleX = (tftWidth - tft->textWidth(title, 1)) / 2;
+
+    drawOutlinedText(title, titleX, tftHeight / 2 - 10, FGCOLOR, BGCOLOR, 3);
+
     tft->setTextSize(_fg);
     tft->setTextColor(FGCOLOR);
 
