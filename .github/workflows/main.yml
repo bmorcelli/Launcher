@@ -157,10 +157,10 @@
             with:
               path: |
                 .pio/core
-              key: ${{ runner.os }}-platformio-v3-${{ hashFiles('platformio.ini') }}
+              key: ${{ runner.os }}-platformio-v4-${{ hashFiles('platformio.ini') }}
               restore-keys: |
-                ${{ runner.os }}-platformio-v3-${{ hashFiles('platformio.ini') }}
-                ${{ runner.os }}-platformio-v3-
+                ${{ runner.os }}-platformio-v4-${{ hashFiles('platformio.ini') }}
+                ${{ runner.os }}-platformio-v4-
 
           - name: PIO libraries cache
             uses: actions/cache@v5
@@ -175,13 +175,7 @@
           - name: Install dependencies
             run: |
               python -m pip install --upgrade pip
-              # PlatformIO Core is pinned: newer releases pull in tool-scons
-              # ~4.41101.0 (SCons 4.11.1) internally, which dropped
-              # SCons/Tool/FortranCommon.py -- the espressif32 ESP-IDF-component
-              # build path (triggered by custom_sdkconfig, e.g.
-              # seeedstudio-sensecap) still imports it, breaking the build with
-              # "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'".
-              python -m pip install --retries 5 --timeout 120 requests esptool platformio==6.1.19
+              python -m pip install --retries 5 --timeout 120 requests esptool platformio
 
               if [[ "${{ github.ref_type }}" == "tag" ]]; then
                 version=${{ github.ref_name }}

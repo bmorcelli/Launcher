@@ -434,18 +434,20 @@ void loop() {
 
     const bool tiny = (panelHeight() < 135) || (panelWidth() < 135);
     std::vector<MenuOptions> menuItems = {
+#if !defined(DISABLE_SDCARD_ICON)
         {"SD",
-         tiny ? "Launch from SDCard" : "Launch from or mng SDCard",
-         [=]() { loopSD(false); },
-         sdcardMounted},
+                                         tiny ? "Launch from SDCard" : "Launch from or mng SDCard",
+                                         [=]() { loopSD(false); },
+                                         sdcardMounted},
+#endif
 #ifndef DISABLE_OTA
         {"OTA", "Online Installer", [=]() { ota_function(); }},
 #endif
         {"WUI", tiny ? "Start WebUI" : "Start Web User Interface", [=]() { loopOptionsWebUi(); }},
 #if defined(SOC_USB_OTG_SUPPORTED) && !defined(DISABLE_MASS_STORAGE)
         {"USB",
-         tiny ? "SD->USB" : "SD->USB Interface",
-         [=]() {
+                                         tiny ? "SD->USB" : "SD->USB Interface",
+                                         [=]() {
              if (setupSdCard()) {
                  MassStorage();
                  tft->drawPixel(0, 0, 0);

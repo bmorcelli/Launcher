@@ -31,6 +31,12 @@ static inline void resumeSdInstallInput() {
 }
 
 bool setupSdCard() {
+#if defined(DISABLE_SDCARD_ICON)
+    // Device doesn't have SDCArd, so it may make things faster!
+    sdcardMounted = false;
+    return false;
+#endif
+
 #if !defined(SDM_SD)
     if (sdcardMounted) return true;
     bool OnebitMode = true; // default to one bit mode
