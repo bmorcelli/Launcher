@@ -17,7 +17,13 @@
 // here — several of them silently produce a dead peripheral rather than an
 // error, and cost the original authors a bring-up session each.
 //
-// Not tested on hardware here.
+// The touch calibration (swapXY/flipX/flipY below) and the panel's native
+// landscape orientation (ROTATION=0 in platformio.ini) come from the
+// crosspoint-reader project's freeink-sdk BoardConfig for this same physical
+// device (XTEINK_X4_PRO profile), confirmed on hardware by a corner-tap test.
+// That project also confirms this GT911 module reports coordinates starting
+// at byte 0 of the 0x8150 point record (no leading track-id byte), same as
+// the seeedstudio-reterminal-sticky board's GT911 in this repo.
 
 // --- buttons ---------------------------------------------------------------
 // Plain digital, active low. GPIO0 is a boot-strap pin; it works as a button
@@ -73,23 +79,62 @@ static void onGt911HomeButton(void *userData) {
     homePressed = true;
 }
 
-// Panel is native TFT_WIDTH x TFT_HEIGHT (800x480) landscape; table
-// replicates the per-rotation swap/mirror the old InputHandler() applied by
-// hand to touch.setSwapXY()/setMirrorXY() (see docs/etapa_7.md).
+// Coordinates are read raw (hal_touch_read_raw()) and mapped by hand in
+// readTouchPoint() below, same approach as seeedstudio-reterminal-sticky —
+// the generic per-rotation cfg.SwapXY/MirrorX/MirrorY table this used to
+// carry was a formula guess, never confirmed on this hardware.
 static DeviceTouch touchCfg() {
     DeviceTouch cfg;
     cfg.pin_rst = GT911_RST;
     cfg.pin_irq = GT911_INT;
-    // rotation:        0      1      2      3
-    bool swapXY[4] = {false, true, false, true};
-    bool mirrorX[4] = {false, false, true, true};
-    bool mirrorY[4] = {false, true, true, false};
-    for (int i = 0; i < 4; i++) {
-        cfg.SwapXY[i] = swapXY[i];
-        cfg.MirrorX[i] = mirrorX[i];
-        cfg.MirrorY[i] = mirrorY[i];
-    }
+    cfg.gt911_int_sync =
+        true; // drive INT during reset to force the 0x5D address, same as the
+              // only other GT911+GDEQ0426T82 board in this repo (seeedstudio-reterminal-sticky)
     return cfg;
+}
+
+/***************************************************************************************
+** Function name: readTouchPoint()
+** Description:   raw GT911 point -> panel-native (rotation 0) -> current rotation
+**
+** The digitizer is mounted portrait (~480 x 800) under the 800x480 landscape
+** glass. crosspoint-reader's freeink-sdk BoardConfig (XTEINK_X4_PRO profile,
+** confirmed by a corner-tap test on real hardware) maps it to the panel's
+** native landscape frame with swapXY=true, flipX=false, flipY=true:
+**   panelX = rawY, panelY = (TFT_HEIGHT - 1) - rawX
+** That native frame is this board's ROTATION=0 (see platformio.ini — the OEM
+** firmware never rotates this panel). The switch below derives the other
+** three rotations from it with the same 90-degree steps GxEPD2/Adafruit_GFX
+** uses for the framebuffer.
+***************************************************************************************/
+static uint8_t readTouchPoint(int16_t *x, int16_t *y) {
+    LTouchPoint raw;
+    if (!hal_touch_read_raw(raw)) return 0;
+
+    const int16_t rawX = raw.x < 0 ? 0 : (raw.x > (TFT_HEIGHT - 1) ? (TFT_HEIGHT - 1) : raw.x);
+    const int16_t rawY = raw.y < 0 ? 0 : (raw.y > (TFT_WIDTH - 1) ? (TFT_WIDTH - 1) : raw.y);
+    const int16_t panelX = rawY;
+    const int16_t panelY = (TFT_HEIGHT - 1) - rawX;
+
+    switch (rotation) {
+        case 0:
+            *x = panelX;
+            *y = panelY;
+            break;
+        case 1:
+            *x = (TFT_HEIGHT - 1) - panelY;
+            *y = panelX;
+            break;
+        case 2:
+            *x = (TFT_WIDTH - 1) - panelX;
+            *y = (TFT_HEIGHT - 1) - panelY;
+            break;
+        default: // 3
+            *x = panelY;
+            *y = (TFT_WIDTH - 1) - panelX;
+            break;
+    }
+    return 1;
 }
 
 /*********************************************************************
@@ -199,6 +244,21 @@ static void _detect_panel() {
 }
 
 void _setup_gpio() {
+    // Release any RTC GPIO hold left over from a deep sleep entered by a
+    // launched app (e.g. an e-paper app that calls gpio_hold_en()/
+    // gpio_deep_sleep_hold_en() on these pins to keep rails/reset lines fixed
+    // while asleep, then wakes via reset back into the launcher).
+    // gpio_reset_pin() does NOT clear a hold latch by itself — an unreleased
+    // hold silently discards every write below, which is what "rails/GT911/SD
+    // never come back after sleep" looks like after returning from such an
+    // app. Same defensive pattern as seeedstudio-reterminal-sticky.
+    gpio_hold_dis((gpio_num_t)RAIL_PERIPH);
+    gpio_hold_dis((gpio_num_t)RAIL_TOUCH);
+    gpio_hold_dis((gpio_num_t)RAIL_SD);
+    gpio_hold_dis((gpio_num_t)GT911_RST);
+    gpio_hold_dis((gpio_num_t)GT911_INT);
+    gpio_deep_sleep_hold_dis();
+
     launcherGpioInputPullup(BTN_LEFT);
     launcherGpioInputPullup(BTN_RIGHT);
     launcherGpioInputPullup(BTN_POWER);
@@ -206,6 +266,7 @@ void _setup_gpio() {
     // Order matters: the touch rail needs the peripheral rail already high.
     launcherGpioOutput(RAIL_PERIPH);
     launcherGpioWrite(RAIL_PERIPH, HIGH);
+    launcherDelayMs(100);
     launcherGpioOutput(RAIL_TOUCH);
     launcherGpioWrite(RAIL_TOUCH, LOW); // active low
     launcherGpioOutput(RAIL_SD);
@@ -219,6 +280,7 @@ void _setup_gpio() {
 }
 
 void _post_setup_gpio() {
+    launcherDelayMs(200);
     touchReady = hal_touch_init(touchCfg(), GT911_ADDR);
     if (!touchReady) {
         launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
@@ -267,8 +329,8 @@ void _setBrightness(uint8_t brightval) {
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
 
-    LTouchPoint t;
-    const bool touched = touchReady && hal_touch_read(touchCfg(), t);
+    int16_t tx = 0, ty = 0;
+    const bool touched = touchReady && readTouchPoint(&tx, &ty);
     const bool home = homePressed;
     homePressed = false;
 
@@ -278,19 +340,33 @@ void InputHandler(void) {
     const bool left = launcherGpioRead(BTN_LEFT) == LOW;
     const bool right = launcherGpioRead(BTN_RIGHT) == LOW;
 
+    if (left) launcherConsolePrintf("[btn] Left pressed\n");
+    if (right) launcherConsolePrintf("[btn] Right pressed\n");
+    if (home) launcherConsolePrintf("[btn] Home (touch) pressed\n");
+    if (touched) launcherConsolePrintf("[touch] x=%d y=%d rotation=%d\n", tx, ty, rotation);
+
     if (!left && !right && !home && !touched) return;
 
     tm = launcherMillis();
     if (!wakeUpScreen()) AnyKeyPress = true;
     else return;
 
-    if (left) PrevPress = true;
-    if (right) NextPress = true;
-    if (home) EscPress = true;
+    if (left) {
+        PrevPress = true;
+        launcherConsolePrintf("[btn] Left -> PrevPress executed\n");
+    }
+    if (right) {
+        NextPress = true;
+        launcherConsolePrintf("[btn] Right -> NextPress executed\n");
+    }
+    if (home) {
+        EscPress = true;
+        launcherConsolePrintf("[btn] Home -> EscPress executed\n");
+    }
 
     if (touched) {
-        touchPoint.x = t.x;
-        touchPoint.y = t.y;
+        touchPoint.x = tx;
+        touchPoint.y = ty;
         touchPoint.pressed = true;
         touchHeatMap(touchPoint);
     }
