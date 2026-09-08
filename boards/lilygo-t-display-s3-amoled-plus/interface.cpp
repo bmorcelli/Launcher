@@ -18,6 +18,12 @@ static DeviceTouch touchCfg() {
     DeviceTouch cfg;
     cfg.pin_rst = BOARD_TOUCH_RST;
     cfg.pin_irq = BOARD_SENSOR_IRQ;
+    // Known CST816 at CST816_SLAVE_ADDRESS (0x15) -- skip the shared CST8XX
+    // driver's chip-family auto-probe (which tries CST226 first), whose
+    // failed attempt pulses RST too short for this chip and writes to its
+    // undocumented registers, leaving it reporting a stuck/phantom touch at
+    // the home-button coordinate.
+    cfg.cst8xx_model = 1; // TouchDrv_CST8XX (CST816/CST820/CST716 family)
     // rotation:        0     1      2     3
     bool swapXY[4] = {true, false, true, false};
     bool mirrorX[4] = {true, false, false, true};

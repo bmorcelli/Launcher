@@ -73,6 +73,35 @@ void drawCharAt(int32_t x, int32_t y, char c, uint16_t fg, uint16_t bg) {
 ** Function name: drawOutlinedText
 ** Description:   Draw outlined text using a transparent sprite
 ***************************************************************************************/
+#if defined(USE_EPD_PAINTER) || defined(USE_GXEPD2)
+static void drawOutlinedText(
+    const String &text, int32_t x, int32_t y, uint16_t textColor, uint16_t outlineColor, uint8_t outline
+) {
+    // The DisplayDrivers software sprite these e-paper backends use
+    // (lib/DisplayDrivers/src/backends/swsprite.cpp) has no real font
+    // renderer -- its drawString() is a stub that never plots glyph pixels,
+    // so the sprite-based outline trick below (used on every other backend)
+    // silently draws nothing here. Draw straight onto the real display
+    // instead: nothing reaches the physical panel until the caller's own
+    // tft->display() call, so offset copies here are free of flicker.
+    if (outline == 0) {
+        tft->setTextColor(textColor);
+        tft->drawString(text, x, y, 1);
+        return;
+    }
+
+    const int8_t radius = static_cast<int8_t>(outline);
+    tft->setTextColor(outlineColor);
+    for (int8_t dx = -radius; dx <= radius; ++dx) {
+        for (int8_t dy = -radius; dy <= radius; ++dy) {
+            if (dx == 0 && dy == 0) continue;
+            tft->drawString(text, x + dx, y + dy, 1);
+        }
+    }
+    tft->setTextColor(textColor);
+    tft->drawString(text, x, y, 1);
+}
+#else
 static void drawOutlinedText(
     const String &text, int32_t x, int32_t y, uint16_t textColor, uint16_t outlineColor, uint8_t outline
 ) {
@@ -130,6 +159,7 @@ static void drawOutlinedText(
 
     sprite.pushSprite(x - outline, y - outline, transparentColor);
 }
+#endif
 
 static inline void drawOptionsErase(const Opt_Coord &coord) {
     if (coord.boxW == 0 || coord.boxH == 0) return;
@@ -203,12 +233,12 @@ void initDisplay(bool doAll) {
 
 #ifdef E_PAPER_DISPLAY // epaper display draws only once
     static bool runOnce = false;
-    if (runOnce) {
+    if (runOnce && !doAll) {
         vTaskDelay(50 / portTICK_PERIOD_MS);
         return;
-    } else {
-        runOnce = true;
     }
+    runOnce = true;
+
 #endif
 
     if (_name == 1) name = "u/bmorcelli";

@@ -251,12 +251,17 @@ void _setup_gpio() {
     // gpio_reset_pin() does NOT clear a hold latch by itself — an unreleased
     // hold silently discards every write below, which is what "rails/GT911/SD
     // never come back after sleep" looks like after returning from such an
-    // app. Same defensive pattern as seeedstudio-reterminal-sticky.
+    // app. Same defensive pattern as seeedstudio-reterminal-sticky. Buttons
+    // are included too: a held input pin reads back as permanently
+    // pressed/stuck instead of just failing to power up.
     gpio_hold_dis((gpio_num_t)RAIL_PERIPH);
     gpio_hold_dis((gpio_num_t)RAIL_TOUCH);
     gpio_hold_dis((gpio_num_t)RAIL_SD);
     gpio_hold_dis((gpio_num_t)GT911_RST);
     gpio_hold_dis((gpio_num_t)GT911_INT);
+    gpio_hold_dis((gpio_num_t)BTN_LEFT);
+    gpio_hold_dis((gpio_num_t)BTN_RIGHT);
+    gpio_hold_dis((gpio_num_t)BTN_POWER);
     gpio_deep_sleep_hold_dis();
 
     launcherGpioInputPullup(BTN_LEFT);
@@ -375,6 +380,14 @@ void InputHandler(void) {
 void powerOff() {
     while (launcherGpioRead(BTN_POWER) == LOW) launcherDelayMs(50);
     launcherDelayMs(100);
+
+    tft->fillScreen(BGCOLOR);
+    initDisplay(true);
+    tft->setTextSize(FG);
+    tft->setTextColor(FGCOLOR);
+    tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
+    tft->display();
+    launcherDelayMs(1000);
 
     _setBrightness(0);
 

@@ -49,20 +49,30 @@ CYD28_TouchR touch(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
 static TouchDrvGT911 touch;
 static uint8_t touchLastRot = 0xFF;
 
+// Drives RST through cfg.reset_cb when set (touch reset not a raw ESP32
+// GPIO, e.g. behind an IO expander -- see DeviceTouch.reset_cb), else the
+// raw pin_rst GPIO as before.
+static void gt911WriteRst(const DeviceTouch &cfg, bool level) {
+    if (cfg.reset_cb) cfg.reset_cb(level);
+    else launcherGpioWrite(cfg.pin_rst, level);
+}
+
 static bool gt911ResetAndSync(const DeviceTouch &cfg, uint8_t i2c_addr) {
-    if (cfg.pin_rst < 0 || cfg.pin_irq < 0) return false;
+    if ((cfg.pin_rst < 0 && !cfg.reset_cb) || cfg.pin_irq < 0) return false;
 
     // Select the address during reset, then synchronize INT before the controller starts scanning.
     // 在复位期间选择地址，再同步 INT，使控制器开始触摸扫描。
-    gpio_hold_dis(static_cast<gpio_num_t>(cfg.pin_rst));
+    if (cfg.pin_rst >= 0) {
+        gpio_hold_dis(static_cast<gpio_num_t>(cfg.pin_rst));
+        launcherGpioOutput(cfg.pin_rst);
+    }
     gpio_hold_dis(static_cast<gpio_num_t>(cfg.pin_irq));
-    launcherGpioOutput(cfg.pin_rst);
     launcherGpioOutput(cfg.pin_irq);
-    launcherGpioWrite(cfg.pin_rst, LOW);
+    gt911WriteRst(cfg, LOW);
     launcherDelayMs(20);
     launcherGpioWrite(cfg.pin_irq, i2c_addr == 0x14 ? HIGH : LOW);
     launcherDelayMs(1);
-    launcherGpioWrite(cfg.pin_rst, HIGH);
+    gt911WriteRst(cfg, HIGH);
     launcherDelayMs(10);
     launcherGpioWrite(cfg.pin_irq, LOW);
     launcherDelayMs(50);
@@ -101,6 +111,17 @@ static uint8_t touchLastRot = 0xFF;
 static TwoWire &wireFor(const DeviceTouch &cfg) {
     return cfg.i2c_bus ? *static_cast<TwoWire *>(cfg.i2c_bus) : Wire;
 }
+
+// Pulses RST through cfg.reset_cb when the touch controller's reset line
+// isn't a raw ESP32 GPIO (see DeviceTouch.reset_cb). No-op if unset -- the
+// chip driver's own setPins()-based reset (raw pin_rst) handles that case.
+static void touchResetPulse(const DeviceTouch &cfg) {
+    if (!cfg.reset_cb) return;
+    cfg.reset_cb(LOW);
+    launcherDelayMs(10);
+    cfg.reset_cb(HIGH);
+    launcherDelayMs(50);
+}
 #endif
 
 bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_spi) {
@@ -118,21 +139,33 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
         // 在 SensorLib 探测芯片并读取原生分辨率期间保持已同步状态。
         touch.setPins(-1, -1);
         const bool ready = touch.begin(wireFor(cfg), i2c_addr);
-        touch.setPins(cfg.pin_rst, cfg.pin_irq);
+        touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
         return ready;
     }
-    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    // Not the int-sync path (no address-select dance needed): a reset_cb
+    // still needs its own pulse here since SensorLib's begin() only knows
+    // how to drive a raw pin_rst GPIO.
+    if (cfg.reset_cb) {
+        gt911WriteRst(cfg, LOW);
+        launcherDelayMs(10);
+        gt911WriteRst(cfg, HIGH);
+        launcherDelayMs(50);
+    }
+    touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
     return touch.begin(wireFor(cfg), i2c_addr);
 #elif defined(TOUCH_CTRL_CST8XX)
     (void)xpt_shared_spi;
     if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
-    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    touchResetPulse(cfg);
+    touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
+    if (cfg.cst8xx_model >= 0) touch.setTouchDrvModel(static_cast<TouchDrvType>(cfg.cst8xx_model));
     if (touch.begin(wireFor(cfg), i2c_addr, cfg.pin_sda, cfg.pin_scl)) return true;
     return touch.begin(wireFor(cfg), CST816_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl);
 #elif defined(TOUCH_CTRL_FT6X36)
     (void)xpt_shared_spi;
     if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
-    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    touchResetPulse(cfg);
+    touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
     // Most FT6X36-family boards answer on SensorLib's own default (0x38);
     // a few (e.g. the FT6336U on seeedstudio-sensecap) ship at 0x48 instead
     // -- try whatever the board passed in first, then fall back to the
@@ -149,7 +182,8 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
 #elif defined(TOUCH_CTRL_GT9895)
     (void)xpt_shared_spi;
     if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
-    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    touchResetPulse(cfg);
+    touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
     if (!touch.begin(wireFor(cfg), i2c_addr, cfg.pin_sda, cfg.pin_scl)) return false;
     // Chip doesn't report its own native resolution -- only scale if the
     // board supplied one (see DeviceTouch.raw_width/raw_height).
@@ -159,7 +193,8 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
     (void)xpt_shared_spi;
     (void)i2c_addr; // fixed HI8561_SLAVE_ADDRESS, like FT6X36's fixed address
     if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
-    touch.setPins(cfg.pin_rst, cfg.pin_irq);
+    touchResetPulse(cfg);
+    touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
     return touch.begin(wireFor(cfg), HI8561_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl);
 #else
     (void)cfg;

@@ -155,6 +155,25 @@ static void _detect_panel() {
 }
 
 void _setup_gpio() {
+    // Release any RTC GPIO hold left over from a deep sleep entered by a
+    // launched app (e.g. an e-paper app that calls gpio_hold_en()/
+    // gpio_deep_sleep_hold_en() on these pins to keep rails/chip-selects/
+    // buttons fixed while asleep, then wakes via reset back into the
+    // launcher). gpio_reset_pin()/pinMode() do NOT clear a hold latch by
+    // themselves — an unreleased hold silently discards every write below,
+    // which looks like "display/SD/buttons dead" after returning from such
+    // an app. Same defensive pattern as seeedstudio-reterminal-sticky and
+    // xteink-x4pro. BAT_LATCH is this board's own hold from powerOff(); it
+    // has to be released here too, or the rail never comes back after a
+    // real power-off/power-on cycle.
+    gpio_hold_dis((gpio_num_t)BTN_LADDER_1);
+    gpio_hold_dis((gpio_num_t)BTN_LADDER_2);
+    gpio_hold_dis((gpio_num_t)PWR_BTN);
+    gpio_hold_dis((gpio_num_t)TFT_CS);
+    gpio_hold_dis((gpio_num_t)SDCARD_CS);
+    gpio_hold_dis((gpio_num_t)BAT_LATCH);
+    gpio_deep_sleep_hold_dis();
+
     launcherGpioInput(BTN_LADDER_1);
     launcherGpioInput(BTN_LADDER_2);
     launcherGpioInputPullup(PWR_BTN);
@@ -250,6 +269,14 @@ void powerOff() {
     // Letting go first, or the wake-up source is already asserted when we arm it.
     while (launcherGpioRead(PWR_BTN) == LOW) launcherDelayMs(50);
     launcherDelayMs(100);
+
+    tft->fillScreen(BGCOLOR);
+    initDisplay(true);
+    tft->setTextSize(FG);
+    tft->setTextColor(FGCOLOR);
+    tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
+    tft->display();
+    launcherDelayMs(1000);
 
     // GPIO13 drives the battery latch MOSFET. It has to be driven low *and*
     // held there through sleep, otherwise the rail comes straight back up.

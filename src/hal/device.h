@@ -29,6 +29,25 @@ struct DeviceTouch {
     uint16_t raw_width = 0;
     uint16_t raw_height = 0;
     bool gt911_int_sync = false;
+    // Drives the touch controller's RST line on boards where it isn't a raw
+    // ESP32 GPIO (e.g. behind an IO expander like M5IOE1) -- called with
+    // HIGH/LOW instead of the pin_rst GPIO writes hal_touch_init would
+    // otherwise do. Leave pin_rst at -1 when this is set; hal_touch_init
+    // pulses low then high through the callback before the chip driver's
+    // begin(), and passes -1 as its own pin_rst so it never touches a raw
+    // GPIO itself.
+    void (*reset_cb)(bool level) = nullptr;
+    // TOUCH_CTRL_CST8XX only: the shared driver (SensorLib's TouchDrvCSTXXX)
+    // auto-probes chip families in this fixed order: 0=CST226, 1=CST8XX
+    // (CST816/CST820/CST716), 2=CST92xx, 3=CST3530. Fine for boards that
+    // don't know their exact chip, but every failed candidate ahead of the
+    // real one still pulses RST (with that candidate's own, possibly wrong,
+    // timing) and writes/reads its own register map on the real chip before
+    // the correct driver ever runs -- which can leave it reporting a
+    // stuck/phantom touch. Set this to the real chip's index (see above) on
+    // boards that already know it, to skip straight to that driver. -1 (the
+    // default) leaves auto-probing enabled.
+    int8_t cst8xx_model = -1;
 };
 
 struct DeviceEncoder {

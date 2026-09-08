@@ -309,10 +309,12 @@ void powerOff() {
     launcherDelayMs(100);
 
     tft->fillScreen(BGCOLOR);
-    tft->setTextSize(1);
+    initDisplay(true);
+    tft->setTextSize(FG);
     tft->setTextColor(FGCOLOR);
-    tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight / 2, 1);
+    tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
     tft->display();
+    launcherDelayMs(1000);
 
     gpio_hold_dis((gpio_num_t)POWER_HOLD);
     launcherGpioWrite(POWER_HOLD, LOW);

@@ -36,6 +36,12 @@ static DeviceTouch touchCfg() {
     // same as lilygo-t-deck-pro's MAX variant.
     cfg.pin_rst = -1;
     cfg.pin_irq = TP_INT;
+    // Known CST92xx at 0x1A (pre-HAL code instantiated TouchDrvCST92xx
+    // directly) -- skip the shared CST8XX driver's auto-probe, which would
+    // otherwise try CST226 then CST8XX/CST816 against this chip first, each
+    // pulsing RST and poking its own register map before ever reaching the
+    // right driver.
+    cfg.cst8xx_model = 2; // TouchDrv_CST92XX
     // Derived from the manual per-rotation math the original InputHandler()
     // did on the raw point (rot0: swap only; rot1: mirrorY only, against
     // TFT_WIDTH -- which is displayConfig.width, i.e. hal_touch's screenH at
@@ -59,9 +65,9 @@ void _setup_gpio() {
         launcherGpioOutput(pin);
         launcherGpioWrite(pin, HIGH);
     }
-    Wire.begin(SDA, SCL);
+    Wire.begin(3, 2);
     bool pmu_ret = false;
-    pmu_ret = PPM.init(Wire, SDA, SCL, AXP2101_SLAVE_ADDRESS);
+    pmu_ret = PPM.init(Wire, 3, 2, AXP2101_SLAVE_ADDRESS);
     if (pmu_ret) {
         PPM.setSysPowerDownVoltage(3300);
         PPM.setChargeTargetVoltage(4208);
@@ -76,7 +82,14 @@ void _setup_gpio() {
 
         launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
     }
-    if (io.begin(Wire, 0x20)) {
+
+    launcherDelayMs(20);
+    bool expanderOK = io.begin(Wire, 0x20);
+    if (!expanderOK) {
+        launcherDelayMs(30);
+        expanderOK = io.begin(Wire, 0x20);
+    }
+    if (expanderOK) {
         const uint8_t expands[] = {
             EXPANDS_DISP_EN,
             EXPANDS_DRV_EN,

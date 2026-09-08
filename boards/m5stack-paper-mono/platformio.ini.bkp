@@ -27,20 +27,11 @@ build_flags =
 
 	-DLAUNCHER_GPIO_KEYS='{2, 3}' # Choose among available GPIO to start Launcher when booting
 
-	# M5GFX's own e-paper waveforms for this board are documented as unstable
-	# (https://docs.m5stack.com/en/core/PaperMono); this drives the SSD1677
-	# directly via GxEPD2 instead, same as M5's own OTP-LUT reference driver
-	# -- see lib/DisplayDrivers/src/panels/GxEPD2_397_M5PAPERMONO.*
-	-DUSE_GXEPD2=1
+	-DUSE_M5GFX=1
 	-DE_PAPER_DISPLAY=1
-	-D GXEPD2_PANEL=GxEPD2_426_SEEED_GDEQ0426T82
+	;-DUSE_CANVAS=1
 
-	-D STICKY_MONOCHROME=1
-
-	-DGXEPD2_BEGIN_SPI=1
-	-DGXEPD2_FULL_REFRESH_INTERVAL=20
-
-	-DROTATION=3
+	-DROTATION=0
 	-DDIMMER_SETUP=30
 
 	-DFP=2
@@ -50,15 +41,8 @@ build_flags =
 	-DBUTTONS_IDF_COMPONENT=1
 	-DHAS_2_BUTTONS=1
 	-DHAS_TOUCH=1
-	-DTOUCH_CTRL_FT6X36=1
-	-DTFT_WIDTH=800
-	-DTFT_HEIGHT=480
-
-	-DTFT_SCLK=15
-	-DTFT_MOSI=14
-	-DTFT_CS=16
-	-DTFT_DC=17
-	-DTFT_BUSY=18
+	-DTFT_WIDTH=480
+	-DTFT_HEIGHT=800
 
 	; SD card — native 4-bit SDIO. sd_functions.cpp calls SD_MMC.setPins() and
 	; mounts it in 4-bit mode from these flags, no board-side code needed.
@@ -75,11 +59,10 @@ build_flags =
 
 lib_deps =
 	${env.lib_deps}
-	zinggjm/GxEPD2 @ ^1.6.4
-	https://github.com/m5stack/M5PM1.git
-	https://github.com/m5stack/M5IOE1.git
+	m5stack/M5Unified @ ^0.2.21
 	https://github.com/bmorcelli/ESP32_Button
 
 lib_ignore =
+	SensorLib
 	XPowersLib
 	GFX Library for Arduino
