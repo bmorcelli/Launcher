@@ -336,27 +336,60 @@ void MassStorage::displayMessage(String message) {
 
 int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize) {
     const uint32_t secSize = SDM.sectorSize();
-    if (secSize == 0 || offset != 0 || (bufsize % secSize) != 0) return -1;
+    if (secSize == 0 || secSize > 512) return -1;
 
-    const uint32_t blocks = bufsize / secSize;
-    for (uint32_t x = 0; x < blocks; ++x) {
-        if (!SDM.writeRAW(buffer + (secSize * x), lba + x)) {
-            return -1; // write error
+    uint8_t sector[512];
+    uint32_t sectorLba = lba + (offset / secSize);
+    uint32_t sectorOffset = offset % secSize;
+    uint32_t remaining = bufsize;
+    uint8_t *src = buffer;
+
+    while (remaining > 0) {
+        const uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
+
+        if (sectorOffset == 0 && chunk == secSize) {
+            if (!SDM.writeRAW(src, sectorLba)) return -1;
+        } else {
+            if (!SDM.readRAW(sector, sectorLba)) return -1;
+            std::memcpy(sector + sectorOffset, src, chunk);
+            if (!SDM.writeRAW(sector, sectorLba)) return -1;
         }
+
+        remaining -= chunk;
+        src += chunk;
+        sectorLba++;
+        sectorOffset = 0;
     }
+
     return bufsize;
 }
 
 int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
     const uint32_t secSize = SDM.sectorSize();
-    if (secSize == 0 || offset != 0 || (bufsize % secSize) != 0) return -1;
+    if (secSize == 0 || secSize > 512) return -1;
 
-    const uint32_t blocks = bufsize / secSize;
-    for (uint32_t x = 0; x < blocks; ++x) {
-        if (!SDM.readRAW(reinterpret_cast<uint8_t *>(buffer) + (x * secSize), lba + x)) {
-            return -1; // read error
+    uint8_t sector[512];
+    uint32_t sectorLba = lba + (offset / secSize);
+    uint32_t sectorOffset = offset % secSize;
+    uint32_t remaining = bufsize;
+    uint8_t *dst = reinterpret_cast<uint8_t *>(buffer);
+
+    while (remaining > 0) {
+        const uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
+
+        if (sectorOffset == 0 && chunk == secSize) {
+            if (!SDM.readRAW(dst, sectorLba)) return -1;
+        } else {
+            if (!SDM.readRAW(sector, sectorLba)) return -1;
+            std::memcpy(dst, sector + sectorOffset, chunk);
         }
+
+        remaining -= chunk;
+        dst += chunk;
+        sectorLba++;
+        sectorOffset = 0;
     }
+
     return bufsize;
 }
 
