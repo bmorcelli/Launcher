@@ -577,31 +577,31 @@ void settings_menu() {
                                    [=]() {
                  chargeMode();
                  returnToMenu = true;
-             }                                                 },
+             }                                                                          },
 #endif
-            {"Brightness",
-                                   [=]() {
-                 setBrightnessMenu();
-                 saveConfigs();
-             }                                                 },
-            {"Dim time",
-                                   [=]() {
-                 setdimmerSet();
-                 saveConfigs();
-             }                                                 },
 #if !defined(E_PAPER_DISPLAY)
             {"UI Color",
                                    [=]() {
                  setUiColor();
                  saveConfigs();
-             }                                                 },
+             }                                                                          },
 #endif
 #if !defined(LYLYGO_TDECK_PRO)
-            {"Orientation", [=]() {
+            {"Orientation",
+                                   [=]() {
                  gsetRotation(true);
                  saveConfigs();
-             }}
+             }                                                                          },
 #endif
+            {"[" + String(bright) + "] Brightness",
+                                   [=]() {
+                 setBrightnessMenu();
+                 saveConfigs();
+             }                                                                          },
+            {"[" + String(dimmerSet) + "] Dim time", [=]() {
+                 setdimmerSet();
+                 saveConfigs();
+             }},
         };
         if (sdcardMounted) {
             options.push_back({onlyBins ? "[ ] See All Files" : "[x] See All Files", [=]() {
@@ -631,26 +631,28 @@ void settings_menu() {
                                bootToApp = !bootToApp;
                                saveConfigs();
                            }});
-        options.push_back({"[1+" + String(bootTimer) + "s] Boot Timer", [=]() {
+        options.push_back({"[" + String(bootTimer + 1) + "] Boot Timer (s)", [=]() {
                                setBootTimer();
                                saveConfigs();
                            }});
         // DDLB: Disable DeepSleep to Launcher Boot. This is a toggle for the user to choose whether to boot
         // into the launcher or not when waking from deep sleep.
-        options.push_back({DDLB ? "[ ] DeepSleep to Launcher" : "[x] DeepSleep to Launcher", [=]() {
+        options.push_back({DDLB ? "[ ] DeepSleep starts Launcher" : "[x] DeepSleep starts Launcher", [=]() {
                                DDLB = !DDLB;
                                saveConfigs();
                            }});
 #if defined(LAUNCHER_GPIO_KEYS)
-        options.push_back({"[" + String(LauncherOnKey) + "] Launch on Key Press", [=]() {
-                               selectLauncherOnKeyGpio();
-                           }});
-        options.push_back({LauncherKeyLvl ? "[1] Key Level" : "[0] Key Level", [=]() {
-                               LauncherKeyLvl = !LauncherKeyLvl;
-                               saveConfigs();
-                           }});
+        options.push_back(
+            {"[" + (LauncherOnKey > -1 ? String(LauncherOnKey) : "-") + "] GPIO on boot starts Launcher",
+             [=]() { selectLauncherOnKeyGpio(); }}
+        );
+        if (LauncherOnKey >= 0) {
+            options.push_back({LauncherKeyLvl ? "[1] GPIO Level" : "[0] GPIO Level", [=]() {
+                                   LauncherKeyLvl = !LauncherKeyLvl;
+                                   saveConfigs();
+                               }});
+        }
 #endif
-        options.push_back({"Partition Manager", [=]() { partList(); }});
 #if defined(HAS_KEYBOARD)
         options.push_back({"Manage shortcuts", [=]() { manageKeyBindings(); }});
 #endif
@@ -675,7 +677,7 @@ void settings_menu() {
                                    releaseHeapObjectsAndReboot();
                                }});
         }
-        if (dev_mode) options.push_back({"Reset Configs/Wifi", factoryReset});
+        options.push_back({"Reset Configs/Wifi", factoryReset});
         options.push_back({"Restart", [=]() { return (void)releaseHeapObjectsAndReboot(); }});
         options.push_back({"Turn-off", [=]() { powerOff(); }});
 

@@ -349,8 +349,7 @@ void InputHandler(void) {
     const bool home = homePressed;
     homePressed = false;
 
-    if (launcherMillis() - tm > 200 || LongPress) {
-    } else return;
+    if (launcherMillis() - tm < 100 && LongPress) return;
 
     const bool left = launcherGpioRead(BTN_LEFT) == LOW;
     const bool right = launcherGpioRead(BTN_RIGHT) == LOW;

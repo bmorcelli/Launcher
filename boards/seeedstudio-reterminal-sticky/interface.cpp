@@ -277,8 +277,8 @@ void InputHandler(void) {
         touchReady = bringUpTouch();
         ready_tm = launcherMillis();
     }
-
-    if (!touchReady || launcherMillis() - pool_tm < 100) return;
+    if (!touchReady) return;
+    if (launcherMillis() - pool_tm < 100 && !LongPress) return;
     pool_tm = launcherMillis();
 
     int16_t tx = 0, ty = 0;

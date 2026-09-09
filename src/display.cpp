@@ -29,7 +29,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
     static int i = 0;
     static long _lastmillis = 0;
 #if defined(E_PAPER_DISPLAY)
-    const int deadTime = 1500;
+    const int deadTime = 2000;
 #else
     const int deadTime = 200;
 #endif
@@ -51,8 +51,15 @@ void displayScrollingText(const String &text, Opt_Coord &coord) {
         tft->print(scrollingPart);
         if (i >= scrollLen - coord.size) i = -1; // Loop back
         _lastmillis = launcherMillis();
+#if defined(E_PAPER_DISPLAY)
+        if (i == -1) {
+            i = 0;
+        } else i = i + 5;
+#else
         i++;
         if (i == 1) _lastmillis = launcherMillis() + 1000;
+#endif
+
         tft->display(false);
     }
 }
