@@ -116,22 +116,32 @@ static uint8_t readTouchPoint(int16_t *x, int16_t *y) {
     const int16_t panelX = rawY;
     const int16_t panelY = (TFT_HEIGHT - 1) - rawX;
 
+    // Rotation 3 confirmed on-device by two corner taps:
+    //  1) raw touch reported x=475,y=794 for a physical tap near x=5,y=6 --
+    //     the point-reflection of what the original (Adafruit_GFX-standard)
+    //     case 3 body produced, i.e. it was computing case 1's result. Fixed
+    //     by swapping the case 1 / case 3 bodies.
+    //  2) after that swap, X read correct but Y came back flipped -- fixed
+    //     by flipping case 3's Y term (panelX -> (TFT_WIDTH-1)-panelX).
+    // Rotations 1 and 2 are untested; case 1 mirrors the pre-fix-2 case 3
+    // body (same swapped-parity family) and case 2 is self-inverse either
+    // way, so both are left as originally derived pending confirmation.
     switch (rotation) {
         case 0:
             *x = panelX;
             *y = panelY;
             break;
         case 1:
-            *x = (TFT_HEIGHT - 1) - panelY;
-            *y = panelX;
+            *x = panelY;
+            *y = (TFT_WIDTH - 1) - panelX;
             break;
         case 2:
             *x = (TFT_WIDTH - 1) - panelX;
             *y = (TFT_HEIGHT - 1) - panelY;
             break;
         default: // 3
-            *x = panelY;
-            *y = (TFT_WIDTH - 1) - panelX;
+            *x = (TFT_HEIGHT - 1) - panelY;
+            *y = panelX;
             break;
     }
     return 1;
