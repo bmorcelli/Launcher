@@ -7,6 +7,8 @@
 #include "esp_private/usb_phy.h"
 #include "tusb.h"
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "esp_private/periph_ctrl.h"
@@ -28,6 +30,28 @@ usb_phy_handle_t s_usbPhy = nullptr;
 TaskHandle_t s_usbDeviceTask = nullptr;
 bool s_usbStarted = false;
 bool s_usbMounted = false;
+
+// Temporary MSC I/O tracing to a log file for debugging the macOS mount failure
+// (https://github.com/bmorcelli/Launcher/issues/424). Disable once resolved.
+#define MSC_DEBUG_LOG 1
+#if MSC_DEBUG_LOG
+constexpr const char *kMscLogPath = "/Launcher_error.log";
+
+void mscLog(const char *fmt, ...) {
+    File f = SDM.open(kMscLogPath, FILE_APPEND, true);
+    if (!f) return;
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    f.println(buf);
+    f.close();
+}
+#define MSC_LOG(...) mscLog(__VA_ARGS__)
+#else
+#define MSC_LOG(...)
+#endif
 
 constexpr uint8_t kUsbItfMsc = 0;
 constexpr uint8_t kUsbEpOut = 0x01;
@@ -273,7 +297,10 @@ extern "C" int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void
     switch (scsi_cmd[0]) {
         case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL: return 0;
         case 0x35: return 0; // SYNCHRONIZE CACHE (10)
-        default: tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); return -1;
+        default:
+            MSC_LOG("scsi_cb: unsupported opcode 0x%02X", scsi_cmd[0]);
+            tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
+            return -1;
     }
 }
 
@@ -336,7 +363,17 @@ void MassStorage::displayMessage(String message) {
 
 int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize) {
     const uint32_t secSize = SDM.sectorSize();
-    if (secSize == 0 || secSize > 512) return -1;
+    if (secSize == 0 || secSize > 512) {
+        MSC_LOG(
+            "WR lba=%lu off=%lu size=%lu: bad sector size %lu",
+            (unsigned long)lba,
+            (unsigned long)offset,
+            (unsigned long)bufsize,
+            (unsigned long)secSize
+        );
+        tud_msc_set_sense(0, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+        return -1;
+    }
 
     uint8_t sector[512];
     uint32_t sectorLba = lba + (offset / secSize);
@@ -348,11 +385,41 @@ int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_
         const uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
 
         if (sectorOffset == 0 && chunk == secSize) {
-            if (!SDM.writeRAW(src, sectorLba)) return -1;
+            if (!SDM.writeRAW(src, sectorLba)) {
+                MSC_LOG(
+                    "WR lba=%lu off=%lu size=%lu: writeRAW failed at sector %lu",
+                    (unsigned long)lba,
+                    (unsigned long)offset,
+                    (unsigned long)bufsize,
+                    (unsigned long)sectorLba
+                );
+                tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x03, 0x00);
+                return -1;
+            }
         } else {
-            if (!SDM.readRAW(sector, sectorLba)) return -1;
+            if (!SDM.readRAW(sector, sectorLba)) {
+                MSC_LOG(
+                    "WR lba=%lu off=%lu size=%lu: readRAW (rmw) failed at sector %lu",
+                    (unsigned long)lba,
+                    (unsigned long)offset,
+                    (unsigned long)bufsize,
+                    (unsigned long)sectorLba
+                );
+                tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
+                return -1;
+            }
             std::memcpy(sector + sectorOffset, src, chunk);
-            if (!SDM.writeRAW(sector, sectorLba)) return -1;
+            if (!SDM.writeRAW(sector, sectorLba)) {
+                MSC_LOG(
+                    "WR lba=%lu off=%lu size=%lu: writeRAW (rmw) failed at sector %lu",
+                    (unsigned long)lba,
+                    (unsigned long)offset,
+                    (unsigned long)bufsize,
+                    (unsigned long)sectorLba
+                );
+                tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x03, 0x00);
+                return -1;
+            }
         }
 
         remaining -= chunk;
@@ -366,7 +433,17 @@ int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_
 
 int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
     const uint32_t secSize = SDM.sectorSize();
-    if (secSize == 0 || secSize > 512) return -1;
+    if (secSize == 0 || secSize > 512) {
+        MSC_LOG(
+            "RD lba=%lu off=%lu size=%lu: bad sector size %lu",
+            (unsigned long)lba,
+            (unsigned long)offset,
+            (unsigned long)bufsize,
+            (unsigned long)secSize
+        );
+        tud_msc_set_sense(0, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+        return -1;
+    }
 
     uint8_t sector[512];
     uint32_t sectorLba = lba + (offset / secSize);
@@ -378,9 +455,29 @@ int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bu
         const uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
 
         if (sectorOffset == 0 && chunk == secSize) {
-            if (!SDM.readRAW(dst, sectorLba)) return -1;
+            if (!SDM.readRAW(dst, sectorLba)) {
+                MSC_LOG(
+                    "RD lba=%lu off=%lu size=%lu: readRAW failed at sector %lu",
+                    (unsigned long)lba,
+                    (unsigned long)offset,
+                    (unsigned long)bufsize,
+                    (unsigned long)sectorLba
+                );
+                tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
+                return -1;
+            }
         } else {
-            if (!SDM.readRAW(sector, sectorLba)) return -1;
+            if (!SDM.readRAW(sector, sectorLba)) {
+                MSC_LOG(
+                    "RD lba=%lu off=%lu size=%lu: readRAW (partial) failed at sector %lu",
+                    (unsigned long)lba,
+                    (unsigned long)offset,
+                    (unsigned long)bufsize,
+                    (unsigned long)sectorLba
+                );
+                tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
+                return -1;
+            }
             std::memcpy(dst, sector + sectorOffset, chunk);
         }
 
@@ -396,6 +493,7 @@ int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bu
 bool usbStartStopCallback(uint8_t power_condition, bool start, bool load_eject) {
     (void)power_condition;
     if (!start && load_eject) {
+        MSC_LOG("start_stop: eject requested");
         MassStorage::setShouldStop(true);
         return true;
     }
