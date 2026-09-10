@@ -13,7 +13,8 @@ struct DeviceButtons {
     int8_t btn4 = -1;
     int8_t btn5 = -1;
     int8_t btn6 = -1;
-    bool pullup = true; // false for boards without internal/external pull-ups (e.g. m5stack-cplus2)
+    bool pullup = true;      // false for boards without internal/external pull-ups (e.g. m5stack-cplus2)
+    bool activeHigh = false; // true for boards wired active-HIGH (e.g. seeedstudio-reterminal-d1001)
 };
 
 struct DeviceTouch {

@@ -615,6 +615,7 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
         String payload;
         LauncherHttpResponse resp;
         launcherConsolePrintf("getInfo: GET attempt %u url_len=%u\n", attempt + 1, serverUrl.length());
+        RAM_LOG("getInfo-before-get");
         if (launcherHttpGetToString(serverUrl.c_str(), payload, 65536, &resp)) {
             launcherConsolePrintf("getInfo: GET ok status=%d bytes=%u\n", resp.status, payload.length());
             _doc.clear();

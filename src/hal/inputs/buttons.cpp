@@ -29,7 +29,10 @@ static void configurePin(int8_t pin, bool pullup) {
     else launcherGpioInput(pin);
 }
 
-static bool pressed(int8_t pin) { return pin >= 0 && launcherGpioRead(pin) == LOW; }
+static bool pressed(int8_t pin, bool activeHigh = false) {
+    if (pin < 0) return false;
+    return activeHigh ? launcherGpioRead(pin) == HIGH : launcherGpioRead(pin) == LOW;
+}
 
 void hal_buttons_init(const DeviceButtons &cfg, uint8_t count) {
     configurePin(cfg.btn1, cfg.pullup);
@@ -121,7 +124,7 @@ void hal_buttons_poll_1(const DeviceButtons &cfg) {
         pendingNextPress = false;
     }
 
-    bool buttonDown = pressed(cfg.btn1);
+    bool buttonDown = pressed(cfg.btn1, cfg.activeHigh);
 
     if (buttonDown && !buttonWasDown) {
         buttonWasDown = true;
@@ -190,9 +193,9 @@ void hal_buttons_poll_3(const DeviceButtons &cfg) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
-    bool prev = pressed(cfg.btn1);
-    bool next = pressed(cfg.btn2);
-    bool sel = pressed(cfg.btn3);
+    bool prev = pressed(cfg.btn1, cfg.activeHigh);
+    bool next = pressed(cfg.btn2, cfg.activeHigh);
+    bool sel = pressed(cfg.btn3, cfg.activeHigh);
 
     bool anyPressed = prev || next || sel;
     if (anyPressed) tm = launcherMillis();
@@ -210,11 +213,11 @@ void hal_buttons_poll_5(const DeviceButtons &cfg) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
-    bool prev = pressed(cfg.btn1);
-    bool next = pressed(cfg.btn2);
-    bool up = pressed(cfg.btn3);
-    bool down = pressed(cfg.btn4);
-    bool sel = pressed(cfg.btn5);
+    bool prev = pressed(cfg.btn1, cfg.activeHigh);
+    bool next = pressed(cfg.btn2, cfg.activeHigh);
+    bool up = pressed(cfg.btn3, cfg.activeHigh);
+    bool down = pressed(cfg.btn4, cfg.activeHigh);
+    bool sel = pressed(cfg.btn5, cfg.activeHigh);
 
     if (!(prev || next || up || down || sel)) return;
     tm = launcherMillis();
@@ -236,12 +239,12 @@ void hal_buttons_poll_6(const DeviceButtons &cfg, bool esc_on_combo_too) {
     static unsigned long tm = 0;
     if (launcherMillis() - tm < 200 && !LongPress) return;
 
-    bool prev = pressed(cfg.btn1);
-    bool next = pressed(cfg.btn2);
-    bool up = pressed(cfg.btn3);
-    bool down = pressed(cfg.btn4);
-    bool sel = pressed(cfg.btn5);
-    bool esc = pressed(cfg.btn6);
+    bool prev = pressed(cfg.btn1, cfg.activeHigh);
+    bool next = pressed(cfg.btn2, cfg.activeHigh);
+    bool up = pressed(cfg.btn3, cfg.activeHigh);
+    bool down = pressed(cfg.btn4, cfg.activeHigh);
+    bool sel = pressed(cfg.btn5, cfg.activeHigh);
+    bool esc = pressed(cfg.btn6, cfg.activeHigh);
 
     if (!(prev || next || up || down || sel || esc)) return;
     tm = launcherMillis();

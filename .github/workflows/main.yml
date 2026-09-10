@@ -104,6 +104,7 @@
             - { env: "lilygo-t-watch-s3"          }
             - { env: "lilygo-t-watch-ultra"       }
             - { env: "reaper"                     }
+            - { env: "seeedstudio-reterminal-d1001" }
             - { env: "seeedstudio-reterminal-e1001" }
             - { env: "seeedstudio-reterminal-sticky" }
             - { env: "seeedstudio-sensecap"       }
