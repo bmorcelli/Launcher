@@ -526,12 +526,18 @@ bool clearKeyBindings() {
 
 // Valid GPIOs for LauncherOnKey: -1 (disabled) plus either every pin up to
 // GPIO_NUM_MAX, or, when the board defines LAUNCHER_GPIO_KEYS (e.g.
-// LAUNCHER_GPIO_KEYS = {0, 2, 4, 12, 13}), only that explicit set.
+// LAUNCHER_GPIO_KEYS = {{"Up", 2}, {"Down", 13}}), only that explicit,
+// labeled set.
+struct LauncherGpioKey {
+    const char *label;
+    int pin;
+};
+
 std::vector<int> launcherOnKeyGpioOptions() {
     std::vector<int> pins = {-1};
 #if defined(LAUNCHER_GPIO_KEYS)
-    static constexpr int allowed[] = LAUNCHER_GPIO_KEYS;
-    for (int pin : allowed) pins.push_back(pin);
+    static constexpr LauncherGpioKey allowed[] = LAUNCHER_GPIO_KEYS;
+    for (const LauncherGpioKey &key : allowed) pins.push_back(key.pin);
 #else
     for (int pin = 0; pin < GPIO_NUM_MAX; pin++) pins.push_back(pin);
 #endif
@@ -542,7 +548,20 @@ static void selectLauncherOnKeyGpio() {
     std::vector<int> pins = launcherOnKeyGpioOptions();
     options.clear();
     for (int pin : pins) {
-        String label = pin < 0 ? "Disabled" : ("GPIO " + String(pin));
+        String label = "Disabled";
+        if (pin >= 0) {
+#if defined(LAUNCHER_GPIO_KEYS)
+            static constexpr LauncherGpioKey allowed[] = LAUNCHER_GPIO_KEYS;
+            for (const LauncherGpioKey &key : allowed) {
+                if (key.pin == pin) {
+                    label = String(key.label) + " (" + String(pin) + ")";
+                    break;
+                }
+            }
+#else
+            label = "GPIO " + String(pin);
+#endif
+        }
         options.push_back({label, [pin]() { LauncherOnKey = pin; }, _CLR_(LauncherOnKey, pin)});
     }
     loopOptions(options);
@@ -642,10 +661,20 @@ void settings_menu() {
                                saveConfigs();
                            }});
 #if defined(LAUNCHER_GPIO_KEYS)
-        options.push_back(
-            {"[" + (LauncherOnKey > -1 ? String(LauncherOnKey) : "-") + "] GPIO on boot starts Launcher",
-             [=]() { selectLauncherOnKeyGpio(); }}
-        );
+        String launcherOnKeyLabel = "-";
+        if (LauncherOnKey > -1) {
+            launcherOnKeyLabel = String(LauncherOnKey);
+            static constexpr LauncherGpioKey allowed[] = LAUNCHER_GPIO_KEYS;
+            for (const LauncherGpioKey &key : allowed) {
+                if (key.pin == LauncherOnKey) {
+                    launcherOnKeyLabel = key.label;
+                    break;
+                }
+            }
+        }
+        options.push_back({"[" + launcherOnKeyLabel + "] GPIO on boot starts Launcher", [=]() {
+                               selectLauncherOnKeyGpio();
+                           }});
         if (LauncherOnKey >= 0) {
             options.push_back({LauncherKeyLvl ? "[1] GPIO Level" : "[0] GPIO Level", [=]() {
                                    LauncherKeyLvl = !LauncherKeyLvl;
