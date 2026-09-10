@@ -90,6 +90,9 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
             tftprint(".", 10);
             count++;
             if (connectState == LauncherWifiConnectState::Failed || count > kWifiConnectAttempts) {
+                // Some boards miss the Connected event timing but already have an IP;
+                // treat that as success instead of showing a spurious Retry menu.
+                if (launcherWifiIsConnected()) break;
                 options = {
                     {"Retry",     [&]() { yield(); }            },
                     {"Main Menu", [&]() { returnToMenu = true; }},
@@ -615,7 +618,6 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
         String payload;
         LauncherHttpResponse resp;
         launcherConsolePrintf("getInfo: GET attempt %u url_len=%u\n", attempt + 1, serverUrl.length());
-        RAM_LOG("getInfo-before-get");
         if (launcherHttpGetToString(serverUrl.c_str(), payload, 65536, &resp)) {
             launcherConsolePrintf("getInfo: GET ok status=%d bytes=%u\n", resp.status, payload.length());
             _doc.clear();

@@ -1407,6 +1407,7 @@ void loopVersions(const String &_fid) {
     bool redraw = true;
 
     LongPressTmp = launcherMillis();
+    resetGlobals();
     while (1) {
         if (returnToMenu) break; // Stops the loop to get back to Main menu
 
@@ -1420,6 +1421,7 @@ void loopVersions(const String &_fid) {
             );
             redraw = false;
             tft->display(false);
+            resetGlobals();
         }
         /* DW Btn to next item */
         if (check(NextPress)) {
@@ -1521,12 +1523,12 @@ void loopVersions(const String &_fid) {
             redraw = true;
         }
     }
-Sucesso:
-    if (!returnToMenu) { return (void)releaseHeapObjectsAndReboot(); }
 
-// quando sair, redesenhar a tela
 SAIR:
-    if (!returnToMenu) tft->fillScreen(BGCOLOR);
+#ifndef E_PAPER_DISPLAY
+    tft->fillScreen(BGCOLOR);
+#endif
+    returnToMenu = false;
 }
 
 /*********************************************************************
@@ -1594,6 +1596,7 @@ RESTART:
     options.push_back({"[Main Menu]", [=]() { returnToMenu = true; }, ALCOLOR});
 
     tft->fillScreen(BGCOLOR);
+    resetGlobals();
     index = loopOptions(options, false, FGCOLOR, BGCOLOR, false, index);
     if (currentIndex >= 0) loopVersions(doc["items"][currentIndex]["fid"].as<String>());
     if (refine) {
@@ -1629,6 +1632,7 @@ RESTART:
              }},
             {"Back to list", [&]() { yield(); }}
         };
+        resetGlobals();
         loopOptions(opt);
     }
     if (!returnToMenu && index >= 0) goto RESTART;
