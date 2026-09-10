@@ -696,10 +696,18 @@
         {
             "display": true,
             "name": "reTerminal Sticky",
-            "description": "",
+            "description": "e-ink",
             "link": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html",
             "family": "ESP32-S3",
             "id": "seeedstudio-reterminal-sticky"
+        },
+        {
+            "display": true,
+            "name": "reTerminal E1001",
+            "description": "e-ink",
+            "link": "https://www.seeedstudio.com/reTerminal-E1001-p-6534.html",
+            "family": "ESP32-S3",
+            "id": "seeedstudio-reterminal-e1001"
         },
         {
             "display": true,
@@ -708,6 +716,14 @@
             "link": "https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html",
             "family": "ESP32-S3",
             "id": "seeedstudio-sensecap"
+        },
+        {
+            "display": true,
+            "name": "reTerminal D1001",
+            "description": "ESP32P4 8in",
+            "link": "https://www.seeedstudio.com/reTerminal-D1001-p-6729.html",
+            "family": "ESP32-P4",
+            "id": "seeedstudio-reterminal-d1001"
         }
     ],
     "Waveshare": [
