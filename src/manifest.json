@@ -201,7 +201,7 @@
             "display": true,
             "name": "XIAO ESP32-S3-8mb & Sense",
             "description": "Headless",
-            "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html",
+            "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "headless-xiao-esp32s3-8mb"
         },
@@ -209,7 +209,7 @@
             "display": true,
             "name": "XIAO ESP32-S3 Plus-16mb",
             "description": "Headless",
-            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "headless-xiao-esp32s3-16mb"
         },
@@ -217,7 +217,7 @@
             "display": true,
             "name": "XIAO ESP32-C5-8mb",
             "description": "Headless",
-            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-C5",
             "id": "headless-xiao-esp32c5-8mb"
         }
@@ -721,7 +721,7 @@
             "display": true,
             "name": "reTerminal Sticky",
             "description": "e-ink",
-            "link": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html",
+            "link": "https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "seeedstudio-reterminal-sticky"
         },
@@ -729,7 +729,7 @@
             "display": true,
             "name": "reTerminal E1001",
             "description": "e-ink",
-            "link": "https://www.seeedstudio.com/reTerminal-E1001-p-6534.html",
+            "link": "https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "seeedstudio-reterminal-e1001"
         },
@@ -737,7 +737,7 @@
             "display": true,
             "name": "SenseCAP Indicator",
             "description": "No SD Card",
-            "link": "https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html",
+            "link": "https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "seeedstudio-sensecap"
         },
@@ -745,7 +745,7 @@
             "display": true,
             "name": "reTerminal D1001",
             "description": "ESP32P4 8in",
-            "link": "https://www.seeedstudio.com/reTerminal-D1001-p-6729.html",
+            "link": "https://www.seeedstudio.com/reTerminal-D1001-p-6729.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-P4",
             "id": "seeedstudio-reterminal-d1001"
         },
@@ -753,7 +753,7 @@
             "display": true,
             "name": "XIAO ESP32-S3-8mb & Sense",
             "description": "Headless",
-            "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html",
+            "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "headless-xiao-esp32s3-8mb"
         },
@@ -761,7 +761,7 @@
             "display": true,
             "name": "XIAO ESP32-S3 Plus-16mb",
             "description": "Headless",
-            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-S3",
             "id": "headless-xiao-esp32s3-16mb"
         },
@@ -769,7 +769,7 @@
             "display": true,
             "name": "XIAO ESP32-C5-8mb",
             "description": "Headless",
-            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link",
             "family": "ESP32-C5",
             "id": "headless-xiao-esp32c5-8mb"
         }
