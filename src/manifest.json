@@ -812,7 +812,7 @@
         {
             "display": true,
             "name": "xteink x3 (and x4)",
-            "description": "",
+            "description": "If USB is Locked, DO NOT INSTALL",
             "link": "https://www.xteink.com/products/xteink-x3",
             "family": "ESP32-C3",
             "id": "xteink-x3-x4"
@@ -820,7 +820,7 @@
         {
             "display": false,
             "name": "xteink x4 Pro",
-            "description": "",
+            "description": "If USB is Locked, DO NOT INSTALL",
             "link": "https://www.xteink.com/products/xteink-x4-pro-pocket-ereader",
             "family": "ESP32-S3",
             "id": "xteink-x4pro"
