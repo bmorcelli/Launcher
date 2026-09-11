@@ -196,6 +196,30 @@
             "link": "",
             "family": "ESP32",
             "id": "headless-esp32-8mb"
+        },
+        {
+            "display": true,
+            "name": "XIAO ESP32-S3-8mb & Sense",
+            "description": "Headless",
+            "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html",
+            "family": "ESP32-S3",
+            "id": "headless-xiao-esp32s3-8mb"
+        },
+        {
+            "display": true,
+            "name": "XIAO ESP32-S3 Plus-16mb",
+            "description": "Headless",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html",
+            "family": "ESP32-S3",
+            "id": "headless-xiao-esp32s3-16mb"
+        },
+        {
+            "display": true,
+            "name": "XIAO ESP32-C5-8mb",
+            "description": "Headless",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html",
+            "family": "ESP32-C5",
+            "id": "headless-xiao-esp32c5-8mb"
         }
     ],
     "CYD": [
@@ -724,6 +748,30 @@
             "link": "https://www.seeedstudio.com/reTerminal-D1001-p-6729.html",
             "family": "ESP32-P4",
             "id": "seeedstudio-reterminal-d1001"
+        },
+        {
+            "display": true,
+            "name": "XIAO ESP32-S3-8mb & Sense",
+            "description": "Headless",
+            "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html",
+            "family": "ESP32-S3",
+            "id": "headless-xiao-esp32s3-8mb"
+        },
+        {
+            "display": true,
+            "name": "XIAO ESP32-S3 Plus-16mb",
+            "description": "Headless",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html",
+            "family": "ESP32-S3",
+            "id": "headless-xiao-esp32s3-16mb"
+        },
+        {
+            "display": true,
+            "name": "XIAO ESP32-C5-8mb",
+            "description": "Headless",
+            "link": "https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html",
+            "family": "ESP32-C5",
+            "id": "headless-xiao-esp32c5-8mb"
         }
     ],
     "Waveshare": [
