@@ -1187,10 +1187,10 @@ void defaultValues() {
     dwn_path = "/downloads/";
 #if defined(HEADLESS)
     // SD Pins
-    _miso = 0;
-    _mosi = 0;
-    _sck = 0;
-    _cs = 0;
+    if (_miso < 0) _miso = 0;
+    if (_mosi < 0) _mosi = 0;
+    if (_sck < 0) _sck = 0;
+    if (_cs < 0) _cs = 0;
 #endif
     saveIntoNVS();
 }

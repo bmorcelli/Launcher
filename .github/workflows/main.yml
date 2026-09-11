@@ -69,6 +69,9 @@
             - { env: "headless-esp32s3-16mb"      }
             - { env: "headless-esp32-4mb"         }
             - { env: "headless-esp32-8mb"         }
+            - { env: "headless-xiao-esp32s3-8mb"  }
+            - { env: "headless-xiao-esp32s3-16mb" }
+            - { env: "headless-xiao-esp32c5-8mb"  }
             - { env: "CYD-2432S028"               }
             - { env: "CYD-2-USB"                  }
             - { env: "CYD-2432W328C_2"            }

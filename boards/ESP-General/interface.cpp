@@ -3,7 +3,11 @@
 #include <interface.h>
 
 #define BTN_ACT LOW
+#ifdef CONFIG_IDF_TARGET_ESP32C5
+#define SEL_BTN 28 // Using Boot button as Select button
+#else
 #define SEL_BTN 0 // Using Boot button as Select button
+#endif
 
 void _setup_gpio() {}
 

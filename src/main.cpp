@@ -324,6 +324,11 @@ void setup() {
 
         if (launcherMillis() > (i + j * 500)) { // Serial message each ~500ms
             launcherConsolePrintln("Press the button to enter the Launcher!");
+#if defined(HEADLESS)
+#if LED > 0
+            launcherGpioWrite(LED, j & 1 ? HIGH : LOW); // keeps on until exit
+#endif
+#endif
             j++;
         }
 #if defined(HAS_TOUCH)
