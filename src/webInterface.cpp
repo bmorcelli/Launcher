@@ -1489,6 +1489,16 @@ esp_err_t nvsHandler(httpd_req_t *req) {
         String json;
         serializeJson(doc, json);
         sendText(req, "application/json", json);
+    } else if (req->method == HTTP_DELETE) {
+        String ns = queryValue(req, "ns");
+        if (ns.isEmpty() || (ns == "launcher")) {
+            sendText(req, 400, "text/plain", "Bad namespace");
+            return ESP_OK;
+        }
+        lnvs::eraseNamespace(ns.c_str());
+        getFromNVS();
+        getWifiFromNVS();
+        sendText(req, "text/plain", "OK");
     } else {
         String body;
         if (!receiveBody(req, body)) {
@@ -2158,6 +2168,7 @@ void configureWebServer() {
     registerHandler("/editfile", HTTP_POST, editfileHandler);
     registerHandler("/nvs", HTTP_GET, nvsHandler);
     registerHandler("/nvs", HTTP_POST, nvsHandler);
+    registerHandler("/nvs", HTTP_DELETE, nvsHandler);
     registerHandler("/blebonds", HTTP_POST, bleBondsHandler);
     registerHandler("/partitions", HTTP_GET, partitionsHandler);
     registerHandler("/partitions", HTTP_POST, partitionsHandler);

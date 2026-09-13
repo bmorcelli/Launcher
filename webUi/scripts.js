@@ -53,7 +53,8 @@ function loadNvs() {
         const inps = 'style="width:220px;background:#303134;color:#0d0;border:1px solid #0d0;padding:2px"';
         let h = '';
         for (const ns in _nvsData) {
-            h += '<h3 style="margin:8px 0 4px;color:#0d0">' + ns + '</h3>';
+            h += '<h3 style="margin:8px 0 4px;color:#0d0">' + ns +
+                ' <span title="Delete namespace" style="cursor:pointer" onclick="deleteNvsNamespace(\'' + ns + '\')">&#128465;</span></h3>';
             _nvsData[ns].forEach(f => {
                 const id = _nvsId(ns, f.k);
                 h += '<div style="margin:4px 0"><label style="display:inline-block;width:150px;font-size:0.9em">' + f.k + ':</label>';
@@ -70,6 +71,14 @@ function loadNvs() {
         }
         _('nvs-body').innerHTML = h;
     };
+    x.send();
+}
+function deleteNvsNamespace(ns) {
+    if (ns === 'launcher') { window.alert('The launcher namespace cannot be deleted.'); return; }
+    if (!confirm('Erase the entire "' + ns + '" namespace? This cannot be undone.')) return;
+    const x = new XMLHttpRequest();
+    x.open('DELETE', '/nvs?ns=' + encodeURIComponent(ns));
+    x.onload = () => { _('status').innerHTML = x.responseText === 'OK' ? 'Namespace erased!' : x.responseText; loadNvs(); };
     x.send();
 }
 function eraseBleBonds() {
