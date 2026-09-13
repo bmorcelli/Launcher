@@ -99,11 +99,11 @@ Things that need to be done in future updates
 
 ## Latest Changelog
 * 2.10.0:
-     * [x] Port to [SeeedStudio XIAO ESP32C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html) on **Headless** environment
-     * [x] Port to [SeeedStudio XIAO ESP32S3 Plus](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html) on **Headless** environment
-     * [x] Port to [SeeedStudio reTerminal D1001 8"](https://www.seeedstudio.com/reTerminal-D1001-p-6729.html)
-     * [x] Port to [SeeedStudio reTerminal E1001 Monochrome e-Paper Display](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html)
-     * [x] Port to [SeeedStudio SenseCAP Indicator](https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html)
+     * [x] Port to [SeeedStudio XIAO ESP32C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
+     * [x] Port to [SeeedStudio XIAO ESP32S3 Plus](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
+     * [x] Port to [SeeedStudio reTerminal D1001 8"](https://www.seeedstudio.com/reTerminal-D1001-p-6729.html?sensecap_affiliate=dhriNBA&referring_service=link)
+     * [x] Port to [SeeedStudio reTerminal E1001 Monochrome e-Paper Display](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?sensecap_affiliate=dhriNBA&referring_service=link)
+     * [x] Port to [SeeedStudio SenseCAP Indicator](https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html?sensecap_affiliate=dhriNBA&referring_service=link)
      * [x] **BETA**: [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) Validated UC8xxx display.
      * [x] **Added** Option to control bootscreen time (from 1 to 5 seconds).
      * [x] **Added** Option to disable starting Launcher from DeepSleep. Some e-ink firmwares (CrossInk, CrossPoint etc..)  use agressive deepsleep controls to save energy, and by default it used to trigger Launcher bootscreen, adding time to the device/firmware recovery. Now you can Disable this behaviour and trigger Launcher only on Power On reason. Use it with care, and in devices with exposed RST button, otherwise getting back to Launcher can be impossible on some devices
@@ -127,7 +127,7 @@ Things that need to be done in future updates
      * [x] Port to [Elecrow Crowpanel Advance ESP32-S3 5.0in](https://www.elecrow.com/crowpanel-advance-5-0-hmi-esp32-ai-display-800x480-ips-artificial-intelligent-touch-screen.html)
      * [x] Port to [Elecrow Crowpanel Advance ESP32-P4 7.0in](https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html)
      * [x] Port to [ESP32 E32R40T 4"](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display)
-     * [x] Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html), thaks to @limengdu
+     * [x] Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html?sensecap_affiliate=dhriNBA&referring_service=link), thaks to @limengdu
      * [x] Port to [Waveshare-ESP32-C5-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C5-LCD-1.47)
      * [x] Port to [Waveshare-ESP32-C6-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
      * [x] Port to [Waveshare-ESP32-C6-LCD-1.3](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
