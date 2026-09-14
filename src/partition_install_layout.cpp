@@ -139,7 +139,10 @@ bool launcherSelectInstallLayout(
     LauncherPartitionTable original = table;
     std::vector<Option> choices;
     std::vector<String> choiceLabels;
-    choices.push_back({String("Need ") + launcherSizeLabel(requiredInstallSize), []() {}});
+    choices.push_back(
+        {String("Need ") + launcherHumanSize(requiredInstallSize) + launcherSizeLabel(requiredInstallSize),
+         []() {}}
+    );
     choiceLabels.push_back(choices.back().label);
 
     auto addChoice = [&](const String &label,
