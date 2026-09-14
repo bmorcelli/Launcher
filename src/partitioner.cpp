@@ -384,6 +384,22 @@ int findEntryIndex(const LauncherPartitionTable &table, const LauncherPartitionE
     return -1;
 }
 
+String sanitizePartitionLabel(const String &value) {
+    String out;
+    for (size_t i = 0; i < value.length(); ++i) {
+        const char c = value.charAt(i);
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' ||
+            c == '_' || c == '.') {
+            out += c;
+        } else if (c == ' ') {
+            out += '_';
+        }
+    }
+    out.trim();
+    if (out.length() > 15) out = out.substring(0, 15);
+    return out;
+}
+
 bool validateOrShow(const LauncherPartitionTable &table) {
     String error;
     if (launcherPartitionValidate(table, &error)) return true;
@@ -398,6 +414,39 @@ bool compactOrShow(LauncherPartitionTable &table) {
     launcherConsolePrintf("Partition compact failed: %s\n", error.c_str());
     displayError(error.length() ? error : "Compact failed");
     return false;
+}
+
+bool renamePartitionEntry(LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
+    int index = findEntryIndex(table, target);
+    if (index < 0) return false;
+    if (isProtectedPartition(table.entries[index])) {
+        displayError("Protected partition");
+        return false;
+    }
+
+    String currentLabel = String(target.label);
+    String newLabel = keyboard(currentLabel, 15, "Partition label");
+    newLabel = sanitizePartitionLabel(newLabel);
+    if (newLabel.isEmpty() || newLabel == String(KEY_ESCAPE)) return false;
+    if (newLabel == currentLabel) return false;
+
+    const LauncherPartitionEntry *duplicate = launcherPartitionFindByLabel(table, newLabel.c_str());
+    if (duplicate && duplicate->offset != target.offset) {
+        displayError("Label already in use");
+        return false;
+    }
+
+    LauncherPartitionTable edited = table;
+    if (!launcherPartitionRenameEntryByOffset(edited, target.offset, newLabel)) {
+        displayError("Rename failed");
+        return false;
+    }
+    if (!validateOrShow(edited)) return false;
+    if (!compactOrShow(edited)) return false;
+
+    table = edited;
+    displayMsg("Partition renamed");
+    return true;
 }
 
 bool editPartitionSize(LauncherPartitionTable &table, const LauncherPartitionEntry &target) {
@@ -754,18 +803,21 @@ void partList() {
                          entryOptions.push_back({"Restore data", [&]() { selected = 6; }});
                      }
                      if (!isProtectedPartition(entry)) {
-                         entryOptions.push_back({"Edit Size", [&]() { selected = 1; }});
-                         entryOptions.push_back({"Remove", [&]() { selected = 2; }});
-                         entryOptions.push_back({"Format", [&]() { selected = 3; }});
+                         entryOptions.push_back({"Rename", [&]() { selected = 1; }});
+                         entryOptions.push_back({"Edit Size", [&]() { selected = 2; }});
+                         entryOptions.push_back({"Remove", [&]() { selected = 3; }});
+                         entryOptions.push_back({"Format", [&]() { selected = 4; }});
                      }
-                     entryOptions.push_back({"Back", [&]() { selected = 4; }});
+                     entryOptions.push_back({"Back", [&]() { selected = 9; }});
                      loopOptions(entryOptions);
                      if (selected == 0) showPartitionDetails(entry);
                      else if (selected == 1) {
-                         if (editPartitionSize(table, entry)) dirty = true;
+                         if (renamePartitionEntry(table, entry)) dirty = true;
                      } else if (selected == 2) {
-                         if (removePartition(table, entry)) dirty = true;
+                         if (editPartitionSize(table, entry)) dirty = true;
                      } else if (selected == 3) {
+                         if (removePartition(table, entry)) dirty = true;
+                     } else if (selected == 4) {
                          formatPartition(entry, dirty);
                      } else if (selected == 5) {
                          if (!linkedAppNum.isEmpty()) {
