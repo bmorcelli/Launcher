@@ -1,3 +1,4 @@
+#include "display/Arduino_CO5300.h"
 #include "hal/device.h"
 #include "hal/inputs/buttons.h"
 #include "hal/inputs/touch.h"
@@ -5,6 +6,7 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
+#include <XPowersLib.h>
 #include <interface.h>
 
 // If PMIC_BQ25896 / GAUGE_BQ27220 is set in platformio.ini:
@@ -30,6 +32,8 @@
 #define BOARD_TOUCH_RST 9
 #define BTN1 0
 #define BTN2 10
+
+XPowersAXP2101 axp2101;
 
 static bool touch_OK = false;
 
@@ -120,17 +124,44 @@ void _setup_gpio() {
 
     // hal_buttons_init(buttonsCfg(), 3); // 1, 3, 5 or 6
 
-    launcherGpioOutput(TFT_RST);
-    launcherGpioWrite(TFT_RST, HIGH);
-    launcherDelayMs(10);
-    launcherGpioWrite(TFT_RST, LOW);
-    launcherDelayMs(20);
-    launcherGpioWrite(TFT_RST, HIGH);
-    launcherDelayMs(120);
+    Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
+    axp2101.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL);
+
+    axp2101.clearIrqStatus();
+
+    axp2101.enableVbusVoltageMeasure();
+    axp2101.enableBattVoltageMeasure();
+    axp2101.enableSystemVoltageMeasure();
+    axp2101.enableTemperatureMeasure();
+
+    // It is necessary to disable the detection function of the TS pin on the board
+    // without the battery temperature detection function, otherwise it will cause abnormal charging
+    axp2101.disableTSPinMeasure();
+
+    // Disable all interrupts
+    axp2101.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
+    // Clear all interrupt flags
+    axp2101.clearIrqStatus();
+    // Enable the required interrupt function
+    axp2101.enableIRQ(
+        XPOWERS_AXP2101_BAT_INSERT_IRQ | XPOWERS_AXP2101_BAT_REMOVE_IRQ |    // BATTERY
+        XPOWERS_AXP2101_VBUS_INSERT_IRQ | XPOWERS_AXP2101_VBUS_REMOVE_IRQ |  // VBUS
+        XPOWERS_AXP2101_PKEY_SHORT_IRQ | XPOWERS_AXP2101_PKEY_LONG_IRQ |     // POWER KEY
+        XPOWERS_AXP2101_BAT_CHG_DONE_IRQ | XPOWERS_AXP2101_BAT_CHG_START_IRQ // CHARGE
+        // XPOWERS_AXP2101_PKEY_NEGATIVE_IRQ | XPOWERS_AXP2101_PKEY_POSITIVE_IRQ   |   //POWER KEY
+    );
+
+    // Set the precharge charging current
+    axp2101.setPrechargeCurr(XPOWERS_AXP2101_PRECHARGE_50MA);
+    // Set constant current charge current limit
+    axp2101.setChargerConstantCurr(XPOWERS_AXP2101_CHG_CUR_400MA);
+    // Set stop charging termination current
+    axp2101.setChargerTerminationCurr(XPOWERS_AXP2101_CHG_ITERM_25MA);
+
+    // Set charge cut-off voltage
+    axp2101.setChargeTargetVoltage(XPOWERS_AXP2101_CHG_VOL_4V2);
 
     hal_buttons_init_2(DeviceButtons{BTN1, BTN2}, 600);
-
-    Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
     // Initialize capacitive touch
     touch_OK = hal_touch_init(touchCfg(), 0x38 /* CST816_SLAVE_ADDRESS */);
@@ -156,8 +187,8 @@ void _late_setup_gpio() {}
 ** Description:   Delivers the battery value from 1-100
 ***************************************************************************************/
 int getBattery() {
-    // With GAUGE_BQ27220 set: return hal_gauge_get_percent();
-    return 0;
+    int percent = axp2101.getBatteryPercent();
+    return percent;
 }
 
 /*********************************************************************
@@ -171,7 +202,10 @@ int getBattery() {
 // void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 // For two simultaneous backlight pins (e.g. screen + keyboard), pass an array:
 // uint8_t pins[] = {TFT_BL, KEYBOARD_BL}; hal_bright_set(pins, 2, brightval);
-void _setBrightness(uint8_t brightval) {}
+void _setBrightness(uint8_t brightval) {
+    auto *panel = static_cast<Arduino_CO5300 *>(tft->outputDriver());
+    if (panel) panel->setBrightness((brightval * 255) / 100);
+}
 
 /*********************************************************************
 ** Function: InputHandler
@@ -207,14 +241,7 @@ void InputHandler(void) {
 ** location: mykeyboard.cpp
 ** Turns off the device (or try to)
 **********************************************************************/
-void powerOff() {
-    // put into deepsleep mode, or shutdown if PMIC is available
-    // esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
-    vTaskDelay(pdMS_TO_TICKS(200));
-    esp_deep_sleep_start();
-    // or PMIC shutdown if available (PMIC_BQ25896 set):
-    // hal_pmic_shutdown();
-}
+void powerOff() { axp2101.shutdown(); }
 
 /*********************************************************************
 ** Function: reboot
