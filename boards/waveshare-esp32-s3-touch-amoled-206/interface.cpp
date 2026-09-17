@@ -89,6 +89,8 @@ static bool touch_OK = false;
 //     if (!hal_touch_apply(t)) return;
 // }
 
+static DeviceButtons buttonsCfg() { return DeviceButtons{SEL_BTN}; }
+
 static DeviceTouch touchCfg() {
     DeviceTouch cfg;
     cfg.pin_rst = BOARD_TOUCH_RST;
@@ -119,7 +121,15 @@ void _setup_gpio() {
 
     // hal_buttons_init(buttonsCfg(), 3); // 1, 3, 5 or 6
 
-    hal_buttons_init(DeviceButtons{SEL_BTN}, 1);
+    launcherGpioOutput(TFT_RST);
+    launcherGpioWrite(TFT_RST, HIGH);
+    launcherDelayMs(10);
+    launcherGpioWrite(TFT_RST, LOW);
+    launcherDelayMs(20);
+    launcherGpioWrite(TFT_RST, HIGH);
+    launcherDelayMs(120);
+
+    hal_buttons_init(buttonsCfg(), 1);
 
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
@@ -189,7 +199,7 @@ void InputHandler(void) {
             }
         }
     } else {
-        hal_buttons_poll_1(DeviceButtons{SEL_BTN});
+        hal_buttons_poll_1(buttonsCfg());
     }
 }
 
@@ -200,7 +210,7 @@ void InputHandler(void) {
 **********************************************************************/
 void powerOff() {
     // put into deepsleep mode, or shutdown if PMIC is available
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
+    // esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
     // or PMIC shutdown if available (PMIC_BQ25896 set):
