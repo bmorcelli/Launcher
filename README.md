@@ -104,6 +104,7 @@ Things that need to be done in future updates
      * [x] Port to [SeeedStudio reTerminal D1001 8"](https://www.seeedstudio.com/reTerminal-D1001-p-6729.html?sensecap_affiliate=dhriNBA&referring_service=link)
      * [x] Port to [SeeedStudio reTerminal E1001 Monochrome e-Paper Display](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?sensecap_affiliate=dhriNBA&referring_service=link)
      * [x] Port to [SeeedStudio SenseCAP Indicator](https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html?sensecap_affiliate=dhriNBA&referring_service=link)
+     * [x] Port to [Waveshare ESP32-S3 2.06inch AMOLED Touch Watch](https://www.waveshare.com/esp32-s3-touch-amoled-2.06.htm?&aff_id=179888), thanks to @nevelate
      * [x] **BETA**: [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) Validated UC8xxx display.
      * [x] **Added** Option to control bootscreen time (from 1 to 5 seconds).
      * [x] **Added** Option to disable starting Launcher from DeepSleep. Some e-ink firmwares (CrossInk, CrossPoint etc..)  use agressive deepsleep controls to save energy, and by default it used to trigger Launcher bootscreen, adding time to the device/firmware recovery. Now you can Disable this behaviour and trigger Launcher only on Power On reason. Use it with care, and in devices with exposed RST button, otherwise getting back to Launcher can be impossible on some devices
