@@ -28,7 +28,8 @@
 #define BOARD_I2C_SCL 14
 #define BOARD_TOUCH_INT 38
 #define BOARD_TOUCH_RST 9
-#define SEL_BTN 0
+#define BTN1 0
+#define BTN2 10
 
 static bool touch_OK = false;
 
@@ -89,8 +90,6 @@ static bool touch_OK = false;
 //     if (!hal_touch_apply(t)) return;
 // }
 
-static DeviceButtons buttonsCfg() { return DeviceButtons{SEL_BTN}; }
-
 static DeviceTouch touchCfg() {
     DeviceTouch cfg;
     cfg.pin_rst = BOARD_TOUCH_RST;
@@ -129,7 +128,7 @@ void _setup_gpio() {
     launcherGpioWrite(TFT_RST, HIGH);
     launcherDelayMs(120);
 
-    hal_buttons_init(buttonsCfg(), 1);
+    hal_buttons_init_2(DeviceButtons{BTN1, BTN2}, 600);
 
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL); // SDA, SCL
 
@@ -198,9 +197,9 @@ void InputHandler(void) {
                 if (!hal_touch_apply(t)) return;
             }
         }
-    } else {
-        hal_buttons_poll_1(buttonsCfg());
     }
+    hal_buttons_poll_2();
+    return;
 }
 
 /*********************************************************************
