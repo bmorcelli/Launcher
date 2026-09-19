@@ -26,6 +26,7 @@
 #include <cardkb2.h>
 #endif
 
+#define _CLR_(a, b) (a == b ? FGCOLOR : ALCOLOR)
 // forward declaration
 void defaultValues();
 
@@ -139,6 +140,232 @@ JsonObject ensureSettingsRoot() {
     return setting;
 }
 
+String get_efuse_mac_as_string();
+
+int applySettingsFromRoot(JsonObject setting) {
+    int count = 0;
+
+    if (setting["onlyBins"].is<bool>()) onlyBins = setting["onlyBins"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing onlyBins");
+    }
+
+    if (setting["bootToApp"].is<bool>()) bootToApp = setting["bootToApp"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing bootToApp");
+    }
+
+    if (setting["DDLB"].is<bool>()) DDLB = setting["DDLB"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing DDLB");
+    }
+
+    // LauncherOnKey is bound to this specific device's MAC (same as rotation) so an SD
+    // card shared across multiple physical units of the same board doesn't cross-apply it.
+    String key_dev_name = get_efuse_mac_as_string() + "-" + device_name + "-key";
+    if (setting[key_dev_name].is<int>()) LauncherOnKey = setting[key_dev_name].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing LauncherOnKey");
+    }
+
+    if (setting["LauncherKeyLvl"].is<bool>()) LauncherKeyLvl = setting["LauncherKeyLvl"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing LauncherKeyLvl");
+    }
+
+    if (setting["bootTimer"].is<int>()) bootTimer = setting["bootTimer"].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing bootTimer");
+    }
+
+    if (setting["noDotFiles"].is<bool>()) noDotFiles = setting["noDotFiles"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing noDotFiles");
+    }
+
+    if (setting["autoBackup"].is<bool>()) autoBackup = setting["autoBackup"].as<bool>();
+    else log_i("applySettingsFromRoot: missing autoBackup");
+
+    if (setting["askSpiffs"].is<bool>()) askSpiffs = setting["askSpiffs"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing askSpiffs");
+    }
+
+    if (setting["bright"].is<int>()) bright = setting["bright"].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing bright");
+    }
+
+    if (setting["dimmerSet"].is<int>()) dimmerSet = setting["dimmerSet"].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing dimmerSet");
+    }
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
+    if (setting[get_efuse_mac_as_string()].is<int>()) rotation = setting[get_efuse_mac_as_string()].as<int>();
+    else if (setting[rot_dev_name].is<int>()) rotation = setting[rot_dev_name].as<int>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing rotation");
+    }
+
+#ifndef E_PAPER_DISPLAY
+    if (setting["FGCOLOR"].is<uint16_t>()) FGCOLOR = setting["FGCOLOR"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing FGCOLOR");
+    }
+
+    if (setting["BGCOLOR"].is<uint16_t>()) BGCOLOR = setting["BGCOLOR"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing BGCOLOR");
+    }
+
+    if (setting["ALCOLOR"].is<uint16_t>()) ALCOLOR = setting["ALCOLOR"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing ALCOLOR");
+    }
+
+    if (setting["odd"].is<uint16_t>()) odd_color = setting["odd"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing odd");
+    }
+
+    if (setting["even"].is<uint16_t>()) even_color = setting["even"].as<uint16_t>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing even");
+    }
+#endif
+
+    if (setting["dev"].is<bool>()) dev_mode = setting["dev"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing dev");
+    }
+    if (setting["autoConnect"].is<bool>()) autoConnect = setting["autoConnect"].as<bool>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing autoConnect");
+    }
+
+    if (setting["wui_usr"].is<String>()) wui_usr = setting["wui_usr"].as<String>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing wui_usr");
+    }
+
+    if (setting["wui_pwd"].is<String>()) wui_pwd = setting["wui_pwd"].as<String>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing wui_pwd");
+    }
+
+    if (setting["dwn_path"].is<String>()) dwn_path = setting["dwn_path"].as<String>();
+    else {
+        count++;
+        log_i("applySettingsFromRoot: missing dwn_path");
+    }
+
+    if (setting["wifi"].is<JsonArray>()) {
+        for (JsonObject wifiEntry : setting["wifi"].as<JsonArray>()) {
+            if (wifiEntry["secure"].as<bool>()) {
+                wifiEntry["pwd"] = wifiPwdDecrypt(wifiEntry["pwd"].as<String>());
+                wifiEntry.remove("secure");
+            } else if (!wifiEntry["ssid"].as<String>().isEmpty()) {
+                ++count; // plain-text entry — trigger re-save with encryption
+            }
+        }
+    } else {
+        ++count;
+        log_i("applySettingsFromRoot: missing wifi");
+    }
+
+    if (setting["favorite"].is<JsonArray>()) {
+        favorite = setting["favorite"].as<JsonArray>();
+    } else {
+        ++count;
+        log_i("applySettingsFromRoot: missing favorite");
+    }
+
+    return count;
+}
+
+void populateSettingsFromGlobals(JsonObject setting) {
+    if (!setting["favorite"].is<JsonArray>()) favorite = setting.createNestedArray("favorite");
+    else favorite = setting["favorite"].as<JsonArray>();
+    if (!setting["wifi"].is<JsonArray>()) setting.createNestedArray("wifi");
+
+    setting["onlyBins"] = onlyBins;
+    setting["bootToApp"] = bootToApp;
+    setting["bootTimer"] = bootTimer;
+    setting["DDLB"] = DDLB;
+    setting["LauncherKeyLvl"] = LauncherKeyLvl;
+    setting["noDotFiles"] = noDotFiles;
+    setting["autoBackup"] = autoBackup;
+    setting["askSpiffs"] = askSpiffs;
+    setting["bright"] = bright;
+    setting["dimmerSet"] = dimmerSet;
+    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
+    setting[rot_dev_name] = rotation;
+    String key_dev_name = get_efuse_mac_as_string() + "-" + device_name + "-key";
+    setting[key_dev_name] = LauncherOnKey;
+    setting["FGCOLOR"] = FGCOLOR;
+    setting["BGCOLOR"] = BGCOLOR;
+    setting["ALCOLOR"] = ALCOLOR;
+    setting["odd"] = odd_color;
+    setting["even"] = even_color;
+    setting["dev"] = dev_mode;
+    setting["autoConnect"] = autoConnect;
+    setting["wui_usr"] = wui_usr;
+    setting["wui_pwd"] = wui_pwd;
+    setting["dwn_path"] = dwn_path;
+}
+
+void printSettingsJson() {
+    JsonObject setting = ensureSettingsRoot();
+    if (setting.isNull()) {
+        launcherConsolePrintln("ERR failed to prepare settings");
+        return;
+    }
+    populateSettingsFromGlobals(setting);
+    String out;
+    serializeJson(setting, out);
+    launcherConsolePrintLong(out.c_str());
+}
+
+bool loadSettingsJson(const String &json) {
+    JsonDocument incoming;
+    DeserializationError error = deserializeJson(incoming, json);
+    if (error || !incoming.is<JsonObject>()) {
+        log_e("loadSettingsJson: parse error (%s)", error.c_str());
+        return false;
+    }
+
+    JsonObject setting = ensureSettingsRoot();
+    if (setting.isNull()) return false;
+
+    for (JsonPair kv : incoming.as<JsonObject>()) setting[kv.key()] = kv.value();
+
+    applySettingsFromRoot(setting);
+    setBrightness(bright);
+    if (dimmerSet > 120) dimmerSet = 10;
+    saveConfigs();
+    return true;
+}
+
 bool getWifiCredential(const String &searchSsid, String &outPwd) {
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
@@ -245,6 +472,22 @@ bool clearWifiCredentials() {
     return true;
 }
 
+std::vector<LauncherSavedWifiNetwork> getSavedWifiNetworks() {
+    std::vector<LauncherSavedWifiNetwork> result;
+    JsonArray wifiList = ensureWifiListInternal();
+    if (wifiList.isNull()) return result;
+
+    for (JsonObject wifiEntry : wifiList) {
+        String ssid = wifiEntry["ssid"].as<String>();
+        if (ssid.isEmpty()) continue;
+        LauncherSavedWifiNetwork net;
+        net.ssid = ssid;
+        net.hasPassword = wifiEntry["pwd"].as<String>().length() > 0;
+        result.push_back(net);
+    }
+    return result;
+}
+
 bool getKeyBinding(const String &key, String &outPath) {
     JsonObject bindings = ensureKeyBindingObjectInternal();
     if (bindings.isNull()) return false;
@@ -281,6 +524,50 @@ bool clearKeyBindings() {
     return true;
 }
 
+// Valid GPIOs for LauncherOnKey: -1 (disabled) plus either every pin up to
+// GPIO_NUM_MAX, or, when the board defines LAUNCHER_GPIO_KEYS (e.g.
+// LAUNCHER_GPIO_KEYS = {{"Up", 2}, {"Down", 13}}), only that explicit,
+// labeled set.
+struct LauncherGpioKey {
+    const char *label;
+    int pin;
+};
+
+std::vector<int> launcherOnKeyGpioOptions() {
+    std::vector<int> pins = {-1};
+#if defined(LAUNCHER_GPIO_KEYS)
+    static constexpr LauncherGpioKey allowed[] = LAUNCHER_GPIO_KEYS;
+    for (const LauncherGpioKey &key : allowed) pins.push_back(key.pin);
+#else
+    for (int pin = 0; pin < GPIO_NUM_MAX; pin++) pins.push_back(pin);
+#endif
+    return pins;
+}
+
+static void selectLauncherOnKeyGpio() {
+    std::vector<int> pins = launcherOnKeyGpioOptions();
+    options.clear();
+    for (int pin : pins) {
+        String label = "Disabled";
+        if (pin >= 0) {
+#if defined(LAUNCHER_GPIO_KEYS)
+            static constexpr LauncherGpioKey allowed[] = LAUNCHER_GPIO_KEYS;
+            for (const LauncherGpioKey &key : allowed) {
+                if (key.pin == pin) {
+                    label = String(key.label) + " (" + String(pin) + ")";
+                    break;
+                }
+            }
+#else
+            label = "GPIO " + String(pin);
+#endif
+        }
+        options.push_back({label, [pin]() { LauncherOnKey = pin; }, _CLR_(LauncherOnKey, pin)});
+    }
+    loopOptions(options);
+    saveConfigs();
+}
+
 #if defined(HAS_KEYBOARD)
 static void manageKeyBindings() {
     int idx = 0;
@@ -309,31 +596,31 @@ void settings_menu() {
                                    [=]() {
                  chargeMode();
                  returnToMenu = true;
-             }                                                 },
+             }                                                                          },
 #endif
-            {"Brightness",
-                                   [=]() {
-                 setBrightnessMenu();
-                 saveConfigs();
-             }                                                 },
-            {"Dim time",
-                                   [=]() {
-                 setdimmerSet();
-                 saveConfigs();
-             }                                                 },
 #if !defined(E_PAPER_DISPLAY)
             {"UI Color",
                                    [=]() {
                  setUiColor();
                  saveConfigs();
-             }                                                 },
+             }                                                                          },
 #endif
 #if !defined(LYLYGO_TDECK_PRO)
-            {"Orientation", [=]() {
+            {"Orientation",
+                                   [=]() {
                  gsetRotation(true);
                  saveConfigs();
-             }}
+             }                                                                          },
 #endif
+            {"[" + String(bright) + "] Brightness",
+                                   [=]() {
+                 setBrightnessMenu();
+                 saveConfigs();
+             }                                                                          },
+            {"[" + String(dimmerSet) + "] Dim time", [=]() {
+                 setdimmerSet();
+                 saveConfigs();
+             }},
         };
         if (sdcardMounted) {
             options.push_back({onlyBins ? "[ ] See All Files" : "[x] See All Files", [=]() {
@@ -349,16 +636,52 @@ void settings_menu() {
                                    saveConfigs();
                                }});
         }
-
-        options.push_back({bootToApp ? "[ ] Boot to Launcher" : "[x] Boot to Launcher", [=]() {
-                               bootToApp = !bootToApp;
-                               saveConfigs();
-                           }});
         options.push_back({askSpiffs ? "[x] Ask to copy SPIFFS" : "[ ] Ask to copy SPIFFS", [=]() {
                                askSpiffs = !askSpiffs;
                                saveConfigs();
                            }});
-        options.push_back({"Partition Manager", [=]() { partList(); }});
+        options.push_back(
+            {autoConnect ? "[x] Auto connect to known Wifi" : "[ ] Auto connect to known Wifi", [=]() {
+                 autoConnect = !autoConnect;
+                 saveConfigs();
+             }}
+        );
+        options.push_back({bootToApp ? "[ ] Boot to Launcher" : "[x] Boot to Launcher", [=]() {
+                               bootToApp = !bootToApp;
+                               saveConfigs();
+                           }});
+        options.push_back({"[" + String(bootTimer + 1) + "] Boot Timer (s)", [=]() {
+                               setBootTimer();
+                               saveConfigs();
+                           }});
+        // DDLB: Disable DeepSleep to Launcher Boot. This is a toggle for the user to choose whether to boot
+        // into the launcher or not when waking from deep sleep.
+        options.push_back({DDLB ? "[ ] DeepSleep starts Launcher" : "[x] DeepSleep starts Launcher", [=]() {
+                               DDLB = !DDLB;
+                               saveConfigs();
+                           }});
+#if defined(LAUNCHER_GPIO_KEYS)
+        String launcherOnKeyLabel = "-";
+        if (LauncherOnKey > -1) {
+            launcherOnKeyLabel = String(LauncherOnKey);
+            static constexpr LauncherGpioKey allowed[] = LAUNCHER_GPIO_KEYS;
+            for (const LauncherGpioKey &key : allowed) {
+                if (key.pin == LauncherOnKey) {
+                    launcherOnKeyLabel = key.label;
+                    break;
+                }
+            }
+        }
+        options.push_back({"[" + launcherOnKeyLabel + "] GPIO on boot starts Launcher", [=]() {
+                               selectLauncherOnKeyGpio();
+                           }});
+        if (LauncherOnKey >= 0) {
+            options.push_back({LauncherKeyLvl ? "[1] GPIO Level" : "[0] GPIO Level", [=]() {
+                                   LauncherKeyLvl = !LauncherKeyLvl;
+                                   saveConfigs();
+                               }});
+        }
+#endif
 #if defined(HAS_KEYBOARD)
         options.push_back({"Manage shortcuts", [=]() { manageKeyBindings(); }});
 #endif
@@ -383,12 +706,12 @@ void settings_menu() {
                                    releaseHeapObjectsAndReboot();
                                }});
         }
-        if (dev_mode) options.push_back({"Reset Configs/Wifi", factoryReset});
+        options.push_back({"Reset Configs/Wifi", factoryReset});
         options.push_back({"Restart", [=]() { return (void)releaseHeapObjectsAndReboot(); }});
         options.push_back({"Turn-off", [=]() { powerOff(); }});
 
         options.push_back({"Main Menu", [=]() { returnToMenu = true; }});
-        idx = loopOptions(options);
+        idx = loopOptions(idx, options);
     }
     tft->drawPixel(0, 0, 0);
     tft->fillScreen(BGCOLOR);
@@ -436,7 +759,6 @@ void getBrightness() {
 **  Function: gsetRotation
 **  get onlyBins from EEPROM
 **********************************************************************/
-#define DRV 1
 int gsetRotation(bool set) {
 
     const int mountRotation = displayConfig.rotation;
@@ -448,33 +770,40 @@ int gsetRotation(bool set) {
     } else result = rotation;
 
     if (set) {
+        const int DRV = (displayConfig.width < displayConfig.height) ? 1 : 0;
         const bool offerPortrait = panelWidth() >= 200 && panelHeight() >= 200;
         options = {
-            {"Default", [&]() { result = mountRotation; }}
+            {"Default (" + String(mountRotation) + ")", [&]() { result = mountRotation; }}
         };
         if (offerPortrait)
-            options.push_back({"Portrait " + String(DRV == 1 ? 0 : 1), [&]() {
-                                   result = (DRV == 1 ? 0 : 1);
-                               }});
-        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }});
+            options.push_back(
+                {"Portrait " + String(DRV == 1 ? 0 : 1),
+                 [&]() { result = (DRV == 1 ? 0 : 1); },
+                 _CLR_(rotation, (DRV == 1 ? 0 : 1))}
+            );
+        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }, _CLR_(rotation, DRV)});
         if (offerPortrait)
-            options.push_back({"Portrait " + String(DRV == 1 ? 2 : 3), [&]() {
-                                   result = (DRV == 1 ? 2 : 3);
-                               }});
-        options.push_back({"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }});
+            options.push_back(
+                {"Portrait " + String(DRV == 1 ? 2 : 3),
+                 [&]() { result = (DRV == 1 ? 2 : 3); },
+                 _CLR_(rotation, (DRV == 1 ? 2 : 3))}
+            );
+        options.push_back(
+            {"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }, _CLR_(rotation, (DRV + 2))}
+        );
         loopOptions(options);
         rotation = result;
 
         // See the same block in main.cpp: the panel size is runtime state now.
         if (rotation & 0b1) {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
             tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
             tftHeight = displayConfig.width;
 #endif
             tftWidth = displayConfig.height;
         } else {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
             tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
             tftHeight = displayConfig.height;
@@ -492,14 +821,110 @@ int gsetRotation(bool set) {
 **  Handles Menu to set brightness
 **********************************************************************/
 void setBrightnessMenu() {
-    options = {
-        {"100%", [=]() { setBrightness(100); }},
-        {"75 %", [=]() { setBrightness(75); } },
-        {"50 %", [=]() { setBrightness(50); } },
-        {"25 %", [=]() { setBrightness(25); } },
-        // {" 0 %", [=]() { setBrightness(1); }  },
-    };
-    loopOptions(options, true);
+    int original = bright;
+    int val = (bright / 5) * 5;
+    if (val > 100) val = 100;
+    if (val < 0) val = 0;
+
+    const int lineHeight = _fm * LH;
+    const int hintHeight = _fp * LH;
+    const int sliderH = 12;
+    const int radius = sliderH / 2;
+    const int spacing = 8;
+    const int paddingTop = 8;
+    const int paddingBottom = 8;
+    const int paddingSide = 12;
+
+    int contentWidth = static_cast<int>(tftWidth * 0.8f);
+    int contentHeight = paddingTop + lineHeight + spacing + sliderH + spacing + hintHeight + paddingBottom;
+    int boxX = (tftWidth - contentWidth) / 2;
+    int boxY = (tftHeight - contentHeight) / 2;
+
+    int trackX = boxX + paddingSide;
+    int trackW = contentWidth - 2 * paddingSide;
+    int trackY = boxY + paddingTop + lineHeight + spacing;
+
+    bool redraw = true;
+    bool first_draw = true;
+    while (1) {
+        if (redraw) {
+            if (first_draw) {
+                tft->fillRoundRect(boxX, boxY, contentWidth, contentHeight, 5, BGCOLOR);
+                tft->drawRoundRect(boxX, boxY, contentWidth, contentHeight, 5, FGCOLOR);
+                first_draw = false;
+            }
+            tft->setTextSize(_fm);
+            tft->setTextColor(FGCOLOR, BGCOLOR);
+            tft->drawCentreString(
+                " Bright: " + String(val) + "% ", boxX + contentWidth / 2, boxY + paddingTop, 1
+            );
+
+            int indicatorX = trackX + (trackW * val) / 100;
+            tft->fillRect(trackX, trackY - 3, trackW, 3, BGCOLOR);
+            tft->fillRect(trackX, trackY + sliderH, trackW, 3, BGCOLOR);
+            tft->fillRect(trackX - radius - 2, trackY - 4, radius * 2, sliderH + 8, BGCOLOR);
+            tft->fillRect(trackX + trackW - radius + 2, trackY - 4, radius * 2, sliderH + 8, BGCOLOR);
+            tft->drawRoundRect(trackX, trackY, trackW, sliderH, radius, ALCOLOR);
+            int fillW = indicatorX - trackX;
+
+            tft->fillRoundRect(trackX, trackY, fillW, sliderH, radius, ALCOLOR);
+            tft->fillRoundRect(trackX + fillW, trackY + 1, trackW - fillW, sliderH - 2, radius, BGCOLOR);
+
+            tft->fillCircle(indicatorX, trackY + sliderH / 2, radius + 2, FGCOLOR);
+
+            tft->setTextSize(_fp);
+            tft->setTextColor(FGCOLOR, BGCOLOR);
+            tft->drawCentreString("Sel to apply", boxX + contentWidth / 2, trackY + sliderH + spacing, 1);
+
+            setBrightness(val, false);
+            tft->display();
+            redraw = false;
+        }
+
+#if defined(HAS_TOUCH)
+        if (touchPoint.pressed) {
+            const int touchX = touchPoint.x;
+            const int touchY = touchPoint.y;
+            touchPoint.Clear();
+
+            const int touchPadding = 10;
+            if (touchX >= boxX && touchX <= boxX + contentWidth && touchY >= trackY - touchPadding &&
+                touchY <= trackY + sliderH + touchPadding) {
+                int clampedX = touchX;
+                if (clampedX < trackX) clampedX = trackX;
+                if (clampedX > trackX + trackW) clampedX = trackX + trackW;
+                int newVal = ((clampedX - trackX) * 100 + trackW / 2) / trackW;
+                newVal = (newVal / 5) * 5;
+                if (newVal > 100) newVal = 100;
+                if (newVal < 0) newVal = 0;
+                if (newVal != val) {
+                    val = newVal;
+                    redraw = true;
+                }
+            }
+        }
+#endif
+
+        if (check(NextPress)) {
+            val += 5;
+            if (val > 100) val = 100;
+            redraw = true;
+        }
+        if (check(PrevPress)) {
+            val -= 5;
+            if (val < 0) val = 0;
+            redraw = true;
+        }
+        if (check(SelPress)) {
+            setBrightness(val);
+            break;
+        }
+        if (check(EscPress) || returnToMenu) {
+            setBrightness(original, false);
+            break;
+        }
+    }
+    tft->fillScreen(BGCOLOR);
 }
 /*********************************************************************
 **  Function: setUiColor
@@ -514,7 +939,7 @@ void setUiColor() {
              ALCOLOR = 0xF800;
              odd_color = 0x30c5;
              even_color = 0x32e5;
-         }                 },
+         }, _CLR_(FGCOLOR, 0x07E0)},
         {"Red",
          [&]() {
              FGCOLOR = 0xF800;
@@ -522,7 +947,7 @@ void setUiColor() {
              ALCOLOR = 0xE3E0;
              odd_color = 0xFBC0;
              even_color = 0xAAC0;
-         }                 },
+         }, _CLR_(FGCOLOR, 0xF800)},
         {"Blue",
          [&]() {
              FGCOLOR = 0x94BF;
@@ -530,7 +955,7 @@ void setUiColor() {
              ALCOLOR = 0xd81f;
              odd_color = 0xd69f;
              even_color = 0x079F;
-         }                 },
+         }, _CLR_(FGCOLOR, 0x94BF)},
         {"Yellow",
          [&]() {
              FGCOLOR = 0xFFE0;
@@ -538,7 +963,7 @@ void setUiColor() {
              ALCOLOR = 0xFB80;
              odd_color = 0x9480;
              even_color = 0xbae0;
-         }                 },
+         }, _CLR_(FGCOLOR, 0xFFE0)},
         {"Purple",
          [&]() {
              FGCOLOR = 0xe01f;
@@ -546,7 +971,7 @@ void setUiColor() {
              ALCOLOR = 0xF800;
              odd_color = 0xf57f;
              even_color = 0x89d3;
-         }                 },
+         }, _CLR_(FGCOLOR, 0xe01f)},
         {"White",
          [&]() {
              FGCOLOR = 0xFFFF;
@@ -554,14 +979,15 @@ void setUiColor() {
              ALCOLOR = 0x6b6d;
              odd_color = 0x630C;
              even_color = 0x8410;
-         }                 },
-        {"Black",   [&]() {
+         }, _CLR_(FGCOLOR, 0xFFFF)},
+        {"Black",
+         [&]() {
              FGCOLOR = 0x0000;
              BGCOLOR = 0xFFFF;
              ALCOLOR = 0x6b6d;
              odd_color = 0x8c71;
              even_color = 0xb596;
-         }},
+         }, _CLR_(FGCOLOR, 0x0000)},
     };
     loopOptions(options);
     displayRedStripe("Saving...");
@@ -573,16 +999,34 @@ void setUiColor() {
 void setdimmerSet() {
     int time = 20;
     options = {
-        {"10s",     [&]() { time = 10; }},
-        {"15s",     [&]() { time = 15; }},
-        {"30s",     [&]() { time = 30; }},
-        {"45s",     [&]() { time = 45; }},
-        {"60s",     [&]() { time = 60; }},
-        {"Disable", [&]() { time = 0; } },
+        {"10s",     [&]() { time = 10; }, _CLR_(dimmerSet, 10)},
+        {"15s",     [&]() { time = 15; }, _CLR_(dimmerSet, 15)},
+        {"30s",     [&]() { time = 30; }, _CLR_(dimmerSet, 30)},
+        {"45s",     [&]() { time = 45; }, _CLR_(dimmerSet, 45)},
+        {"60s",     [&]() { time = 60; }, _CLR_(dimmerSet, 60)},
+        {"Disable", [&]() { time = 0; },  _CLR_(dimmerSet, 0) },
     };
 
     loopOptions(options);
     dimmerSet = time;
+}
+
+/*********************************************************************
+**  Function: setBootTimer
+**  set bootTimer (extra seconds added to the 1s boot-screen minimum)
+**********************************************************************/
+void setBootTimer() {
+    uint8_t time = bootTimer;
+    options = {
+        {"1+0s", [&]() { time = 0; }, _CLR_(bootTimer, 0)},
+        {"1+1s", [&]() { time = 1; }, _CLR_(bootTimer, 1)},
+        {"1+2s", [&]() { time = 2; }, _CLR_(bootTimer, 2)},
+        {"1+3s", [&]() { time = 3; }, _CLR_(bootTimer, 3)},
+        {"1+4s", [&]() { time = 4; }, _CLR_(bootTimer, 4)},
+    };
+
+    loopOptions(options);
+    bootTimer = time;
 }
 
 /*********************************************************************
@@ -599,9 +1043,6 @@ void chargeMode() {
     unsigned long tmp = 0;
     while (!check(SelPress)) {
         if (launcherMillis() - tmp > 5000) {
-            // The whole point of this mode is a device that goes dark on the charger,
-            // so this repaint must not restart the screen-off timer: it comes round
-            // faster than the shortest timeout and would hold the backlight forever.
             displayRedStripe(String(getBattery()) + " %", getComplementaryColor(BGCOLOR), ALCOLOR, false);
             tmp = launcherMillis();
         }
@@ -632,6 +1073,10 @@ bool saveIntoNVS() {
     ok &= lnvs::setInt(h, "bright", bright);
     ok &= lnvs::setBool(h, "onlyBins", onlyBins);
     ok &= lnvs::setBool(h, "bootToApp", bootToApp);
+    ok &= nvs_set_u8(h, "bootTimer", bootTimer) == ESP_OK;
+    ok &= lnvs::setBool(h, "DDLB", DDLB);
+    ok &= lnvs::setInt(h, "LauncherOnKey", LauncherOnKey);
+    ok &= lnvs::setBool(h, "LauncherKeyLvl", LauncherKeyLvl);
     ok &= lnvs::setBool(h, "noDotFiles", noDotFiles);
     ok &= lnvs::setBool(h, "autoBackup", autoBackup);
     ok &= lnvs::setBool(h, "askSpiffs", askSpiffs);
@@ -642,6 +1087,7 @@ bool saveIntoNVS() {
     ok &= nvs_set_u16(h, "odd_color", odd_color) == ESP_OK;
     ok &= nvs_set_u16(h, "even_color", even_color) == ESP_OK;
     ok &= lnvs::setBool(h, "dev_mode", dev_mode);
+    ok &= lnvs::setBool(h, "autoConnect", autoConnect);
     ok &= lnvs::setString(h, "wui_usr", wui_usr.c_str());
     ok &= lnvs::setString(h, "wui_pwd", wui_pwd.c_str());
     ok &= lnvs::setString(h, "dwn_path", dwn_path.c_str());
@@ -714,6 +1160,10 @@ void defaultValues() {
     bright = 100;
     onlyBins = true;
     bootToApp = true;
+    bootTimer = 4;
+    DDLB = false;
+    LauncherOnKey = -1;
+    LauncherKeyLvl = false;
     noDotFiles = true;
     askSpiffs = true;
     autoBackup = true;
@@ -731,15 +1181,16 @@ void defaultValues() {
     even_color = 0x32e5;
 #endif
     dev_mode = false;
+    autoConnect = true;
     wui_usr = "admin";
     wui_pwd = "launcher";
     dwn_path = "/downloads/";
 #if defined(HEADLESS)
     // SD Pins
-    _miso = 0;
-    _mosi = 0;
-    _sck = 0;
-    _cs = 0;
+    if (_miso < 0) _miso = 0;
+    if (_mosi < 0) _mosi = 0;
+    if (_sck < 0) _sck = 0;
+    if (_cs < 0) _cs = 0;
 #endif
     saveIntoNVS();
 }
@@ -752,14 +1203,14 @@ bool getFromNVS() {
         return false;
     }
     nvs_handle_t h = nvsHandle.raw();
-
-    // A key that is not there yet is expected after a firmware update adds new
-    // settings, so a miss leaves the variable at its default instead of failing the
-    // whole read. Only the namespace being unreadable falls back to defaultValues().
     lnvs::getInt(h, "dimtime", dimmerSet);
     lnvs::getInt(h, "bright", bright);
     lnvs::getBool(h, "onlyBins", onlyBins);
     lnvs::getBool(h, "bootToApp", bootToApp);
+    nvs_get_u8(h, "bootTimer", &bootTimer);
+    lnvs::getBool(h, "DDLB", DDLB);
+    lnvs::getInt(h, "LauncherOnKey", LauncherOnKey);
+    lnvs::getBool(h, "LauncherKeyLvl", LauncherKeyLvl);
     lnvs::getBool(h, "noDotFiles", noDotFiles);
     lnvs::getBool(h, "autoBackup", autoBackup);
     lnvs::getBool(h, "askSpiffs", askSpiffs);
@@ -770,6 +1221,7 @@ bool getFromNVS() {
     nvs_get_u16(h, "odd_color", &odd_color);
     nvs_get_u16(h, "even_color", &even_color);
     lnvs::getBool(h, "dev_mode", dev_mode);
+    lnvs::getBool(h, "auto_connect", autoConnect);
 #if defined(HEADLESS)
     // SD Pins
     nvs_get_i8(h, "miso", &_miso);
@@ -787,10 +1239,10 @@ bool getFromNVS() {
 
     return true;
 }
-bool getWifiFromNVS() {
+bool getWifiFromNVS(bool mergeExisting) {
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
-    wifiList.clear();
+    if (!mergeExisting) wifiList.clear();
 
     launcherConsolePrintln("NVS: Finding keys in NVS...");
     lnvs::Handle handle("l_wifi", false);
@@ -858,132 +1310,9 @@ void getConfigs() {
     }
 
     log_i("getConfigs: deserialized correctly");
-    int count = 0;
     JsonObject setting = settings[0];
-
-    if (setting["onlyBins"].is<bool>()) onlyBins = setting["onlyBins"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing onlyBins");
-    }
-
-    if (setting["bootToApp"].is<bool>()) bootToApp = setting["bootToApp"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing bootToApp");
-    }
-
-    if (setting["noDotFiles"].is<bool>()) noDotFiles = setting["noDotFiles"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing noDotFiles");
-    }
-
-    if (setting["autoBackup"].is<bool>()) autoBackup = setting["autoBackup"].as<bool>();
-    else log_i("getConfigs: missing autoBackup");
-
-    if (setting["askSpiffs"].is<bool>()) askSpiffs = setting["askSpiffs"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing askSpiffs");
-    }
-
-    if (setting["bright"].is<int>()) bright = setting["bright"].as<int>();
-    else {
-        count++;
-        log_i("getConfigs: missing bright");
-    }
-
-    if (setting["dimmerSet"].is<int>()) dimmerSet = setting["dimmerSet"].as<int>();
-    else {
-        count++;
-        log_i("getConfigs: missing dimmerSet");
-    }
-    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
-    if (setting[get_efuse_mac_as_string()].is<int>()) rotation = setting[get_efuse_mac_as_string()].as<int>();
-    else if (setting[rot_dev_name].is<int>()) rotation = setting[rot_dev_name].as<int>();
-    else {
-        count++;
-        log_i("getConfigs: missing rotation");
-    }
-
-#ifndef E_PAPER_DISPLAY
-    if (setting["FGCOLOR"].is<uint16_t>()) FGCOLOR = setting["FGCOLOR"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing FGCOLOR");
-    }
-
-    if (setting["BGCOLOR"].is<uint16_t>()) BGCOLOR = setting["BGCOLOR"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing BGCOLOR");
-    }
-
-    if (setting["ALCOLOR"].is<uint16_t>()) ALCOLOR = setting["ALCOLOR"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing ALCOLOR");
-    }
-
-    if (setting["odd"].is<uint16_t>()) odd_color = setting["odd"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing odd");
-    }
-
-    if (setting["even"].is<uint16_t>()) even_color = setting["even"].as<uint16_t>();
-    else {
-        count++;
-        log_i("getConfigs: missing even");
-    }
-#endif
-
-    if (setting["dev"].is<bool>()) dev_mode = setting["dev"].as<bool>();
-    else {
-        count++;
-        log_i("getConfigs: missing dev");
-    }
-
-    if (setting["wui_usr"].is<String>()) wui_usr = setting["wui_usr"].as<String>();
-    else {
-        count++;
-        log_i("getConfigs: missing wui_usr");
-    }
-
-    if (setting["wui_pwd"].is<String>()) wui_pwd = setting["wui_pwd"].as<String>();
-    else {
-        count++;
-        log_i("getConfigs: missing wui_pwd");
-    }
-
-    if (setting["dwn_path"].is<String>()) dwn_path = setting["dwn_path"].as<String>();
-    else {
-        count++;
-        log_i("getConfigs: missing dwn_path");
-    }
-
-    if (setting["wifi"].is<JsonArray>()) {
-        for (JsonObject wifiEntry : setting["wifi"].as<JsonArray>()) {
-            if (wifiEntry["secure"].as<bool>()) {
-                wifiEntry["pwd"] = wifiPwdDecrypt(wifiEntry["pwd"].as<String>());
-                wifiEntry.remove("secure");
-            } else if (!wifiEntry["ssid"].as<String>().isEmpty()) {
-                ++count; // plain-text entry — trigger re-save with encryption
-            }
-        }
-    } else {
-        ++count;
-        log_i("getConfigs: missing wifi");
-    }
-
-    if (setting["favorite"].is<JsonArray>()) {
-        favorite = setting["favorite"].as<JsonArray>();
-    } else {
-        ++count;
-        log_i("getConfigs: missing favorite");
-    }
-
+    int count = applySettingsFromRoot(setting);
+    getWifiFromNVS(true);
     if (count > 0) saveConfigs();
 
     log_i("Brightness: %d", bright);
@@ -1010,13 +1339,10 @@ void saveConfigs() {
         return;
     }
 
-    // Ensure favorite array exists
-    if (!setting["favorite"].is<JsonArray>()) favorite = setting.createNestedArray("favorite");
-    else favorite = setting["favorite"].as<JsonArray>();
+    populateSettingsFromGlobals(setting);
 
     // Ensure wifi array has at least a placeholder entry
     JsonArray wifiList = setting["wifi"].as<JsonArray>();
-    if (wifiList.isNull()) wifiList = setting.createNestedArray("wifi");
     if (!wifiList.isNull() && wifiList.size() == 0) {
         JsonObject wifiObj = wifiList.add<JsonObject>();
         if (!wifiObj.isNull()) {
@@ -1024,26 +1350,6 @@ void saveConfigs() {
             wifiObj["pwd"] = pwd.length() == 0 ? "myNetPwd" : pwd;
         }
     }
-
-    // Update known settings keys (unknown keys are untouched)
-    setting["onlyBins"] = onlyBins;
-    setting["bootToApp"] = bootToApp;
-    setting["noDotFiles"] = noDotFiles;
-    setting["autoBackup"] = autoBackup;
-    setting["askSpiffs"] = askSpiffs;
-    setting["bright"] = bright;
-    setting["dimmerSet"] = dimmerSet;
-    String rot_dev_name = get_efuse_mac_as_string() + "-" + device_name;
-    setting[rot_dev_name] = rotation;
-    setting["FGCOLOR"] = FGCOLOR;
-    setting["BGCOLOR"] = BGCOLOR;
-    setting["ALCOLOR"] = ALCOLOR;
-    setting["odd"] = odd_color;
-    setting["even"] = even_color;
-    setting["dev"] = dev_mode;
-    setting["wui_usr"] = wui_usr;
-    setting["wui_pwd"] = wui_pwd;
-    setting["dwn_path"] = dwn_path;
 
     // Encrypt wifi passwords before writing to SD
     {
@@ -1096,7 +1402,6 @@ void saveConfigs() {
 #if defined(HAS_RESISTIVE_TOUCH)
 #include <CYD28_TouchscreenR.h>
 
-namespace {
 constexpr const char *TOUCH_CAL_NAMESPACE = "touch_cal";
 
 bool validTouchCalibration(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1) {
@@ -1121,12 +1426,7 @@ esp_err_t readTouchCalibrationItems(
     err |= nvs_get_u8(handle, "r", &rot);
     return err;
 }
-} // namespace
 
-// Reads the raw calibration values from NVS namespace "touch_cal" without
-// applying them to the live touch driver. Used by loadTouchCalibration() and by
-// the "calibrate show/mirror/swapXY" serial commands, which need to inspect or
-// tweak what's persisted without necessarily re-running the wizard.
 bool getTouchCalibration(uint16_t &x0, uint16_t &x1, uint16_t &y0, uint16_t &y1, uint8_t &rot) {
     x0 = 0;
     x1 = 0;

@@ -1,3 +1,6 @@
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/idf_wifi.h"
 #include "idf/launcher_platform.h"
 #include "nvs_helpers.h"
@@ -22,33 +25,30 @@ static int8_t sdioPinOverride(const char *key, int8_t buildDefault) {
     return (int8_t)value;
 }
 
-#define TOUCH_MODULES_GT911
 #define TOUCH_SDA_PIN GT911_I2C_CONFIG_SDA_IO_NUM
 #define TOUCH_SCL_PIN GT911_I2C_CONFIG_SCL_IO_NUM
 #define TOUCH_RST_PIN GT911_TOUCH_CONFIG_RST_GPIO_NUM
-#define TOUCH_ADDR GT911_SLAVE_ADDRESS1
+#define TOUCH_INT_PIN GT911_TOUCH_CONFIG_INT_GPIO_NUM
+#define TOUCH_ADDR 0x5D // GT911 default I2C address
 
-#include <TouchLib.h>
+static bool touchReady = false;
 
-class ElecrowTouch : public TouchLib {
-public:
-    LTouchPoint t;
-    TP_Point ti;
-    ElecrowTouch() : TouchLib(Wire, TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_ADDR, TOUCH_RST_PIN) {}
-    inline bool begin() {
-        bool result = init();
-        setRotation(ROTATION);
-        return result;
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = TOUCH_RST_PIN;
+    cfg.pin_irq = TOUCH_INT_PIN;
+    // rotation:        0      1      2      3
+    bool swapXY[4] = {false, true, false, true};
+    bool mirrorX[4] = {false, false, true, true};
+    bool mirrorY[4] = {false, true, true, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
     }
-    inline bool touched() { return read(); }
-};
-ElecrowTouch touch;
+    return cfg;
+}
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
     Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
     // LCD_BK_POWER: P-MOS load switch feeding the backlight boost converter's
@@ -57,18 +57,13 @@ void _setup_gpio() {
     digitalWrite(TFT_BL_POWER, LOW);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
     // Brightness control must be initialized after tft in this case @Pirata
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 
-    if (!touch.begin()) {
+    touchReady = hal_touch_init(touchCfg(), TOUCH_ADDR);
+    if (!touchReady) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
         log_i("Touch IC not Started");
     } else launcherConsolePrintf("%s\n", String("Touch IC Started").c_str());
@@ -99,74 +94,15 @@ void _post_setup_gpio() {
     }
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int dutyCycle;
-    if (brightval == 100) dutyCycle = 250;
-    else if (brightval == 75) dutyCycle = 130;
-    else if (brightval == 50) dutyCycle = 70;
-    else if (brightval == 25) dutyCycle = 20;
-    else if (brightval == 0) dutyCycle = 0;
-    else dutyCycle = ((brightval * 250) / 100);
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-    log_i("dutyCycle for bright 0-255: %d", dutyCycle);
-    if (!ledcWrite(TFT_BL, dutyCycle)) {
-        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
-        ledcDetach(TFT_BL);
-        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(TFT_BL, dutyCycle);
-    }
-}
-
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long d_tmp = launcherMillis();
-    bool touched = touch.touched(); // read every cycle to skip bad readings
     if (launcherMillis() - d_tmp > 250 || LongPress) {
-        if (touched) {
-            auto t = touch.getPoint(0);
-            launcherConsolePrintf(
-                "\nTouch Pressed on x=%d, y=%d, rot: %d, width=%d, height=%d",
-                t.x,
-                t.y,
-                rotation,
-                displayConfig.width,
-                displayConfig.height
-            );
+        LTouchPoint t;
+        if (touchReady && hal_touch_read(touchCfg(), t)) {
             d_tmp = launcherMillis();
-
-            if (rotation == 0) {
-                uint16_t tmp = t.x;
-                t.x = t.y;
-                t.y = tmp;
-            }
-
-            if (rotation == 1) { t.y = displayConfig.width - t.y; }
-
-            if (rotation == 2) {
-                uint16_t tmp = t.x;
-                t.x = displayConfig.width - t.y;
-                t.y = displayConfig.height - tmp;
-            }
-            if (rotation == 3) { t.x = displayConfig.height - t.x; }
-
-            launcherConsolePrintf("\nAfterPressed on x=%d, y=%d, rot: %d\n", t.x, t.y, rotation);
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            // Touch point global variable
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
+            if (!hal_touch_apply(t)) return;
         }
-    } else touch.touched(); // keep calling it to keep refreshing raw readings for when it's needed
+    }
 }

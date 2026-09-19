@@ -1,3 +1,6 @@
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
@@ -14,7 +17,13 @@
 // here — several of them silently produce a dead peripheral rather than an
 // error, and cost the original authors a bring-up session each.
 //
-// Not tested on hardware here.
+// The touch calibration (swapXY/flipX/flipY below) and the panel's native
+// landscape orientation (ROTATION=0 in platformio.ini) come from the
+// crosspoint-reader project's freeink-sdk BoardConfig for this same physical
+// device (XTEINK_X4_PRO profile), confirmed on hardware by a corner-tap test.
+// That project also confirms this GT911 module reports coordinates starting
+// at byte 0 of the 0x8150 point record (no leading track-id byte), same as
+// the seeedstudio-reterminal-sticky board's GT911 in this repo.
 
 // --- buttons ---------------------------------------------------------------
 // Plain digital, active low. GPIO0 is a boot-strap pin; it works as a button
@@ -37,10 +46,6 @@
 #define GT911_ADDR 0x5D
 #define GT911_INT 10
 #define GT911_RST 4
-#define GT911_REG_STATUS 0x814E
-#define GT911_REG_POINT1 0x8150
-#define GT911_STATUS_READY 0x80
-#define GT911_STATUS_HOME 0x10 // capacitive Home pad, not a GPIO
 
 // --- CW2017 fuel gauge -----------------------------------------------------
 #define CW2017_ADDR 0x63
@@ -53,9 +58,6 @@
 // --- frontlight ------------------------------------------------------------
 #define FL_COOL 8 // white channel
 #define FL_WARM 9 // warm channel
-#define FL_FREQ 10000
-#define FL_BITS 10
-#define FL_MAX ((1 << FL_BITS) - 1)
 
 // The gauge reports 0% until a battery profile matching this cell is resident,
 // so it has to be uploaded before any reading means anything. Table recovered
@@ -70,6 +72,80 @@ static const uint8_t CW2017_BATINFO[80] = {
 };
 // clang-format on
 static bool touchReady = false;
+static volatile bool homePressed = false;
+
+static void onGt911HomeButton(void *userData) {
+    (void)userData;
+    homePressed = true;
+}
+
+// Coordinates are read raw (hal_touch_read_raw()) and mapped by hand in
+// readTouchPoint() below, same approach as seeedstudio-reterminal-sticky —
+// the generic per-rotation cfg.SwapXY/MirrorX/MirrorY table this used to
+// carry was a formula guess, never confirmed on this hardware.
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    cfg.pin_rst = GT911_RST;
+    cfg.pin_irq = GT911_INT;
+    cfg.gt911_int_sync =
+        true; // drive INT during reset to force the 0x5D address, same as the
+              // only other GT911+GDEQ0426T82 board in this repo (seeedstudio-reterminal-sticky)
+    return cfg;
+}
+
+/***************************************************************************************
+** Function name: readTouchPoint()
+** Description:   raw GT911 point -> panel-native (rotation 0) -> current rotation
+**
+** The digitizer is mounted portrait (~480 x 800) under the 800x480 landscape
+** glass. crosspoint-reader's freeink-sdk BoardConfig (XTEINK_X4_PRO profile,
+** confirmed by a corner-tap test on real hardware) maps it to the panel's
+** native landscape frame with swapXY=true, flipX=false, flipY=true:
+**   panelX = rawY, panelY = (TFT_HEIGHT - 1) - rawX
+** That native frame is this board's ROTATION=0 (see platformio.ini — the OEM
+** firmware never rotates this panel). The switch below derives the other
+** three rotations from it with the same 90-degree steps GxEPD2/Adafruit_GFX
+** uses for the framebuffer.
+***************************************************************************************/
+static uint8_t readTouchPoint(int16_t *x, int16_t *y) {
+    LTouchPoint raw;
+    if (!hal_touch_read_raw(raw)) return 0;
+
+    const int16_t rawX = raw.x < 0 ? 0 : (raw.x > (TFT_HEIGHT - 1) ? (TFT_HEIGHT - 1) : raw.x);
+    const int16_t rawY = raw.y < 0 ? 0 : (raw.y > (TFT_WIDTH - 1) ? (TFT_WIDTH - 1) : raw.y);
+    const int16_t panelX = rawY;
+    const int16_t panelY = (TFT_HEIGHT - 1) - rawX;
+
+    // Rotation 3 confirmed on-device by two corner taps:
+    //  1) raw touch reported x=475,y=794 for a physical tap near x=5,y=6 --
+    //     the point-reflection of what the original (Adafruit_GFX-standard)
+    //     case 3 body produced, i.e. it was computing case 1's result. Fixed
+    //     by swapping the case 1 / case 3 bodies.
+    //  2) after that swap, X read correct but Y came back flipped -- fixed
+    //     by flipping case 3's Y term (panelX -> (TFT_WIDTH-1)-panelX).
+    // Rotations 1 and 2 are untested; case 1 mirrors the pre-fix-2 case 3
+    // body (same swapped-parity family) and case 2 is self-inverse either
+    // way, so both are left as originally derived pending confirmation.
+    switch (rotation) {
+        case 0:
+            *x = panelX;
+            *y = panelY;
+            break;
+        case 1:
+            *x = panelY;
+            *y = (TFT_WIDTH - 1) - panelX;
+            break;
+        case 2:
+            *x = (TFT_WIDTH - 1) - panelX;
+            *y = (TFT_HEIGHT - 1) - panelY;
+            break;
+        default: // 3
+            *x = (TFT_HEIGHT - 1) - panelY;
+            *y = panelX;
+            break;
+    }
+    return 1;
+}
 
 /*********************************************************************
 ** 8-bit register helpers (fuel gauge, RTC)
@@ -87,52 +163,6 @@ static bool i2cWriteReg8(uint8_t addr, uint8_t reg, uint8_t value) {
     Wire.beginTransmission(addr);
     Wire.write(reg);
     Wire.write(value);
-    return Wire.endTransmission() == 0;
-}
-
-/*********************************************************************
-** GT911 uses 16-bit register addresses, big endian
-**********************************************************************/
-static bool gt911Read(uint16_t reg, uint8_t *buf, size_t len) {
-    Wire.beginTransmission(GT911_ADDR);
-    Wire.write((uint8_t)(reg >> 8));
-    Wire.write((uint8_t)(reg & 0xFF));
-    if (Wire.endTransmission(false) != 0) return false;
-    if (Wire.requestFrom((uint8_t)GT911_ADDR, (uint8_t)len) < (int)len) return false;
-    for (size_t i = 0; i < len; ++i) buf[i] = Wire.read();
-    return true;
-}
-
-static bool gt911WriteStatus(uint8_t value) {
-    Wire.beginTransmission(GT911_ADDR);
-    Wire.write((uint8_t)(GT911_REG_STATUS >> 8));
-    Wire.write((uint8_t)(GT911_REG_STATUS & 0xFF));
-    Wire.write(value);
-    return Wire.endTransmission() == 0;
-}
-
-/*********************************************************************
-** Function: gt911Begin
-** The controller loads its own config from internal storage during the reset
-** dance — there is no config table to upload, in the OEM firmware or here. But
-** the load only triggers on a long enough reset: cut it short and the config
-** registers read back zero and the panel never scans, with no error anywhere.
-**********************************************************************/
-static bool gt911Begin() {
-    launcherGpioOutput(GT911_RST);
-    launcherGpioOutput(GT911_INT);
-
-    // INT is the address-select line: held low as RST rises picks 0x5D.
-    launcherGpioWrite(GT911_RST, LOW);
-    launcherGpioWrite(GT911_INT, LOW);
-    launcherDelayMs(10);
-    launcherGpioWrite(GT911_RST, HIGH);
-    launcherDelayMs(10);
-    launcherDelayMs(50);
-    pinMode(GT911_INT, INPUT);
-    launcherDelayMs(50);
-
-    Wire.beginTransmission(GT911_ADDR);
     return Wire.endTransmission() == 0;
 }
 
@@ -223,12 +253,27 @@ static void _detect_panel() {
     );
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
+    // Release any RTC GPIO hold left over from a deep sleep entered by a
+    // launched app (e.g. an e-paper app that calls gpio_hold_en()/
+    // gpio_deep_sleep_hold_en() on these pins to keep rails/reset lines fixed
+    // while asleep, then wakes via reset back into the launcher).
+    // gpio_reset_pin() does NOT clear a hold latch by itself — an unreleased
+    // hold silently discards every write below, which is what "rails/GT911/SD
+    // never come back after sleep" looks like after returning from such an
+    // app. Same defensive pattern as seeedstudio-reterminal-sticky. Buttons
+    // are included too: a held input pin reads back as permanently
+    // pressed/stuck instead of just failing to power up.
+    gpio_hold_dis((gpio_num_t)RAIL_PERIPH);
+    gpio_hold_dis((gpio_num_t)RAIL_TOUCH);
+    gpio_hold_dis((gpio_num_t)RAIL_SD);
+    gpio_hold_dis((gpio_num_t)GT911_RST);
+    gpio_hold_dis((gpio_num_t)GT911_INT);
+    gpio_hold_dis((gpio_num_t)BTN_LEFT);
+    gpio_hold_dis((gpio_num_t)BTN_RIGHT);
+    gpio_hold_dis((gpio_num_t)BTN_POWER);
+    gpio_deep_sleep_hold_dis();
+
     launcherGpioInputPullup(BTN_LEFT);
     launcherGpioInputPullup(BTN_RIGHT);
     launcherGpioInputPullup(BTN_POWER);
@@ -236,6 +281,7 @@ void _setup_gpio() {
     // Order matters: the touch rail needs the peripheral rail already high.
     launcherGpioOutput(RAIL_PERIPH);
     launcherGpioWrite(RAIL_PERIPH, HIGH);
+    launcherDelayMs(100);
     launcherGpioOutput(RAIL_TOUCH);
     launcherGpioWrite(RAIL_TOUCH, LOW); // active low
     launcherGpioOutput(RAIL_SD);
@@ -248,16 +294,17 @@ void _setup_gpio() {
     _detect_panel();
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup, run after TFT and before SD card init
-***************************************************************************************/
 void _post_setup_gpio() {
-    touchReady = gt911Begin();
+    launcherDelayMs(200);
+    touchReady = hal_touch_init(touchCfg(), GT911_ADDR);
+    if (!touchReady) {
+        launcherConsolePrintf("%s\n", String("Failed to find GT911 - check your wiring!").c_str());
+    } else {
+        hal_touch_set_home_button(0, 0, onGt911HomeButton);
+    }
 
-    ledcAttach(FL_COOL, FL_FREQ, FL_BITS);
-    ledcAttach(FL_WARM, FL_FREQ, FL_BITS);
+    uint8_t flPins[] = {FL_COOL, FL_WARM};
+    hal_bright_attach(flPins, 2);
     _setBrightness((uint8_t)bright);
 
     // Power-cycle the card's data path before the mount that follows. Without
@@ -270,11 +317,6 @@ void _post_setup_gpio() {
     launcherDelayMs(120);
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     // The launcher asks on every header redraw and the gauge is on a 400 kHz
     // bus, so cache; on an I2C error keep the last value rather than blink to 0.
@@ -291,68 +333,52 @@ int getBattery() {
     return cached;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // The panel has a warm channel and a cool one. The launcher has no notion
     // of colour temperature, so both are driven together for a neutral mix —
     // the split is what the setting would control if it existed.
-    const uint32_t duty = ((uint32_t)brightval * FL_MAX) / 100;
-    ledcWrite(FL_COOL, duty);
-    ledcWrite(FL_WARM, duty);
+    uint8_t flPins[] = {FL_COOL, FL_WARM};
+    hal_bright_set(flPins, 2, brightval);
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
-    if (launcherMillis() - tm > 200 || LongPress) {
-    } else return;
+
+    int16_t tx = 0, ty = 0;
+    const bool touched = touchReady && readTouchPoint(&tx, &ty);
+    const bool home = homePressed;
+    homePressed = false;
+
+    if (launcherMillis() - tm < 100 && LongPress) return;
 
     const bool left = launcherGpioRead(BTN_LEFT) == LOW;
     const bool right = launcherGpioRead(BTN_RIGHT) == LOW;
 
-    uint8_t status = 0;
-    uint8_t home = 0;
-    uint8_t points = 0;
-    uint16_t tx = 0, ty = 0;
+    if (left) launcherConsolePrintf("[btn] Left pressed\n");
+    if (right) launcherConsolePrintf("[btn] Right pressed\n");
+    if (home) launcherConsolePrintf("[btn] Home (touch) pressed\n");
+    if (touched) launcherConsolePrintf("[touch] x=%d y=%d rotation=%d\n", tx, ty, rotation);
 
-    if (touchReady && gt911Read(GT911_REG_STATUS, &status, 1) && (status & GT911_STATUS_READY)) {
-        home = status & GT911_STATUS_HOME;
-        points = status & 0x0F;
-        if (points > 0) {
-            uint8_t p[8] = {0};
-            if (gt911Read(GT911_REG_POINT1, p, sizeof(p))) {
-                // X low byte first on this controller.
-                const uint16_t rawX = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-                const uint16_t rawY = (uint16_t)p[2] | ((uint16_t)p[3] << 8);
-                // The glass is mounted portrait: it reports X 0-480 / Y 0-800
-                // against an 800x480 landscape panel, so the axes swap.
-                tx = rawY;
-                ty = rawX;
-            } else {
-                points = 0;
-            }
-        }
-        gt911WriteStatus(0); // must be cleared or the controller stops reporting
-    }
-
-    if (!left && !right && !home && points == 0) return;
+    if (!left && !right && !home && !touched) return;
 
     tm = launcherMillis();
     if (!wakeUpScreen()) AnyKeyPress = true;
     else return;
 
-    if (left) PrevPress = true;
-    if (right) NextPress = true;
-    if (home) EscPress = true;
+    if (left) {
+        PrevPress = true;
+        launcherConsolePrintf("[btn] Left -> PrevPress executed\n");
+    }
+    if (right) {
+        NextPress = true;
+        launcherConsolePrintf("[btn] Right -> NextPress executed\n");
+    }
+    if (home) {
+        EscPress = true;
+        launcherConsolePrintf("[btn] Home -> EscPress executed\n");
+    }
 
-    if (points > 0) {
+    if (touched) {
         touchPoint.x = tx;
         touchPoint.y = ty;
         touchPoint.pressed = true;
@@ -360,14 +386,17 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     while (launcherGpioRead(BTN_POWER) == LOW) launcherDelayMs(50);
     launcherDelayMs(100);
+
+    tft->fillScreen(BGCOLOR);
+    initDisplay(true);
+    tft->setTextSize(FG);
+    tft->setTextColor(FGCOLOR);
+    tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
+    tft->display();
+    launcherDelayMs(1000);
 
     _setBrightness(0);
 
@@ -380,42 +409,4 @@ void powerOff() {
     esp_sleep_enable_ext0_wakeup((gpio_num_t)BTN_POWER, LOW);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
-}
-
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to tornoff the device (name is odd btw)
-**********************************************************************/
-void checkReboot() {
-    if (launcherGpioRead(BTN_POWER) != LOW) return;
-
-    const uint32_t start = launcherMillis();
-    int lastCountDown = -1;
-    while (launcherGpioRead(BTN_POWER) == LOW) {
-        if (launcherMillis() - start > 500) {
-            const int countDown = (launcherMillis() - start) / 1000 + 1;
-            if (countDown < 3) {
-                // One refresh per second at most: this panel cannot repaint
-                // per frame.
-                if (countDown != lastCountDown) {
-                    lastCountDown = countDown;
-                    tft->setTextSize(1);
-                    tft->setTextColor(FGCOLOR, BGCOLOR);
-                    tft->drawCentreString("PWR OFF IN " + String(countDown) + "/2", tftWidth / 2, 12, 1);
-                    tft->display();
-                }
-            } else {
-                tft->fillScreen(BGCOLOR);
-                tft->display();
-                powerOff();
-            }
-        }
-        launcherDelayMs(10);
-    }
-
-    if (lastCountDown >= 0) {
-        tft->fillRect(0, 12, tftWidth, LH, BGCOLOR);
-        tft->display();
-    }
 }

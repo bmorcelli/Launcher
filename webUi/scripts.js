@@ -4,12 +4,10 @@ function toggleConfigOverlay(){_('configOverlay').classList.toggle('open')}
 function closeConfigOverlay(event){if(event.target.id==='configOverlay'||event.target.closest('#configBox .row'))_('configOverlay').classList.remove('open')}
 function closePmanResizeOverlay(event){if(event.target.id==='pmanResizeOverlay')_('pmanResizeOverlay').classList.remove('open')}
 function toggleRow(b){const r=b.closest('tr').nextElementSibling;r.style.display=r.style.display==='none'?'table-row':'none'}
-const editableExts = new Set(['txt','ini','conf','c','cpp','h','hpp','js','css','htm','html','ts']);
+const editableExts = new Set(['txt','ini','conf','c','cpp','h','hpp','js','css','htm','html','ts', 'json']);
 function isEditable(name) { return editableExts.has(name.split('.').pop().toLowerCase()); }
-let editingFile = '';
 function editFile(path) {
-    editingFile = path;
-    _('editor-title').textContent = path;
+    _('editor-title').value = path;
     _('editor-content').value = 'Loading...';
     _('editor').style.display = 'block';
     const xhr = new XMLHttpRequest();
@@ -18,11 +16,25 @@ function editFile(path) {
     xhr.onerror = () => { _('editor-content').value = 'Error loading file'; };
     xhr.send();
 }
+function newFile(folder) {
+    const base = folder === '/' ? '' : folder;
+    _('editor-title').value = base + '/NewFile.txt';
+    _('editor-content').value = '';
+    _('editor').style.display = 'block';
+}
 function saveFile() {
+    const fileName = _('editor-title').value.trim();
+    if (isNullOrEmpty(fileName)) {
+        window.alert('Invalid file name');
+        return;
+    }
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/editfile?name=' + encodeURIComponent(editingFile));
+    xhr.open('POST', '/editfile?name=' + encodeURIComponent(fileName));
     xhr.setRequestHeader('Content-Type', 'text/plain');
-    xhr.onload = () => { _('status').innerHTML = xhr.responseText === 'OK' ? 'File saved!' : xhr.responseText; };
+    xhr.onload = () => {
+        _('status').innerHTML = xhr.responseText === 'OK' ? 'File saved!' : xhr.responseText;
+        if (xhr.responseText === 'OK') listFilesButton(_('actualFolder').value);
+    };
     xhr.send(_('editor-content').value);
 }
 
@@ -41,7 +53,8 @@ function loadNvs() {
         const inps = 'style="width:220px;background:#303134;color:#0d0;border:1px solid #0d0;padding:2px"';
         let h = '';
         for (const ns in _nvsData) {
-            h += '<h3 style="margin:8px 0 4px;color:#0d0">' + ns + '</h3>';
+            h += '<h3 style="margin:8px 0 4px;color:#0d0">' + ns +
+                ' <span title="Delete namespace" style="cursor:pointer" onclick="deleteNvsNamespace(\'' + ns + '\')">&#128465;</span></h3>';
             _nvsData[ns].forEach(f => {
                 const id = _nvsId(ns, f.k);
                 h += '<div style="margin:4px 0"><label style="display:inline-block;width:150px;font-size:0.9em">' + f.k + ':</label>';
@@ -58,6 +71,14 @@ function loadNvs() {
         }
         _('nvs-body').innerHTML = h;
     };
+    x.send();
+}
+function deleteNvsNamespace(ns) {
+    if (ns === 'launcher') { window.alert('The launcher namespace cannot be deleted.'); return; }
+    if (!confirm('Erase the entire "' + ns + '" namespace? This cannot be undone.')) return;
+    const x = new XMLHttpRequest();
+    x.open('DELETE', '/nvs?ns=' + encodeURIComponent(ns));
+    x.onload = () => { _('status').innerHTML = x.responseText === 'OK' ? 'Namespace erased!' : x.responseText; loadNvs(); };
     x.send();
 }
 function eraseBleBonds() {
@@ -382,6 +403,25 @@ function rebootButton() {
         httpRequest("GET", "/reboot");
     }
 }
+function renderInstalledApps(apps) {
+    const card = _("installedAppsCard");
+    if (!apps.length) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    _("installedAppsList").innerHTML = apps.map(app =>
+        '<button onclick="bootIntoApp(\'' + app.label.replace(/'/g, "\\'") + '\', \'' + app.name.replace(/'/g, "\\'") + '\')">' +
+        app.name + '</button>'
+    ).join('');
+}
+function bootIntoApp(label, name) {
+    if (!confirm('Restart into "' + name + '"?')) return;
+    httpRequest("POST", "/bootapp", {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "label=" + encodeURIComponent(label),
+        onload: (xhr) => {
+            _("status").innerHTML = xhr.status === 200 ? 'Rebooting into ' + name + '...' : xhr.responseText;
+        }
+    });
+}
 let _sdInfo = null;
 let _currentSection = '';
 function systemInfo() {
@@ -393,6 +433,7 @@ function systemInfo() {
                     _("firmwareVersion").innerHTML = data.VERSION;
                     _sdInfo = data.SD;
                     if (_currentSection === 'files') _("detailsheader").innerHTML = "<h3>Files</h3>" + sdUsageBar();
+                    renderInstalledApps(data.APPS || []);
                 } catch (error) {
                     console.error("JSON Parsing Error: ", error);
                 }
@@ -484,7 +525,8 @@ function listFilesButton(folders) {
         "<input type='file' id='fol' webkitdirectory directory multiple style='display:none'>" +
         "<div class='row' style='margin:6px 0'><button onclick=\"_('fa').click()\">&#8679; Files</button>" +
         "<button onclick=\"_('fol').click()\">&#128193; Folder</button>" +
-        "<button onclick=\"CreateFolder('" + folders + "')\">+ New Folder</button></div>";
+        "<button onclick=\"CreateFolder('" + folders + "')\">+ New Folder</button>" +
+        "<button onclick=\"newFile('" + folders + "')\">+ New File</button></div>";
     _("fa").onchange = e => handleFileForm(e.target.files, folders);
     _("fol").onchange = e => handleFileForm(e.target.files, folders);
     _("updetails").innerHTML = "";

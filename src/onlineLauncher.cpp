@@ -45,6 +45,7 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
     Retry:
         if (!found || wrongPass) {
             if (encryptation > 0) {
+                resetGlobals(); // Reset in case user presses Sel during error msg
                 pwd = keyboard(pwd, 63, "Network Password:");
                 if (pwd == String(KEY_ESCAPE)) {
                     returnToMenu = true;
@@ -77,6 +78,7 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
         int count = 0;
         LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
         RAM_LOG("before-wifi-connect-status");
+        // check state more often
         while (connectState != LauncherWifiConnectState::Connected) {
             connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
             if (connectState == LauncherWifiConnectState::Connected) break;
@@ -85,10 +87,12 @@ bool wifiConnect(const String &ssid, int encryptation, bool isAP) {
                 wrongPass = true;
                 goto Retry;
             }
-            vTaskDelay(500 / portTICK_PERIOD_MS);
             tftprint(".", 10);
             count++;
             if (connectState == LauncherWifiConnectState::Failed || count > kWifiConnectAttempts) {
+                // Some boards miss the Connected event timing but already have an IP;
+                // treat that as success instead of showing a spurious Retry menu.
+                if (launcherWifiIsConnected()) break;
                 options = {
                     {"Retry",     [&]() { yield(); }            },
                     {"Main Menu", [&]() { returnToMenu = true; }},
@@ -130,6 +134,7 @@ bool connectWifi() {
     for (int i = 0; i < nets; i++) {
         String networkSsid = networks[i].ssid.c_str();
         if (networkSsid.isEmpty()) continue;
+        if (!autoConnect) continue;
         String knownPwd;
         if (!getWifiCredential(networkSsid, knownPwd)) continue;
         launcherConsolePrintf("Auto-connecting to saved SSID: %s\n", networkSsid.c_str());
@@ -824,7 +829,7 @@ void installFirmwareFromManifest(const String &fid, const String &version, Strin
     }
 
     String fileAddr = buildSourceUrl(fid, file, true);
-    if (!file.startsWith("https://")) file = M5_SERVER_PATH + file;
+    if (!file.startsWith("http")) file = M5_SERVER_PATH + file;
     if (fid == "") fileAddr = file;
 
     String manifestName = detail["name"].as<String>();
@@ -1102,7 +1107,7 @@ static bool padMergedFile(File &file, size_t &pos, size_t target) {
 
 static String buildSourceUrl(const String &fid, const String &sourceUrl, bool useProxy) {
     String url = sourceUrl;
-    if (!url.startsWith("https://")) url = M5_SERVER_PATH + url;
+    if (!url.startsWith("http")) url = M5_SERVER_PATH + url;
     if (useProxy && !fid.isEmpty()) {
         url = String("https://api.launcherhub.net/download?fid=") + fid + "&file=" + url;
     }
@@ -1459,7 +1464,7 @@ void installFirmware(
     std::vector<LauncherInstallDataPartition> &dataPartitions, String installedName
 ) {
     String fileAddr = buildSourceUrl(fid, file, true);
-    if (!file.startsWith("https://")) file = M5_SERVER_PATH + file;
+    if (!file.startsWith("http")) file = M5_SERVER_PATH + file;
     if (fid == "") fileAddr = file;
 
     {

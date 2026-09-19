@@ -24,14 +24,40 @@ ExtensionIOXL9555 io;
 #include <XPowersLib.h>
 XPowersAXP2101 PPM;
 
-#include "TouchDrvCSTXXX.hpp"
-TouchDrvCST92xx touch;
+#include "hal/device.h"
+#include "hal/inputs/touch.h"
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
+static bool touch_OK = false;
+
+static DeviceTouch touchCfg() {
+    DeviceTouch cfg;
+    // Reset is wired through the IO expander (EXPANDS_TOUCH_RST), not a
+    // direct GPIO -- pulsed by hand in _setup_gpio() before hal_touch_init(),
+    // same as lilygo-t-deck-pro's MAX variant.
+    cfg.pin_rst = -1;
+    cfg.pin_irq = TP_INT;
+    // Known CST92xx at 0x1A (pre-HAL code instantiated TouchDrvCST92xx
+    // directly) -- skip the shared CST8XX driver's auto-probe, which would
+    // otherwise try CST226 then CST8XX/CST816 against this chip first, each
+    // pulsing RST and poking its own register map before ever reaching the
+    // right driver.
+    cfg.cst8xx_model = 2; // TouchDrv_CST92XX
+    // Derived from the manual per-rotation math the original InputHandler()
+    // did on the raw point (rot0: swap only; rot1: mirrorY only, against
+    // TFT_WIDTH -- which is displayConfig.width, i.e. hal_touch's screenH at
+    // odd rotations; rot2: swap+mirrorX+mirrorY; rot3: identity).
+    // rotation:        0     1      2     3
+    bool swapXY[4] = {true, false, true, false};
+    bool mirrorX[4] = {false, false, true, false};
+    bool mirrorY[4] = {false, true, true, false};
+    for (int i = 0; i < 4; i++) {
+        cfg.SwapXY[i] = swapXY[i];
+        cfg.MirrorX[i] = mirrorX[i];
+        cfg.MirrorY[i] = mirrorY[i];
+    }
+    return cfg;
+}
+
 void _setup_gpio() {
     launcherConsoleBegin(115200);
     uint8_t csPin[4] = {4, 21, 36, 41}; // NFC,SDCard, LoRa, TFT
@@ -39,9 +65,9 @@ void _setup_gpio() {
         launcherGpioOutput(pin);
         launcherGpioWrite(pin, HIGH);
     }
-    Wire.begin(SDA, SCL);
+    Wire.begin(3, 2);
     bool pmu_ret = false;
-    pmu_ret = PPM.init(Wire, SDA, SCL, AXP2101_SLAVE_ADDRESS);
+    pmu_ret = PPM.init(Wire, 3, 2, AXP2101_SLAVE_ADDRESS);
     if (pmu_ret) {
         PPM.setSysPowerDownVoltage(3300);
         PPM.setChargeTargetVoltage(4208);
@@ -56,7 +82,14 @@ void _setup_gpio() {
 
         launcherConsolePrintf("getChargerConstantCurr: %d mA\n", PPM.getChargerConstantCurr());
     }
-    if (io.begin(Wire, 0x20)) {
+
+    launcherDelayMs(20);
+    bool expanderOK = io.begin(Wire, 0x20);
+    if (!expanderOK) {
+        launcherDelayMs(30);
+        expanderOK = io.begin(Wire, 0x20);
+    }
+    if (expanderOK) {
         const uint8_t expands[] = {
             EXPANDS_DISP_EN,
             EXPANDS_DRV_EN,
@@ -75,37 +108,16 @@ void _setup_gpio() {
     launcherDelayMs(20);
     io.digitalWrite(EXPANDS_TOUCH_RST, HIGH);
     launcherDelayMs(60);
-    touch.setPins(-1, TP_INT);
-    bool result = touch.begin(Wire, 0x1A, SDA, SCL);
-    if (result == false) { launcherConsolePrintf("%s\n", String("touch is not online...").c_str()); }
-    launcherConsolePrintf("%s", String("Model :").c_str());
-    launcherConsolePrintf("%s\n", String(touch.getModelName()).c_str());
-
-    touch.setCoverScreenCallback(
-        [](void *ptr) {
-            launcherConsolePrintf("%s", String(launcherMillis()).c_str());
-            launcherConsolePrintf("%s\n", String(" : The screen is covered").c_str());
-        },
-        NULL
-    );
+    touch_OK = hal_touch_init(touchCfg(), 0x1A);
+    if (!touch_OK) { launcherConsolePrintf("%s\n", String("touch is not online...").c_str()); }
 }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     int percent = 0;
     percent = PPM.getBatteryPercent();
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // The AMOLED has no backlight rail; brightness is a CO5300 register.
     // outputDriver() is the panel behind the canvas — see DisplayDrivers.
@@ -113,53 +125,17 @@ void _setBrightness(uint8_t brightval) {
     if (panel) panel->setBrightness(brightval * 254 / 100);
 }
 
-struct LTouchPointPro {
-    int16_t x;
-    int16_t y;
-};
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
+    if (!touch_OK) return; // dont have touchscreen
     static long tm = 0;
-    if (launcherMillis() - tm > 200 || LongPress) {
-        if (touch.isPressed()) {
-            LTouchPointPro t;
-            touch.getPoint(&t.x, &t.y, 1);
-            tm = launcherMillis();
-            if (rotation == 1) { t.y = TFT_WIDTH - t.y; }
-            if (rotation == 3) { t.x = t.x; }
-            // Need to test these 2
-            if (rotation == 0) {
-                int tmp = t.x;
-                t.x = t.y;
-                t.y = tmp;
-            }
-            if (rotation == 2) {
-                int tmp = t.x;
-                t.x = TFT_WIDTH - t.y;
-                t.y = TFT_HEIGHT - tmp;
-            }
-
-            launcherConsolePrintf("\nPressed x=%d , y=%d, rot: %d", t.x, t.y, rotation);
-
-            if (!wakeUpScreen()) AnyKeyPress = true;
-            else return;
-
-            touchPoint.x = t.x;
-            touchPoint.y = t.y;
-            touchPoint.pressed = true;
-            touchHeatMap(touchPoint);
-        }
+    if (launcherMillis() - tm < 200 && !LongPress) return;
+    LTouchPoint t;
+    if (hal_touch_read(touchCfg(), t)) {
+        tm = launcherMillis();
+        hal_touch_apply(t);
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     const uint8_t expands[] = {
         EXPANDS_DISP_EN,

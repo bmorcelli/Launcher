@@ -1,29 +1,45 @@
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/buttons.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
-#include <M5Unified.h>
+#include <M5PM1.h>
 #include <Wire.h>
 #include <interface.h>
 #ifdef USE_CARDKB2
 #include <cardkb2.h>
 #endif
 
-constexpr uint32_t kBtnBDoublePressWindowMs = 270;
-constexpr uint32_t kBtnBLongPressMs = 500;
+#define BTN_A_PIN 11
+#define BTN_B_PIN 12
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
+// --- M5PM1 power-management IC ------------------------------------------
+#define PM1_SDA 47
+#define PM1_SCL 48
+
+static M5PM1 pm1;
+
 void _setup_gpio() {
-    M5.begin();
+    if (pm1.begin(&Wire1, M5PM1_DEFAULT_ADDR, PM1_SDA, PM1_SCL) != M5PM1_OK) {
+        launcherConsolePrintf("%s\n", String("M5PM1 init failed").c_str());
+    }
+    pm1.setChargeEnable(true);
+    launcherDelayMs(20);
+    pm1.setDcdcEnable(true);
+    launcherDelayMs(20);
+    pm1.setLdoEnable(true);
+    launcherDelayMs(20);
+
+    pm1.gpioSetFunc(M5PM1_GPIO_NUM_2, M5PM1_GPIO_FUNC_GPIO);
+    pm1.gpioSetMode(M5PM1_GPIO_NUM_2, M5PM1_GPIO_MODE_OUTPUT);
+    pm1.gpioSetDrive(M5PM1_GPIO_NUM_2, M5PM1_GPIO_DRIVE_PUSHPULL);
+    pm1.gpioSetOutput(M5PM1_GPIO_NUM_2, HIGH);
+    launcherDelayMs(20);
+
 #ifndef USE_CARDKB2
-    // Disable 5V output to external port. With CardKB2 support the rail must
-    // stay on from M5.begin() so the keyboard's MCU is booted by probe time;
-    // _post_setup_gpio() turns it off when no keyboard is found.
-    M5.Power.setExtOutput(false);
+    pm1.setBoostEnable(false);
 #else
-    M5.Power.setExtOutput(true); // CardKB2 needs Grove 5V
+    pm1.setBoostEnable(true); // CardKB2 needs Grove 5V, energized directly at boot
     delay(100);
 #endif
     /*
@@ -49,115 +65,28 @@ void _setup_gpio() {
     launcherGpioOutput(46);
     launcherGpioWrite(46, LOW); // Infrared LED Off
 
-    M5.BtnA.setDebounceThresh(8);
-    M5.BtnB.setDebounceThresh(8);
-    M5.BtnB.setHoldThresh(kBtnBLongPressMs);
+    hal_buttons_init_2(DeviceButtons{BTN_A_PIN, BTN_B_PIN}, 600);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
 void _post_setup_gpio() {
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
+}
+
+void _late_setup_gpio() {
 #ifdef USE_CARDKB2
-    // CardKB2 on the Grove port (G9/G10). Probing reconfigures G9 as I2C SDA,
-    // so restore the RF433 anti-jam state if no keyboard is attached.
-    if (!CardKB2Installed) {
-        M5.Power.setExtOutput(false);
-        launcherGpioOutput(9);
-        launcherGpioWrite(9, LOW); // M5RF433 avoid Jamming
-    }
+    if (!CardKB2Installed) { pm1.setBoostEnable(false); }
 #endif
 }
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
-    static int lastState = -1;
-    bool charging = M5.Power.isCharging();
-    if (charging && lastState != 1) {
-        lastState = 1;
-#ifdef USE_CARDKB2
-        if (!CardKB2Installed) M5.Power.setExtOutput(false); // keyboard needs Grove 5V
-#else
-        M5.Power.setExtOutput(false);
-#endif
-    } else if (!charging && lastState != 0) {
-        lastState = 0;
-        M5.Power.setExtOutput(true);
-    }
-    int level = M5.Power.getBatteryLevel();
+    uint16_t mv = 0;
+    if (pm1.readVbat(&mv) != M5PM1_OK) return 0;
+    int level = (int)(((float)mv - 3300.0f) * 100.0f / (4150.0f - 3350.0f));
     return (level < 0) ? 0 : (level >= 100) ? 100 : level;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
-void InputHandler(void) {
-    static uint32_t btnBFirstReleaseMs = 0;
-    static bool btnBWaitingSecondClick = false;
-    static bool btnBLongPressFired = false;
+void InputHandler(void) { hal_buttons_poll_2(); }
 
-    M5.update();
-    bool emitNext = false;
-    bool emitPrev = false;
-    bool emitEsc = false;
-    uint32_t now = launcherMillis();
-    bool btnAActive = M5.BtnA.isPressed() || M5.BtnA.isHolding();
-    bool btnBActive = M5.BtnB.isPressed() || M5.BtnB.isHolding();
-
-    if (M5.BtnB.wasPressed()) btnBLongPressFired = false;
-
-    if (btnBActive && !btnBLongPressFired && M5.BtnB.pressedFor(kBtnBLongPressMs)) {
-        btnBLongPressFired = true;
-        btnBWaitingSecondClick = false;
-        emitEsc = true;
-    }
-
-    if (M5.BtnB.wasReleased()) {
-        if (btnBLongPressFired) {
-            btnBLongPressFired = false;
-        } else if (btnBWaitingSecondClick && now - btnBFirstReleaseMs <= kBtnBDoublePressWindowMs) {
-            btnBWaitingSecondClick = false;
-            emitPrev = true;
-        } else {
-            btnBWaitingSecondClick = true;
-            btnBFirstReleaseMs = now;
-        }
-    }
-
-    if (btnBWaitingSecondClick && !btnBActive && now - btnBFirstReleaseMs > kBtnBDoublePressWindowMs) {
-        btnBWaitingSecondClick = false;
-        emitNext = true;
-    }
-
-    if (btnAActive || btnBActive || btnBWaitingSecondClick || M5.BtnA.wasClicked() || emitNext || emitPrev ||
-        emitEsc)
-        AnyKeyPress = true;
-    if (!AnyKeyPress) return;
-
-    if ((btnAActive || btnBActive) && wakeUpScreen()) return;
-
-    if (M5.BtnA.wasClicked()) SelPress = true;
-    if (emitNext) NextPress = true;
-    if (emitPrev) PrevPress = true;
-    if (emitEsc) EscPress = true;
-}
-
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
-void powerOff() { M5.Power.powerOff(); }
+void powerOff() { pm1.shutdown(); }

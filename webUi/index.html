@@ -13,6 +13,10 @@
       <div class="tag">v <b id="firmwareVersion">&#8230;</b></div>
     </div>
   </div>
+  <div class="card" id="installedAppsCard" style="display:none">
+    <h3>Installed Firmwares</h3>
+    <div class="row" id="installedAppsList"></div>
+  </div>
   <div class="card">
     <form id="save" enctype="multipart/form-data" method="post">
       <input type="hidden" id="actualFolder" name="actualFolder" value="/">
@@ -48,7 +52,7 @@
 </div>
 <div id="editor" class="modal">
   <div class="mhdr">
-    <span id="editor-title" class="mtitle"></span>
+    <input id="editor-title" class="mtitle" type="text" spellcheck="false">
     <span><button onclick="saveFile()">&#128190; Save</button> <button onclick="_('editor').style.display='none'">&#10006;</button></span>
   </div>
   <textarea id="editor-content"></textarea>

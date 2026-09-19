@@ -1,3 +1,6 @@
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/encoder.h"
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
@@ -6,86 +9,33 @@
 #define ENCODER_INA 41
 #define ENCODER_INB 40
 #define ENCODER_KEY 42
-#define BTN_ACT LOW
+#define POWER_HOLD_PIN 46
 
-// Rotary encoder
-#include <RotaryEncoder.h>
-RotaryEncoder *encoder = nullptr;
-IRAM_ATTR void checkPosition() { encoder->tick(); }
-
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
-void _setup_gpio() {
-    M5.begin();
-
-    launcherGpioInput(ENCODER_KEY);
-    encoder = new RotaryEncoder(ENCODER_INA, ENCODER_INB, RotaryEncoder::LatchMode::TWO03);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INA), checkPosition, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INB), checkPosition, CHANGE);
-}
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
-void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
-
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
-int getBattery() {
-    int level = M5.Power.getBatteryLevel();
-    return (level < 0) ? 0 : (level >= 100) ? 100 : level;
+static DeviceEncoder encoderCfg() {
+    DeviceEncoder cfg;
+    cfg.pin_a = ENCODER_INA;
+    cfg.pin_b = ENCODER_INB;
+    cfg.pin_sel = ENCODER_KEY;
+    return cfg;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = launcherMillis(); // debauce for buttons
-    static int posDifference = 0;
-    static int lastPos = 0;
-    bool sel = !BTN_ACT;
+void _setup_gpio() { hal_encoder_init(encoderCfg()); }
 
-    int newPos = encoder->getPosition();
-    if (newPos != lastPos) {
-        posDifference += (newPos - lastPos);
-        lastPos = newPos;
-    }
-
-    if (launcherMillis() - tm < 200 && !LongPress) return;
-
-    sel = launcherGpioRead(ENCODER_KEY);
-
-    if (posDifference != 0 || sel == BTN_ACT) {
-        if (!wakeUpScreen()) AnyKeyPress = true;
-        else return;
-    }
-    if (posDifference > 0) {
-        PrevPress = true;
-        posDifference--;
-    }
-    if (posDifference < 0) {
-        NextPress = true;
-        posDifference++;
-    }
-
-    if (sel == BTN_ACT) {
-        posDifference = 0;
-        SelPress = true;
-        tm = launcherMillis();
-    }
+void _post_setup_gpio() {
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
-void powerOff() { M5.Power.powerOff(); }
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
+
+void InputHandler(void) { hal_encoder_poll(encoderCfg()); }
+
+void powerOff() {
+    launcherGpioOutput(POWER_HOLD_PIN);
+    for (int i = 0; i < 5; i++) {
+        launcherGpioWrite(POWER_HOLD_PIN, LOW);
+        launcherDelayMs(50);
+        launcherGpioWrite(POWER_HOLD_PIN, HIGH);
+        launcherDelayMs(50);
+    }
+}

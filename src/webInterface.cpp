@@ -1265,6 +1265,13 @@ esp_err_t systemInfoHandler(httpd_req_t *req) {
     sd["usedBytes"] = static_cast<double>(SDUsedBytes);
     sd["totalBytes"] = static_cast<double>(SDTotalBytes);
 
+    JsonArray apps = doc["APPS"].to<JsonArray>();
+    for (const LauncherAppMetadata &app : launcherListInstalledApps()) {
+        JsonObject appObj = apps.add<JsonObject>();
+        appObj["label"] = app.label;
+        appObj["name"] = app.name.isEmpty() ? app.label : app.name;
+    }
+
     String json;
     serializeJson(doc, json);
     sendText(req, "application/json", json);
@@ -1276,6 +1283,45 @@ esp_err_t rebootHandler(httpd_req_t *req) {
         shouldReboot = true;
         sendText(req, "text/html", "Rebooting");
     }
+    return ESP_OK;
+}
+
+// Sets the OTA boot partition for the given app label and queues a reboot into it, mirroring
+// launcherBootAppByLabel()'s on-device flow but reporting failures back to the browser instead
+// of showing a device dialog (this handler runs from the web request, not the main loop).
+esp_err_t bootAppHandler(httpd_req_t *req) {
+    if (!checkUserWebAuth(req)) return ESP_OK;
+    String label = queryValue(req, "label");
+    WebParamMap params = readParams(req);
+    if (label.isEmpty() && params.has("label")) label = params.get("label");
+    if (label.isEmpty()) {
+        sendText(req, 400, "text/plain", "Missing label");
+        return ESP_OK;
+    }
+
+    LauncherPartitionTable table;
+    String error;
+    if (!launcherPartitionReadCurrent(table, &error)) {
+        sendText(req, 400, "text/plain", error.length() ? error : "Partition read failed");
+        return ESP_OK;
+    }
+
+    const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label.c_str());
+    if (!entry || !entry->isOtaApp()) {
+        sendText(req, 400, "text/plain", "App not found");
+        return ESP_OK;
+    }
+
+    if (!launcherPartitionSetOtaBoot(table, entry->subtype, &error)) {
+        sendText(req, 400, "text/plain", error.length() ? error : "Boot set failed");
+        return ESP_OK;
+    }
+
+    launcherBleBondsSwitchTo(label.c_str());
+    lastInstalledApp = launcherAppDisplayNameForLabel(label.c_str());
+    saveIntoNVS();
+    shouldReboot = true;
+    sendText(req, "text/plain", "OK");
     return ESP_OK;
 }
 
@@ -1443,6 +1489,16 @@ esp_err_t nvsHandler(httpd_req_t *req) {
         String json;
         serializeJson(doc, json);
         sendText(req, "application/json", json);
+    } else if (req->method == HTTP_DELETE) {
+        String ns = queryValue(req, "ns");
+        if (ns.isEmpty() || (ns == "launcher")) {
+            sendText(req, 400, "text/plain", "Bad namespace");
+            return ESP_OK;
+        }
+        lnvs::eraseNamespace(ns.c_str());
+        getFromNVS();
+        getWifiFromNVS();
+        sendText(req, "text/plain", "OK");
     } else {
         String body;
         if (!receiveBody(req, body)) {
@@ -2077,7 +2133,12 @@ void registerHandler(const char *uri, httpd_method_t method, esp_err_t (*handler
     route.method = method;
     route.handler = handler;
     route.user_ctx = nullptr;
-    httpd_register_uri_handler(server, &route);
+    esp_err_t err = httpd_register_uri_handler(server, &route);
+    if (err != ESP_OK) {
+        launcherConsolePrintf(
+            "ERR: Failed to register %s (method %d): %s", uri, method, esp_err_to_name(err)
+        );
+    }
 }
 
 void configureWebServer() {
@@ -2099,12 +2160,15 @@ void configureWebServer() {
     registerHandler("/", HTTP_POST, rootHandler);
     registerHandler("/systeminfo", HTTP_GET, systemInfoHandler);
     registerHandler("/reboot", HTTP_GET, rebootHandler);
+    registerHandler("/bootapp", HTTP_GET, bootAppHandler);
+    registerHandler("/bootapp", HTTP_POST, bootAppHandler);
     registerHandler("/listfiles", HTTP_GET, listFilesHandler);
     registerHandler("/file", HTTP_GET, fileHandler);
     registerHandler("/editfile", HTTP_GET, editfileHandler);
     registerHandler("/editfile", HTTP_POST, editfileHandler);
     registerHandler("/nvs", HTTP_GET, nvsHandler);
     registerHandler("/nvs", HTTP_POST, nvsHandler);
+    registerHandler("/nvs", HTTP_DELETE, nvsHandler);
     registerHandler("/blebonds", HTTP_POST, bleBondsHandler);
     registerHandler("/partitions", HTTP_GET, partitionsHandler);
     registerHandler("/partitions", HTTP_POST, partitionsHandler);
@@ -2131,7 +2195,7 @@ void startWebUiLoopCommon(bool mode_ap) {
     if (!mode_ap) txt = launcherWifiLocalIp().c_str();
     else txt = launcherWifiApIp().c_str();
 
-#ifndef HEADLESS
+#if !defined(HEADLESS) || defined(HEADLESS_WITH_TFT)
     tft->drawRoundRect(5, 5, tftWidth - 10, tftHeight - 10, 5, ALCOLOR);
     tft->fillRoundRect(6, 6, tftWidth - 12, tftHeight - 12, 5, BGCOLOR);
     setTftDisplay(7, 7, ALCOLOR, _fp, BGCOLOR);
@@ -2148,14 +2212,16 @@ void startWebUiLoopCommon(bool mode_ap) {
     setTftDisplay(7, tftHeight - 39, ALCOLOR, _fp);
     tft->drawCentreString("press Sel to stop", tftWidth / 2, tftHeight - 15, 1);
     tft->display(false);
+#endif
 
-    while (!check(SelPress)) {
-#else
     launcherConsolePrintln("Access: http://launcher.local");
     launcherConsolePrintf("IP %s\n", txt.c_str());
     launcherConsolePrintf("Usr: %s\n", wui_usr.c_str());
     launcherConsolePrintf("Pwd: %s\n", wui_pwd.c_str());
 
+#if !defined(HEADLESS)
+    while (!check(SelPress)) {
+#else
     while (1) {
 #endif
         if (shouldReboot) { return (void)releaseHeapObjectsAndReboot(); }

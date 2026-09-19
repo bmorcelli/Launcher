@@ -390,9 +390,16 @@ String generalKeyboard(
     unsigned long LongPressTmp = launcherMillis();
 #endif
 
+    bool firstKeyboardDraw = true;
+
     // main loop
     while (1) {
         if (redraw) {
+            // Every key's label depends on caps, so a caps flip needs every cell repainted;
+            // plain navigation only needs the previously- and newly-selected cell redrawn.
+            bool fullKeyRedraw = firstKeyboardDraw || caps != last_caps;
+            firstKeyboardDraw = false;
+
             // setup
             tft->setCursor(0, 0);
             tft->setTextColor(getComplementaryColor(BGCOLOR), BGCOLOR);
@@ -529,6 +536,10 @@ String generalKeyboard(
             // Draw the actual keyboard
             for (int i = 0; i < KeyboardHeight; i++) {
                 for (int j = 0; j < KeyboardWidth; j++) {
+                    bool isOldSelection = (old_x == j && old_y == i);
+                    bool isNewSelection = (x == j && y == i);
+                    if (!fullKeyRedraw && !isOldSelection && !isNewSelection) continue;
+
                     // key coordinates
                     int key_x = j * key_width;
                     int key_y = i * key_height + KBLH * 2 + counter_height + 6;
@@ -564,6 +575,7 @@ String generalKeyboard(
 
                     // Return colors to normal to print the other letters
                     if (x == j && y == i) { tft->setTextColor(~BGCOLOR, BGCOLOR); }
+                    ALIVIATE_TASK;
                 }
             }
             // backup key coordinates
@@ -979,7 +991,7 @@ String generalKeyboard(
     CardKB2TextMode = false;
 #endif
 #if defined(E_PAPER_DISPLAY) && defined(USE_M5GFX)
-    M5.Display.setEpdMode(epd_mode_t::epd_quality);
+    M5.Display.setEpdMode(epd_mode_t::epd_fast);
 #endif
     return current_text;
 }

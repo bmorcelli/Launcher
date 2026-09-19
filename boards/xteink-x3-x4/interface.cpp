@@ -154,12 +154,26 @@ static void _detect_panel() {
     );
 }
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() {
+    // Release any RTC GPIO hold left over from a deep sleep entered by a
+    // launched app (e.g. an e-paper app that calls gpio_hold_en()/
+    // gpio_deep_sleep_hold_en() on these pins to keep rails/chip-selects/
+    // buttons fixed while asleep, then wakes via reset back into the
+    // launcher). gpio_reset_pin()/pinMode() do NOT clear a hold latch by
+    // themselves — an unreleased hold silently discards every write below,
+    // which looks like "display/SD/buttons dead" after returning from such
+    // an app. Same defensive pattern as seeedstudio-reterminal-sticky and
+    // xteink-x4pro. BAT_LATCH is this board's own hold from powerOff(); it
+    // has to be released here too, or the rail never comes back after a
+    // real power-off/power-on cycle.
+    gpio_hold_dis((gpio_num_t)BTN_LADDER_1);
+    gpio_hold_dis((gpio_num_t)BTN_LADDER_2);
+    gpio_hold_dis((gpio_num_t)PWR_BTN);
+    gpio_hold_dis((gpio_num_t)TFT_CS);
+    gpio_hold_dis((gpio_num_t)SDCARD_CS);
+    gpio_hold_dis((gpio_num_t)BAT_LATCH);
+    gpio_deep_sleep_hold_dis();
+
     launcherGpioInput(BTN_LADDER_1);
     launcherGpioInput(BTN_LADDER_2);
     launcherGpioInputPullup(PWR_BTN);
@@ -181,18 +195,6 @@ void _setup_gpio() {
     SPI.begin(TFT_SCLK, SDCARD_MISO, TFT_MOSI, TFT_CS);
 }
 
-/***************************************************************************************
-** Function name: _post_setup_gpio()
-** Location: main.cpp
-** Description:   second stage gpio setup to make a few functions work
-***************************************************************************************/
-void _post_setup_gpio() {}
-
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     if (isX3) {
         // The gauge already reports a state of charge, so there is no curve to
@@ -231,20 +233,11 @@ int getBattery() {
     return (int)(percent + 0.5);
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) {
     // No backlight and no frontlight on this panel.
     (void)brightval;
 }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static unsigned long tm = launcherMillis();
     if (launcherMillis() - tm > 200 || LongPress) {
@@ -272,15 +265,18 @@ void InputHandler(void) {
     else if (page == PAGE_DOWN) DownPress = true;
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() {
     // Letting go first, or the wake-up source is already asserted when we arm it.
     while (launcherGpioRead(PWR_BTN) == LOW) launcherDelayMs(50);
     launcherDelayMs(100);
+
+    tft->fillScreen(BGCOLOR);
+    initDisplay(true);
+    tft->setTextSize(FG);
+    tft->setTextColor(FGCOLOR);
+    tft->drawCentreString("Powered OFF", tftWidth / 2, tftHeight - 100, 1);
+    tft->display();
+    launcherDelayMs(1000);
 
     // GPIO13 drives the battery latch MOSFET. It has to be driven low *and*
     // held there through sleep, otherwise the rail comes straight back up.
@@ -292,42 +288,4 @@ void powerOff() {
     // The C3 has no ext0/ext1 wake sources; GPIO wake-up is the one it offers.
     esp_deep_sleep_enable_gpio_wakeup(1ULL << PWR_BTN, ESP_GPIO_WAKEUP_GPIO_LOW);
     esp_deep_sleep_start();
-}
-
-/*********************************************************************
-** Function: checkReboot
-** location: mykeyboard.cpp
-** Btn logic to tornoff the device (name is odd btw)
-**********************************************************************/
-void checkReboot() {
-    if (launcherGpioRead(PWR_BTN) != LOW) return;
-
-    const uint32_t start = launcherMillis();
-    int lastCountDown = -1;
-    while (launcherGpioRead(PWR_BTN) == LOW) {
-        if (launcherMillis() - start > 500) {
-            const int countDown = (launcherMillis() - start) / 1000 + 1;
-            if (countDown < 3) {
-                // Repainting an e-paper panel per frame is far too slow, so
-                // only push a refresh when the number actually changes.
-                if (countDown != lastCountDown) {
-                    lastCountDown = countDown;
-                    tft->setTextSize(1);
-                    tft->setTextColor(FGCOLOR, BGCOLOR);
-                    tft->drawCentreString("PWR OFF IN " + String(countDown) + "/2", tftWidth / 2, 12, 1);
-                    tft->display();
-                }
-            } else {
-                tft->fillScreen(BGCOLOR);
-                tft->display();
-                powerOff();
-            }
-        }
-        launcherDelayMs(10);
-    }
-
-    if (lastCountDown >= 0) {
-        tft->fillRect(0, 12, tftWidth, LH, BGCOLOR);
-        tft->display();
-    }
 }

@@ -1,5 +1,5 @@
 # Launcher
-Application launcher for M5Stack, Lilygo, CYD, Marauder, and ESP32 devices.
+Application launcher for M5Stack, Lilygo, SeeedStudio, Waveshare, CYD, Marauder, and many other ESP32 devices.
 
 
 <p align="center" width="100%">
@@ -15,7 +15,7 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 
 ## How to Use
 * Turn your device on
-* Press M5/Sel (Enter) on the Launcher start screen to get into Launcher
+* Press Sel (Enter) on the Launcher start screen to get into Launcher
 * Choose OTA to install new binaries from online services (M5Burner or GitHub links)
 * After installation, when you turn on the device, the installed program will launch if you don't press anything.
 
@@ -24,6 +24,7 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 * Use a maximum size of 32GB (I use 8 or 16GB)
 * Format it as FAT32 (use [Rufus](https://rufus.ie/) to format your SD card)
 * Ensure the partition scheme is MBR, not GPT
+* Although exFAT and bigger SDCards are supported since 2.8.0, smaller ones are recommended.
 
 ## With Launcher you'll be able to:
 <details>
@@ -95,28 +96,53 @@ Things that need to be done in future updates
 
 * [ ] LVGL UI (?)
 * [ ] Move to ESP-IDF Platform
-* [ ] Optimize Settings functions to save flash
-* [ ] Optimize Storage functions to save Flash
 
 ## Latest Changelog
+* 2.10.0:
+     * [x] Port to [SeeedStudio XIAO ESP32C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
+     * [x] Port to [SeeedStudio XIAO ESP32S3 Plus](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
+     * [x] Port to [SeeedStudio reTerminal D1001 8"](https://www.seeedstudio.com/reTerminal-D1001-p-6729.html?sensecap_affiliate=dhriNBA&referring_service=link)
+     * [x] Port to [SeeedStudio reTerminal E1001 Monochrome e-Paper Display](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?sensecap_affiliate=dhriNBA&referring_service=link)
+     * [x] Port to [SeeedStudio SenseCAP Indicator](https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html?sensecap_affiliate=dhriNBA&referring_service=link)
+     * [x] Port to [Waveshare ESP32-S3 2.06inch AMOLED Touch Watch](https://www.waveshare.com/esp32-s3-touch-amoled-2.06.htm?&aff_id=179888), thanks to @nevelate
+     * [x] **BETA**: [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) Validated UC8xxx display.
+     * [x] **Added** Option to control bootscreen time (from 1 to 5 seconds).
+     * [x] **Added** Option to disable starting Launcher from DeepSleep. Some e-ink firmwares (CrossInk, CrossPoint etc..)  use agressive deepsleep controls to save energy, and by default it used to trigger Launcher bootscreen, adding time to the device/firmware recovery. Now you can Disable this behaviour and trigger Launcher only on Power On reason. Use it with care, and in devices with exposed RST button, otherwise getting back to Launcher can be impossible on some devices
+     * [x] **Added** Option to start Launcher when a button is pressed during a restart. This is a siruation where you will only see the Launcher bootscreen if you Turn on/Restart/recover from deepsleep the device if that configured button is pressed. Combined with the previous option it makes Launcher *stealthy*, and will only show up if you want. Boot Button can't be configured for this function, and it is available only on devices with GPIO driven buttons available (Touchscreen/keyboard/encoder only devices will not have this option)
+     * [x] **FIXED** `Lilygo T-Watch Ultra` and `Lilygo T-Display S3 Amoled Plus` touchscreen
+     * [x] **FIXED** `M5Stack Tab5` OTA function randomly crashing.
+     * [x] **Changed** `M4Stack Paper Mono` display backend.
+
+* 2.9.1:
+     * [x] Fix **M5-Paper Mono** rendering and touch issues.
+     * [x] Fix **SeeedStudio ReTerminal Sticky** back from Deepsleep issue, allowing CrossPoint and other firmware to reboot.
+     * [x] Fix **Lilygo T-Deck Pro** touchscreen issue.
+
 * 2.9.0:
+     * [x] Port to [M5-Paper](https://shop.m5stack.com/products/m5paper-esp32-development-kit-v1-1-960x540-4-7-eink-display-235-ppi?ref=Pirata)
+     * [x] Port to [M5-Paper Mono](https://shop.m5stack.com/products/m5papermono-with-lora-nfc-800x480-3-97-eink-display?ref=Pirata)
+     * [x] Port to [M5-Paper Color](https://shop.m5stack.com/products/m5paper-color-esp32s3-dev-kit?ref=Pirata) - Different workflow, Prints on scren but works only through WebUI. Display takes long time to render, making navigation almost impossible for Launcher.
      * [x] Port to [T-Display P4](https://lilygo.cc/products/t-display-p4?bg_ref=sDI8Bh4HmO)
      * [x] Port to [T-Display C5](https://lilygo.cc/products/t-display-c5?bg_ref=sDI8Bh4HmO)
-     * [x] Port to [ES3C28P](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display) aka `Cheap Black Display`, thanks to @AlexeOnTheShip
+     * [x] Port to [ESP32-S3 ES3C28P 2.8"](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display) aka `Cheap Black Display`, thanks to @AlexeOnTheShip
      * [x] Port to [Elecrow Crowpanel Advance ESP32-S3 5.0in](https://www.elecrow.com/crowpanel-advance-5-0-hmi-esp32-ai-display-800x480-ips-artificial-intelligent-touch-screen.html)
      * [x] Port to [Elecrow Crowpanel Advance ESP32-P4 7.0in](https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html)
-     * [x] **BETA**: Port to XTeink X3, X4 and X4 Pro
-     * [x] **Wi-Fi over ESP-AT**: boards with a Wi-Fi co-processor (T-Display P4) are now probed at boot to detect whether the slave runs ESP-Hosted or the factory ESP-AT firmware, and the matching backend (scan, connect, HTTP/HTTPS, including ranged and streamed downloads) is selected automatically. No need to reflash the co-processor to use Launcher.
-     * [x] **USB Mass Storage on ESP32-P4**: boards wired to the high-speed OTG port (T-Display P4) are now supported alongside the full-speed ones (Tab5).
+     * [x] Port to [ESP32 E32R40T 4"](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display)
+     * [x] Port to [SeeedStudio ReTerminal Sticky](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html?sensecap_affiliate=dhriNBA&referring_service=link), thaks to @limengdu
+     * [x] Port to [Waveshare-ESP32-C5-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C5-LCD-1.47)
+     * [x] Port to [Waveshare-ESP32-C6-LCD-1.47](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
+     * [x] Port to [Waveshare-ESP32-C6-LCD-1.3](https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47)
+     * [x] Port to [XTeink X3](https://www.xteink.com/products/xteink-x3)
+     * [x] **BETA**: Port to [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) - Need validating touchscreen and display
+     * [x] **ATENTION**: Arduino **Nesso N1** and **M5Stack StickS3** Navigation has changed, Front button short press to move Next and Long press to Select, Side button short press to mode Previous an long press to Escape.. on Keyboard, holding Escape will change the moviment from Left/Up to Right/Down, so typing will be easier to handle (after you master it).
+     * [x] **Added** option to opt-out from Automatically connect to a known Network.
+     * [x] **Added** possibility to create new files using the WebUI.
+     * [x] **Changed** brightness control, now it uses a slider bar with 5% steps.
      * [x] Moved display drivers handling to [DisplayDrivers](https://github.com/bmorcelli/DisplayDrivers) lib, using its superclass to handle all display drivers used by Launcher. This removed `tft.h`/`tft_inits.h` and the Arduino_GFX DSI patch scripts from the project.
      * [x] Reorganized boards files to make porting easier. It now needs only 2 files and add it to CI/CD. Per-board JSON files were replaced by one per chip family (`esp32`, `esp32s2`, `esp32s3`, `esp32c3`, `esp32c5`, `esp32c6`, `esp32p4`), and envs that only differ by pinout were merged (`m5stack-plus`, `lilygo-t-embed-all`, `xteink-x3-x4`).
      * [x] Removed `phy_init` partition and increased NVS to 0x5000
      * [x] Centralized NVS code handlers, and added a `nimble` compatibility layer between firmwares. Now older and newer versions of nimble_bonds are saved per device (it happens only when using BLE to connect to a device, creating bound data) and it is switched and restored when changing firmware in runtime. relate to this [issue](https://github.com/bmorcelli/Launcher/issues/400)
-     * [x] **NVS housekeeping**: installing a firmware now prunes app metadata left behind by partitions that no longer exist and resets the `nvs.net80211` namespace, avoiding stale data and NVS exhaustion.
-     * [x] **WebUI**: added an "Erase BLE Bonds" button to the NVS editor, blob/unsupported keys are now shown read-only instead of being corrupted on save, and the Config menu closes after picking an action.
-     * [x] UI fonts now scale with the display size instead of using fixed sizes, and display gamma is handled centrally by Settings for every board.
      * [x] Devices are now described by `HAS_2_BUTTONS`/`HAS_6_BUTTONS` and long-press navigation, replacing the old per-board button workarounds.
-     * [x] Saving settings no longer rewrites the whole Wi-Fi NVS namespace when the network list hasn't changed, cutting the delay reported on this [issue](https://github.com/bmorcelli/Launcher/issues/388)
      * [x] Fixed original M5Paper display and SD bus, thanks to @Decentricity
      * [x] Fixed Marauder v6.1 hypersensitive touch and SPI noise, thanks to @H4W9
      * [x] Fixed T-Display P4 install from SD Card and the SD/display bus conflict
@@ -144,6 +170,9 @@ Things that need to be done in future updates
      * [x] Fix WebUI OTA installation
      * [x] Added "dev" option to Reset Config and wifi credentials
 
+<details>
+  <summary><h2>Older Changelogs</h2></summary>
+
 * 2.7.2:
      * [x] Adjusted boot logic, now it works as it was before.
      * [x] Fixed devices that share TFT and Touch SPI bus (NM-CYD-C5 and others), that were unable to install firmware from SD Card.
@@ -166,9 +195,6 @@ Things that need to be done in future updates
      * [x] Port to [M5-DinMeter](https://shop.m5stack.com/products/m5stack-din-meter-w-m5stamps3?ref=Pirata)
      * [x] Port to [Arduino Nesso N1](https://docs.arduino.cc/hardware/nesso-n1)
      * [x] Port to [Reaper Board](https://www.elecrow.com/bruce-pcb-rf-reaper.html)
-
-<details>
-  <summary><h2>Older Changelogs</h2></summary>
 
 * 2.6.10:
      * [x] Fixed navigation on 3-button devices that were triggering EscPress when pressing Next or Prev buttons.

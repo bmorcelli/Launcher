@@ -3,35 +3,16 @@
 #include <M5Unified.h>
 #include <interface.h>
 
-/***************************************************************************************
-** Function name: _setup_gpio()
-** Location: main.cpp
-** Description:   initial setup for the device
-***************************************************************************************/
 void _setup_gpio() { M5.begin(); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** location: display.cpp
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
     int percent;
     percent = M5.Power.getBatteryLevel();
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
-/*********************************************************************
-** Function: setBrightness
-** location: settings.cpp
-** set brightness value
-**********************************************************************/
 void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
 void InputHandler(void) {
     static long tm = launcherMillis();
     if (launcherMillis() - tm > 200 || LongPress) {
@@ -52,9 +33,4 @@ void InputHandler(void) {
     }
 }
 
-/*********************************************************************
-** Function: powerOff
-** location: mykeyboard.cpp
-** Turns off the device (or try to)
-**********************************************************************/
 void powerOff() { M5.Power.powerOff(); }

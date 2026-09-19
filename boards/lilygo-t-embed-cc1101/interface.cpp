@@ -2,20 +2,17 @@
 #include "powerSave.h"
 #include <globals.h>
 #include <interface.h>
-// Rotary encoder
-#include <RotaryEncoder.h>
-RotaryEncoder *encoder = nullptr;
-IRAM_ATTR void checkPosition() { encoder->tick(); }
 
 #include <Wire.h>
-// Charger chip, CC1101 board only
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-XPowersPPM PPM;
+// Charger chip + fuel gauge, CC1101 board only; encoder on both variants
+#include "hal/bright/bright.h"
+#include "hal/device.h"
+#include "hal/inputs/encoder.h"
+#include "hal/power/gauge.h"
+#include "hal/power/pmic.h"
+#include "idf/launcher_platform.h"
 
 #define BATTERY_DESIGN_CAPACITY 1300
-#include <bq27220.h>
-BQ27220 bq;
 
 // ---------------------------------------------------------------------------
 // Which T-Embed is this?
@@ -39,6 +36,7 @@ static TEmbedVariant tEmbed = T_EMBED_CC1101;
 
 #define TE_I2C_SDA 8
 #define TE_I2C_SCL 18
+#define TE_BQ25896_ADDRESS 0x6B
 // Asserted before the probe: power enable on the CC1101, backlight on the plain
 // board. Harmless as an output on either.
 #define TE_SHARED_POWER_PIN 15
@@ -70,6 +68,15 @@ static gpio_num_t pinWakeup = GPIO_NUM_6;
 #define TE_PLAIN_SD_MISO 38
 #define TE_PLAIN_SD_MOSI 41
 
+static DeviceEncoder encoderCfg() {
+    DeviceEncoder cfg;
+    cfg.pin_a = pinEncA;
+    cfg.pin_b = pinEncB;
+    cfg.pin_sel = SEL_BTN;
+    cfg.pin_esc = pinBack; // -1 on the plain variant (no back button)
+    return cfg;
+}
+
 /***************************************************************************************
 ** Function name: _detect_variant()
 ** Description:   ask I2C which board this is, and move everything that follows
@@ -79,7 +86,7 @@ static void _detect_variant() {
     launcherGpioWrite(TE_SHARED_POWER_PIN, HIGH);
 
     Wire.begin(TE_I2C_SDA, TE_I2C_SCL);
-    Wire.beginTransmission(BQ25896_SLAVE_ADDRESS);
+    Wire.beginTransmission(TE_BQ25896_ADDRESS);
     tEmbed = (Wire.endTransmission() == 0) ? T_EMBED_CC1101 : T_EMBED_PLAIN;
 
     if (tEmbed == T_EMBED_PLAIN) {
@@ -120,7 +127,6 @@ void _setup_gpio() {
 
     launcherGpioOutput(pinPowerOn);
     launcherGpioWrite(pinPowerOn, HIGH);
-    launcherGpioInput(SEL_BTN);
 
     if (tEmbed == T_EMBED_CC1101) {
         // The CC1101 board has an antenna circuit tuned per frequency band,
@@ -139,55 +145,22 @@ void _setup_gpio() {
         launcherGpioWrite(44, HIGH);        // nrf24
 
         // Wire is already up: _detect_variant() started it to find this chip.
-        if (PPM.init(Wire, TE_I2C_SDA, TE_I2C_SCL, BQ25896_SLAVE_ADDRESS)) {
-            PPM.setSysPowerDownVoltage(3300);
-            PPM.setInputCurrentLimit(3250);
-            launcherConsolePrintf("getInputCurrentLimit: %d mA\n", (int)PPM.getInputCurrentLimit());
-            PPM.disableCurrentLimitPin();
-            PPM.setChargeTargetVoltage(4208);
-            PPM.setPrechargeCurr(64);
-            PPM.setChargerConstantCurr(832);
-            PPM.getChargerConstantCurr();
-            launcherConsolePrintf("getChargerConstantCurr: %d mA\n", (int)PPM.getChargerConstantCurr());
-            PPM.enableMeasure(PowersBQ25896::CONTINUOUS);
-            PPM.disableOTG();
-            PPM.enableCharge();
-        }
-        if (bq.getDesignCap() != BATTERY_DESIGN_CAPACITY) { bq.setDesignCap(BATTERY_DESIGN_CAPACITY); }
+        DevicePmic pmicCfg{TE_I2C_SDA, TE_I2C_SCL, TE_BQ25896_ADDRESS};
 
-        launcherGpioInput(pinBack);
+        if (!hal_pmic_init(pmicCfg)) { launcherConsolePrintln("PMIC: Failed starting BQ25896"); }
+
+        DeviceGauge gaugeCfg{};
+        gaugeCfg.design_capacity_mah = BATTERY_DESIGN_CAPACITY;
+        hal_gauge_init(gaugeCfg);
     }
 
-    encoder = new RotaryEncoder(pinEncA, pinEncB, RotaryEncoder::LatchMode::TWO03);
-    attachInterrupt(digitalPinToInterrupt(pinEncA), checkPosition, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(pinEncB), checkPosition, CHANGE);
+    hal_encoder_init(encoderCfg());
 }
 
-/*********************************************************************
-**  Function: _setBrightness
-**  set brightness value -- the backlight is on a different pin per board
-**********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    if (brightval == 0) {
-        analogWrite(pinBacklight, brightval);
-    } else {
-        const uint8_t PWM_MIN = 85;
-        const uint8_t PWM_MAX = 255;
-        float linear = (float)brightval / 100.0;
-        uint8_t value = PWM_MIN + round(pow(linear, 2.2) * (PWM_MAX - PWM_MIN));
-        analogWrite(pinBacklight, value);
-    }
-}
+void _setBrightness(uint8_t brightval) { hal_bright_set(pinBacklight, brightval); }
 
-/***************************************************************************************
-** Function name: getBattery()
-** Description:   Delivers the battery value from 1-100
-***************************************************************************************/
 int getBattery() {
-    if (tEmbed == T_EMBED_CC1101) {
-        int percent = bq.getChargePcnt();
-        return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
-    }
+    if (tEmbed == T_EMBED_CC1101) { return hal_gauge_get_percent(); }
 
     // Plain T-Embed: no gauge, just a 1:2 divider on an ADC.
     static bool adcInitialized = false;
@@ -204,57 +177,9 @@ int getBattery() {
     return (int)percent;
 }
 
-/***************************************************************************************
-** Function name: isCharging()
-** Description:   Determines if the device is charging
-***************************************************************************************/
-bool isCharging() { return tEmbed == T_EMBED_CC1101 ? bq.getIsCharging() : false; }
+bool isCharging() { return tEmbed == T_EMBED_CC1101 ? hal_gauge_is_charging() : false; }
 
-/*********************************************************************
-** Function: InputHandler
-** Handles the variables PrevPress, NextPress, SelPress, AnyKeyPress and EscPress
-**********************************************************************/
-void InputHandler(void) {
-    static unsigned long tm = launcherMillis(); // debauce for buttons
-    static int posDifference = 0;
-    static int lastPos = 0;
-    bool sel = !BTN_ACT;
-    bool esc = !BTN_ACT;
-
-    int newPos = encoder->getPosition();
-    if (newPos != lastPos) {
-        posDifference += (newPos - lastPos);
-        lastPos = newPos;
-    }
-
-    if (launcherMillis() - tm < 200 && !LongPress) return;
-
-    sel = launcherGpioRead(SEL_BTN);
-    if (pinBack >= 0) esc = launcherGpioRead(pinBack);
-
-    if (posDifference != 0 || sel == BTN_ACT || esc == BTN_ACT) {
-        if (!wakeUpScreen()) AnyKeyPress = true;
-        else return;
-    }
-    if (posDifference > 0) {
-        PrevPress = true;
-        posDifference--;
-    }
-    if (posDifference < 0) {
-        NextPress = true;
-        posDifference++;
-    }
-
-    if (sel == BTN_ACT) {
-        posDifference = 0;
-        SelPress = true;
-        tm = launcherMillis();
-    }
-    if (esc == BTN_ACT) {
-        EscPress = true;
-        tm = launcherMillis();
-    }
-}
+void InputHandler(void) { hal_encoder_poll(encoderCfg()); }
 
 void powerOff() {
     if (tEmbed == T_EMBED_PLAIN) {
@@ -278,7 +203,7 @@ void powerOff() {
                  displayRedStripe("Shutting down in " + String(i));
                  launcherDelayMs(1000);
              }
-             PPM.shutdown();
+             hal_pmic_shutdown();
              tft->fillScreen(BLACK);
              displayRedStripe("Unplug USB to power off");
              while (true) launcherDelayMs(100);

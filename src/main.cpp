@@ -33,6 +33,10 @@ SET_LOOP_TASK_STACK_SIZE(16384)
 uint16_t FGCOLOR = BLACK;
 uint16_t ALCOLOR = BLACK;
 uint16_t BGCOLOR = WHITE;
+#elif defined(STICKY_MONOCHROME)
+uint16_t FGCOLOR = BLACK;
+uint16_t ALCOLOR = BLACK;
+uint16_t BGCOLOR = WHITE;
 #elif E_PAPER_DISPLAY
 uint16_t FGCOLOR = BLACK;
 uint16_t ALCOLOR = 0x8888;
@@ -64,7 +68,7 @@ volatile bool AnyKeyPress = false;
 LTouchPoint touchPoint;
 keyStroke KeyStroke;
 
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
 volatile uint16_t tftHeight = TFT_WIDTH - (_fm * LH + 4);
 #else
 volatile uint16_t tftHeight = TFT_WIDTH;
@@ -112,11 +116,16 @@ int rotation = ROTATION;
 bool sdcardMounted;
 bool onlyBins;
 bool bootToApp = true;
+uint8_t bootTimer = 4;
+bool DDLB = false;
+int LauncherOnKey = -1;
+bool LauncherKeyLvl = false;
 bool noDotFiles;
 bool autoBackup = true;
 bool returnToMenu;
 bool update;
 bool askSpiffs;
+bool autoConnect = true;
 
 // bool command;
 size_t file_size;
@@ -209,7 +218,9 @@ void setup() {
 #endif
 #endif
 
+    RAM_LOG("before-setup-gpio");
     _setup_gpio();
+    RAM_LOG("after-setup-gpio");
 
     // Get Configuration from NVS partition
     getFromNVS();
@@ -222,9 +233,10 @@ void setup() {
     String fileToCopy;
 
 // Init Display
-#if !defined(HEADLESS)
-    // tft->setAttribute(PSRAM_ENABLE,true);
+#if !defined(HEADLESS) || defined(HEADLESS_WITH_TFT)
+    RAM_LOG("before-tft-begin");
     tft->begin();
+    RAM_LOG("after-tft-begin");
 #ifdef TFT_INVERSION_ON
     tft->invertDisplay(true);
 #endif
@@ -234,14 +246,14 @@ void setup() {
     tft->setTextColor(FGCOLOR, BGCOLOR);
 
     if (rotation & 0b1) {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
         tftHeight = displayConfig.width - (_fm * LH + 4);
 #else
         tftHeight = displayConfig.width;
 #endif
         tftWidth = displayConfig.height;
     } else {
-#if defined(HAS_TOUCH)
+#if defined(HAS_TOUCH) && !defined(HAS_TOUCH_NO_BORDER)
         tftHeight = displayConfig.height - (_fm * LH + 4);
 #else
         tftHeight = displayConfig.height;
@@ -266,7 +278,6 @@ void setup() {
     // Gets the config.conf from SD Card and fill out the settings JSON
     getConfigs();
     RAM_LOG("after-getConfigs");
-    TouchFooter2();
 
     launcherInputLockInit();
     xTaskCreate(
@@ -290,12 +301,6 @@ void setup() {
         &serialConsoleHandle
     );
 
-    // Start Bootscreen timer
-    int i = launcherMillis();
-    int j = 0;
-    LongPress = true;
-    RAM_LOG("before-bootscreen");
-
 #if defined(HAS_KEYBOARD) || defined(USE_CARDKB2)
     std::vector<LauncherAppMetadata> bootApps = launcherListInstalledApps();
 #endif
@@ -309,11 +314,21 @@ void setup() {
     // Init any device specific hardware after TFT+SD+CardKb
     _late_setup_gpio();
 
-    while (launcherMillis() < i + (2000 + bootToApp * 3000)) { // increased from 2500 to 5000
-        initDisplay();                                         // Inicia o display
+    // Start Bootscreen timer
+    int i = launcherMillis();
+    int j = 0;
+    LongPress = true;
+    RAM_LOG("before-bootscreen");
+    while (launcherMillis() < i + (1000 + bootToApp * bootTimer * 1000)) { // increased from 2500 to 5000
+        initDisplay();                                                     // Inicia o display
 
         if (launcherMillis() > (i + j * 500)) { // Serial message each ~500ms
             launcherConsolePrintln("Press the button to enter the Launcher!");
+#if defined(HEADLESS)
+#if LED > 0
+            launcherGpioWrite(LED, j & 1 ? HIGH : LOW); // keeps on until exit
+#endif
+#endif
             j++;
         }
 #if defined(HAS_TOUCH)
@@ -395,6 +410,7 @@ Launcher:
     RAM_LOG("launcher-label");
     LongPress = false;
     tft->fillScreen(BGCOLOR);
+    launcherConsoleFlush();
 #if LED > 0 && defined(HEADLESS)
     launcherGpioWrite(LED, LED_ON ? LOW : HIGH); // turn off the LED
 #endif
@@ -423,18 +439,20 @@ void loop() {
 
     const bool tiny = (panelHeight() < 135) || (panelWidth() < 135);
     std::vector<MenuOptions> menuItems = {
+#if !defined(DISABLE_SDCARD_ICON)
         {"SD",
-         tiny ? "Launch from SDCard" : "Launch from or mng SDCard",
-         [=]() { loopSD(false); },
-         sdcardMounted},
+                                         tiny ? "Launch from SDCard" : "Launch from or mng SDCard",
+                                         [=]() { loopSD(false); },
+                                         sdcardMounted},
+#endif
 #ifndef DISABLE_OTA
         {"OTA", "Online Installer", [=]() { ota_function(); }},
 #endif
         {"WUI", tiny ? "Start WebUI" : "Start Web User Interface", [=]() { loopOptionsWebUi(); }},
-#if defined(SOC_USB_OTG_SUPPORTED)
+#if defined(SOC_USB_OTG_SUPPORTED) && !defined(DISABLE_MASS_STORAGE)
         {"USB",
-         tiny ? "SD->USB" : "SD->USB Interface",
-         [=]() {
+                                         tiny ? "SD->USB" : "SD->USB Interface",
+                                         [=]() {
              if (setupSdCard()) {
                  MassStorage();
                  tft->drawPixel(0, 0, 0);
@@ -489,9 +507,9 @@ void loop() {
                 displayMsg("Dev mode Activated");
                 dev_mode = true;
                 saveConfigs();
+                first_loop = 1;
             }
-            drawMainMenu(menuItems, index);
-            TouchFooter();
+            drawMainMenu(menuItems, index, first_loop);
             redraw = false;
             LongPress = false;
             returnToMenu = false;
@@ -507,19 +525,18 @@ void loop() {
             for (auto item : menuItems) {
                 if (item.contain(touchPoint.x, touchPoint.y)) {
                     resetGlobals();
-#ifndef E_PAPER_DISPLAY
                     if (i == index) {
                         item.action();
                         tft->drawPixel(0, 0, 0);
                         tft->fillScreen(BGCOLOR);
+                        first_loop = true;
                     } else {
                         index = i;
-                        drawMainMenu(menuItems, index); // Redraw the menu to show the selected item
+                        // Just a selection move: only the old/new icon need repainting.
+                        drawMainMenu(menuItems, index, false);
                         break;
                     }
-#else
-                    item.action(); // Call the action associated with the selected menu item
-#endif
+
                     returnToMenu = false;
                     redraw = true;
                     goto END;
@@ -628,9 +645,58 @@ END:
 }
 
 #else
+static bool headlessTrySavedWifi(const std::vector<LauncherWifiAp> &networks) {
+    std::vector<LauncherSavedWifiNetwork> savedNetworks = getSavedWifiNetworks();
+    if (savedNetworks.empty()) {
+        launcherConsolePrintln("No saved WiFi networks found.");
+        return false;
+    }
+
+    if (networks.empty()) {
+        launcherConsolePrintln("No WiFi networks found in scan.");
+        return false;
+    }
+
+    for (const LauncherWifiAp &network : networks) {
+        String networkSsid = network.ssid.c_str();
+        if (networkSsid.isEmpty()) continue;
+
+        for (const LauncherSavedWifiNetwork &saved : savedNetworks) {
+            if (networkSsid != saved.ssid) continue;
+
+            String savedPwd;
+            if (!getWifiCredential(saved.ssid, savedPwd)) continue;
+
+            ssid = saved.ssid;
+            pwd = savedPwd;
+            int count = 0;
+            launcherConsolePrintf("Connecting to saved SSID: %s\n", ssid.c_str());
+
+            LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
+            while (connectState != LauncherWifiConnectState::Connected) {
+                connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
+                if (connectState == LauncherWifiConnectState::Connected) return true;
+                if (connectState == LauncherWifiConnectState::WrongPassword) {
+                    launcherConsolePrintln("Wrong Password");
+                    break;
+                }
+#if LED > 0
+                launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
+#endif
+                launcherConsolePrint(".");
+                count++;
+                if (connectState == LauncherWifiConnectState::Failed || count > 20) break;
+            }
+            launcherConsolePrintln("");
+        }
+    }
+
+    return launcherWifiIsConnected();
+}
+
 void loop() { // Start SD card, If there's no SD Card installed, see if there's ssid saved on memory,
     RAM_LOG("headless-loop-start");
-    launcherConsolePrint(
+    launcherConsolePrintLong(
         "     _                            _               \n"
         "    | |                          | |              \n"
         "    | |     __ _ _   _ _ __   ___| |__   ___ _ __ \n"
@@ -638,88 +704,25 @@ void loop() { // Start SD card, If there's no SD Card installed, see if there's 
         "    | |___| (_| | |_| | | | | (__| | | |  __/ |   \n"
         "    |______\\__,_|\\__,_|_| |_|\\___|_| |_|\\___|_|   \n"
         "    ----------------------------------------------\n"
-
         "Welcome to Launcher, an ESP32 firmware where you can have\n"
         "a better control on what you are running on it.\n\n"
         "Now it will Start a web interface, where you can flash a new\n"
         "firmware on a dedicated partition, and swap it whenever you\n"
         "want using this Launcher.\n\n\n"
     );
-
     getConfigs();
     launcherConsolePrintln("Scanning networks...");
     std::vector<LauncherWifiAp> networks;
     int nets = launcherWifiScan(networks);
     bool mode_ap = true;
 
-    if (sdcardMounted) {
-        JsonObject setting = settings[0];
-        JsonArray WifiList = setting["wifi"].as<JsonArray>();
-        for (int i = 0; i < nets; i++) {
-            String networkSsid = networks[i].ssid.c_str();
-            for (auto wifientry : WifiList) {
-                launcherConsolePrintf("Target: %s Network: %s\n", ssid.c_str(), networkSsid.c_str());
-                if (networkSsid == wifientry["ssid"].as<String>()) {
-                    ssid = wifientry["ssid"].as<String>();
-                    pwd = wifientry["pwd"].as<String>();
-                    int count = 0;
-                    launcherConsolePrintf("Connecting to %s\n", ssid.c_str());
-                    LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
-                    while (connectState != LauncherWifiConnectState::Connected) {
-                        connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
-                        if (connectState == LauncherWifiConnectState::Connected) break;
-                        if (connectState == LauncherWifiConnectState::WrongPassword) {
-                            launcherConsolePrintln("Wrong Password");
-                            break;
-                        }
-                        vTaskDelay(pdTICKS_TO_MS(500));
-#if LED > 0
-                        launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
-#endif
-                        launcherConsolePrint(".");
-                        count++;
-                        if (connectState == LauncherWifiConnectState::Failed || count > 20) {
-                            break; // stops trying this network, will try the others, if there are some other
-                                   // with same SSID
-                        }
-                    }
-                    if (!launcherWifiIsConnected()) { saveIntoNVS(); }
-                }
-            }
-        }
-    } else if (ssid != "") { // will try to connect to a saved network
-        for (int i = 0; i < nets; i++) {
-            String networkSsid = networks[i].ssid.c_str();
-            launcherConsolePrintf("Target: %s Network: %s\n", ssid.c_str(), networkSsid.c_str());
-            if (ssid == networkSsid) {
-                launcherConsolePrintln("Network matches the SSID, starting connection\n");
-                int count = 0;
-                launcherConsolePrintf("Connecting to %s\n", ssid.c_str());
-                LauncherWifiConnectState connectState = LauncherWifiConnectState::Pending;
-                while (connectState != LauncherWifiConnectState::Connected) {
-                    connectState = launcherWifiConnectStatus(ssid.c_str(), pwd.c_str(), 500);
-                    if (connectState == LauncherWifiConnectState::Connected) break;
-                    if (connectState == LauncherWifiConnectState::WrongPassword) {
-                        launcherConsolePrintln("Wrong Password");
-                        break;
-                    }
-                    vTaskDelay(pdTICKS_TO_MS(500));
-#if LED > 0
-                    launcherGpioWrite(LED, count & 1 ? LED_ON : (LED_ON ? LOW : HIGH)); // blink the LED
-#endif
-                    launcherConsolePrint(".");
-                    count++;
-                    if (connectState == LauncherWifiConnectState::Failed || count > 20) {
-                        break; // stops trying this network, will try the others, if there are some other with
-                               // same SSID, it can take quite sometime :/
-                    }
-                }
-            }
-        }
-    } else {
+    if (nets >= 0) headlessTrySavedWifi(networks);
+    else launcherConsolePrintln("WiFi scan failed.");
+
+    if (!launcherWifiIsConnected()) {
         launcherConsolePrintln(
-            "Couldn't find SD Card and SSID Saved,\n"
-            "you can configure it on the WEB Ui,\n\n"
+            "Couldn't connect to a saved WiFi network,\n"
+            "you can configure it on the WebUI.\n\n"
             "Starting the Launcher in Access point mode\n"
             "Connect into the following network\n"
             "with no other network (mobile data off and unplug wired connections)"

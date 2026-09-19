@@ -62,12 +62,16 @@
             - { env: "m5stack-paper-s3"           }
             - { env: "m5stack-paper"              }
             - { env: "m5stack-paper-color"        }
+            - { env: "m5stack-paper-mono"         }
             - { env: "m5stack-sticks3"            }
             - { env: "headless-esp32s3-4mb"       }
             - { env: "headless-esp32s3-8mb"       }
             - { env: "headless-esp32s3-16mb"      }
             - { env: "headless-esp32-4mb"         }
             - { env: "headless-esp32-8mb"         }
+            - { env: "headless-xiao-esp32s3-8mb"  }
+            - { env: "headless-xiao-esp32s3-16mb" }
+            - { env: "headless-xiao-esp32c5-8mb"  }
             - { env: "CYD-2432S028"               }
             - { env: "CYD-2-USB"                  }
             - { env: "CYD-2432W328C_2"            }
@@ -79,6 +83,7 @@
             - { env: "CYD-2432S032R"              }
             - { env: "CYD-3248S035R"              }
             - { env: "CYD-3248S035C"              }
+            - { env: "ESP32-E32R40T"              }
             - { env: "CYD-8048S043C"              }
             - { env: "CYD-8048W550C"              }
             - { env: "NM-CYD-C5"                  }
@@ -102,6 +107,10 @@
             - { env: "lilygo-t-watch-s3"          }
             - { env: "lilygo-t-watch-ultra"       }
             - { env: "reaper"                     }
+            - { env: "seeedstudio-reterminal-d1001" }
+            - { env: "seeedstudio-reterminal-e1001" }
+            - { env: "seeedstudio-reterminal-sticky" }
+            - { env: "seeedstudio-sensecap"       }
             - { env: "smoochiee-board"            }
             - { env: "Marauder-v4-OG"             }
             - { env: "Marauder-v61"               }
@@ -120,6 +129,10 @@
             - { env: "elecrow-esp32p4-7in"        }
             - { env: "elecrow-esp32s3-5in"        }
             - { env: "waveshare-esp32-s3-lcd-147" }
+            - { env: "waveshare-esp32-c5-lcd-147" }
+            - { env: "waveshare-esp32-c6-lcd-147" }
+            - { env: "waveshare-esp32-c6-lcd-130" }
+            - { env: "waveshare-esp32-s3-touch-amoled-206"}
             - { env: "ES3C28P"                    }
             - { env: "xteink-x3-x4"               }
             - { env: "xteink-x4pro"               }
@@ -150,10 +163,10 @@
             with:
               path: |
                 .pio/core
-              key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
+              key: ${{ runner.os }}-platformio-v4-${{ hashFiles('platformio.ini') }}
               restore-keys: |
-                ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
-                ${{ runner.os }}-platformio-
+                ${{ runner.os }}-platformio-v4-${{ hashFiles('platformio.ini') }}
+                ${{ runner.os }}-platformio-v4-
 
           - name: PIO libraries cache
             uses: actions/cache@v5
@@ -227,7 +240,7 @@
                   exit 0
                 fi
 
-                if ! grep -Eiq "(unrecognized status code '5[0-9][0-9]'|RemoteDisconnected|ConnectionError|Connection aborted|Read timed out|ConnectTimeout|Temporary failure in name resolution|Please read https://bit.ly/package-manager-ioerror)" "$log_file"; then
+                if ! grep -Eiq "(unrecognized status code '5[0-9][0-9]'|RemoteDisconnected|ConnectionError|Connection aborted|Read timed out|ConnectTimeout|Temporary failure in name resolution|Please read https://bit.ly/package-manager-ioerror|ModuleNotFoundError.*SCons)" "$log_file"; then
                   echo "Build failed with a non-transient error; not retrying."
                   exit "$status"
                 fi

@@ -31,6 +31,12 @@ static inline void resumeSdInstallInput() {
 }
 
 bool setupSdCard() {
+#if defined(DISABLE_SDCARD_ICON)
+    // Device doesn't have SDCArd, so it may make things faster!
+    sdcardMounted = false;
+    return false;
+#endif
+
 #if !defined(SDM_SD)
     if (sdcardMounted) return true;
     bool OnebitMode = true; // default to one bit mode
@@ -365,7 +371,6 @@ RESTART:
     // Long Press Detection
     LongPressDetected = false;
 
-#if !defined(E_PAPER_DISPLAY)
     {
         const uint32_t holdThreshold = 300; // ms the select input must stay engaged
         LongPress = true;                   // tells InputHandler to report the held state
@@ -387,11 +392,7 @@ RESTART:
         LongPress = false;
         resetGlobals(); // drop the seeded flag and anything the polling raised
     }
-#else
-    // Always behave as if it was long pressed
-    // But shows Option to enter on folders
-    LongPressDetected = true;
-#endif
+
     // Menu for if it is a Folder
     if (isFolder) {
         // Short press on folder opens the folder
@@ -405,13 +406,10 @@ RESTART:
         }
 
         std::vector<Option> opt = {
-#ifdef E_PAPER_DISPLAY
-            {"Open Folder", [&]() { Folder = fileToUse; }                         },
-#endif
-            {"New Folder",  [=]() { createFolder(Folder); }                       },
-            {"Rename",      [=]() { renameFile(fileToUse, options[index].label); }},
-            {"Delete",      [=]() { deleteFromSd(fileToUse); }                    },
-            {"Main Menu",   [=]() { returnToMenu = true; }                        },
+            {"New Folder", [=]() { createFolder(Folder); }                       },
+            {"Rename",     [=]() { renameFile(fileToUse, options[index].label); }},
+            {"Delete",     [=]() { deleteFromSd(fileToUse); }                    },
+            {"Main Menu",  [=]() { returnToMenu = true; }                        },
         };
         Menuindex = loopOptions(opt);
         // Menu for if it is an Operator
@@ -419,10 +417,7 @@ RESTART:
         if (LongPressDetected) {
             bkf = false;
             std::vector<Option> opt = {
-#ifdef E_PAPER_DISPLAY
-                {"Back Folder", [&]() { bkf = true; }          },
-#endif
-                {"New Folder",  [=]() { createFolder(Folder); }},
+                {"New Folder", [=]() { createFolder(Folder); }},
             };
             if (fileToCopy != "") opt.push_back({"Paste", [=]() { pasteFile(Folder); }});
             opt.push_back({"Main Menu", [=]() { returnToMenu = true; }});

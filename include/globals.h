@@ -21,7 +21,11 @@
 
 #define KEY_ESCAPE 0x1B
 #define NO_COLOR 1 // color is from 0x0000 (BLACK) to 0xffff (WHITE), 1 is for checking
-
+#if SOC_CPU_CORES_NUM < 2
+#define ALIVIATE_TASK vTaskDelay(pdMS_TO_TICKS(5))
+#else
+#define ALIVIATE_TASK yield()
+#endif
 extern uint16_t FGCOLOR;
 extern uint16_t ALCOLOR;
 extern uint16_t BGCOLOR;
@@ -220,6 +224,24 @@ extern bool askSpiffs;
 
 // Used to control boot process
 extern bool bootToApp;
+
+// Boot time control
+extern uint8_t bootTimer;
+
+// Disable Deepsleep Launcher Boot: when true, the bootloader only starts the
+// Launcher UI on a power-on reset or via LauncherOnKey/LauncherOnKeyLevel,
+// bypassing it on other reset reasons (e.g. deep sleep wake).
+extern bool DDLB;
+
+// GPIO checked by the bootloader to force entry into the Launcher regardless
+// of DDLB. -1 disables the check.
+extern int LauncherOnKey;
+
+// GPIO level (LOW=false/HIGH=true) that counts as LauncherOnKey being pressed.
+extern bool LauncherKeyLvl;
+
+// Used to set Autoconnection after list networks
+extern bool autoConnect;
 
 // size o the file in the webInterface
 extern size_t file_size;

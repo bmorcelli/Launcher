@@ -28,6 +28,8 @@ tr:last-child td{border-bottom:none}
 .modal{display:none;position:fixed;inset:0;background:var(--bg);z-index:10;padding:12px;overflow-y:auto}
 .mhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--br)}
 .mtitle{font-weight:600;color:var(--ac)}
+input.mtitle{background:transparent;border:1px solid transparent;border-radius:var(--r);padding:2px 6px;font-family:inherit;font-size:1em;flex:1;margin-right:10px}
+input.mtitle:hover,input.mtitle:focus{border-color:var(--br);outline:none}
 #editor-content{width:100%;height:calc(100vh - 80px);background:var(--s1);color:var(--ac);border:1px solid var(--br);border-radius:var(--r);padding:10px;font-family:monospace;resize:none;font-size:.82rem}
 .hbg{display:none;width:100%;text-align:left;margin-bottom:0}
 .drop-area{border:2px dashed var(--br);border-radius:var(--r);padding:10px;margin-top:4px;display:none;overflow-x:auto}

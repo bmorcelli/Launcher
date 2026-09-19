@@ -833,8 +833,8 @@ String launcherHexSize(uint32_t value) {
 }
 
 String launcherHumanSize(uint32_t value) {
-    if (value >= 1024 * 1024 && value % (1024 * 1024) == 0) return String(value / (1024 * 1024)) + "MB";
-    if (value >= 1024 && value % 1024 == 0) return String(value / 1024) + "KB";
+    if (value >= 1024 * 1024 && value % (1024 * 1024) == 0) return String(value / (1024 * 1024)) + "Mb";
+    if (value >= 1024 && value % 1024 == 0) return String(value / 1024) + "Kb";
     return String(value) + " bytes";
 }
 

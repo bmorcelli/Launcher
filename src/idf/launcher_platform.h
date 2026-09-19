@@ -42,6 +42,7 @@ inline void launcherGpioWrite(int pin, int level) {
 void launcherConsolePrintf(const char *fmt, ...);
 void launcherConsolePrint(const char *text);
 void launcherConsolePrintln(const char *text);
+void launcherConsolePrintLong(const char *text);
 void launcherConsoleBegin(unsigned long baud);
 void launcherConsoleFlush();
 void launcherConsoleEnd();

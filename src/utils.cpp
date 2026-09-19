@@ -15,9 +15,11 @@ void touchHeatMap(struct LTouchPoint t) {
     int third_y = tftHeight / 3;
 
 #if 1
+#if !defined(HAS_TOUCH_NO_BORDER)
     if (t.x > third_x * 0 && t.x < third_x * 1 && t.y > tftHeight - LH * _fm * 2) PrevPress = true;
     if (t.x > third_x * 1 && t.x < third_x * 2 && t.y > tftHeight - LH * _fm * 2) SelPress = true;
     if (t.x > third_x * 2 && t.y > tftHeight - LH * _fm * 2) NextPress = true;
+#endif
     // if (t.x > third_x * 0 && t.x < third_x * 1 && t.y < LH * _fm * 4) EscPress = true;
     if (t.x > (tftWidth - LW * _fm * 6) && t.y < LH * _fm * 3) EscPress = true;
 
@@ -106,6 +108,7 @@ bool releaseHeapObjectsAndReboot(void) {
     static volatile bool rebootInProgress = false;
     if (rebootInProgress) {
         reboot();
+        ESP.restart(); // just in case
         return true;
     }
     rebootInProgress = true;
@@ -133,7 +136,10 @@ bool releaseHeapObjectsAndReboot(void) {
     wui_pwd = "";
     dwn_path = "";
     lastInstalledApp = "";
+    tft->fillScreen(NATIVE_BGCOLOR);
+    tft->display(true);
     FREE_TFT
     reboot();
+    ESP.restart(); // just in case
     return true;
 }

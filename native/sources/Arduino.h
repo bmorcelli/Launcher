@@ -36,9 +36,25 @@ extern HardwareSerial Serial;
 inline unsigned long millis() { return lgfx::millis(); }
 inline void delay(unsigned long ms) { lgfx::delay(ms); }
 
+#ifndef CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ
+#define CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ 240
+#endif
+inline bool setCpuFrequencyMhz(uint32_t) { return true; }
+
 #ifndef PROGMEM
 #define PROGMEM
 #endif
+
+#ifndef FILE_READ
+#define FILE_READ "r"
+#endif
+#ifndef FILE_WRITE
+#define FILE_WRITE "w"
+#endif
+
+// Arduino's global min/max templates.
+template <typename T, typename U> auto min(T a, U b) -> decltype(a < b ? a : b) { return a < b ? a : b; }
+template <typename T, typename U> auto max(T a, U b) -> decltype(a > b ? a : b) { return a > b ? a : b; }
 
 // ESP32 Arduino core's esp32-hal-log.h logging macros.
 #define log_e(...) ((void)0)

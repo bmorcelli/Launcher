@@ -33,6 +33,12 @@
 #define PINK TFT_PINK
 #define PALERED 0xF9A0
 
+#if defined(E_PAPER_DISPLAY)
+#define NATIVE_BGCOLOR WHITE
+#else
+#define NATIVE_BGCOLOR BLACK
+#endif
+
 inline int16_t panelWidth() { return displayConfig.width; }
 inline int16_t panelHeight() { return displayConfig.height; }
 
@@ -42,9 +48,14 @@ extern tft_display *tft;
 #define FREE_TFT delete tft;
 
 int loopOptions(
-    std::vector<Option> &options, bool bright = false, uint16_t al = RED, uint16_t bg = BLACK,
+    std::vector<Option> &options, bool bright = false, uint16_t al = ALCOLOR, uint16_t bg = BGCOLOR,
     bool border = true, int index = 0
 );
+inline int loopOptions(
+    int index, std::vector<Option> &options, uint16_t al = ALCOLOR, uint16_t bg = BGCOLOR, bool border = true
+) {
+    return loopOptions(options, false, al, bg, border, index);
+}
 void loopVersions(const String &fid);
 void loopFirmware(bool isUpdate = false);
 void initDisplay(bool doAll = false); // Início da função e mostra bootscreen
@@ -96,7 +107,7 @@ void displayScrollingText(const String &text, Opt_Coord &coord);
 // uint16_t fgcolor, uint16_t bgcolor);
 Opt_Coord drawOptions(
     int index, std::vector<Option> &options, std::vector<MenuOptions> &opt, uint16_t fgcolor,
-    uint16_t bgcolor, bool border
+    uint16_t bgcolor, bool border, bool forceFullRedraw = true
 );
 
 void drawDeviceBorder();
@@ -105,7 +116,7 @@ void drawBatteryStatus(uint8_t bat);
 
 void drawWifiStatus(bool hasBattery = false);
 
-void drawMainMenu(std::vector<MenuOptions> &opt, int index);
+void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw = true);
 
 // Draws the installed-app shortcut cards at the top of the bootscreen (touch tap or
 // keyboard digit boots that app directly) and returns the total height, in pixels,
