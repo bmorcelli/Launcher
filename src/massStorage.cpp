@@ -304,9 +304,87 @@ extern "C" int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void
     }
 }
 
+// ---------------------------------------------------------------------------
+// Faster SD clock while exporting the card
+//
+// READ10/WRITE10 are served one sector at a time, so MSC throughput is bound by the
+// SPI clock the card was mounted with (4 MHz by default). macOS' FSKit FAT driver reads
+// the whole FAT while mounting and fails with EIO if that takes too long, which a 4 MHz
+// clock can do on a large card (~277 KB/s measured on a Cardputer ADV).
+//
+// Boards opt in by defining MSC_SD_FREQ_HZ (e.g. -DMSC_SD_FREQ_HZ=20000000) once the
+// wiring is known to cope with it. The raised clock is verified against reference
+// sectors read at the default clock, steps down to half, then to the default, and is
+// restored when USB mode ends. Boards where the display shares the SD bus, and
+// SD_MMC boards, are left alone.
+// ---------------------------------------------------------------------------
+#if defined(MSC_SD_FREQ_HZ) && defined(SDM_SD) && !(TFT_MOSI == SDCARD_MOSI)
+#define MSC_SD_RAISE_CLOCK 1
+#include <esp_rom_crc.h>
+
+namespace {
+constexpr uint32_t kSdDefaultHz = 4000000; // Arduino SD.begin() default
+constexpr size_t kProbeSectors = 16;
+
+// A few consecutive sectors from the start of the card (MBR, boot sector, FAT) plus
+// some spread across it.
+void probeSectors(uint32_t total, uint32_t out[kProbeSectors]) {
+    size_t n = 0;
+    for (uint32_t i = 0; i < 8 && n < kProbeSectors; ++i) out[n++] = i < total ? i : total - 1;
+    for (uint32_t i = 1; i <= 8 && n < kProbeSectors; ++i) out[n++] = (uint32_t)(((uint64_t)total * i) / 9);
+}
+
+bool probeCrcs(const uint32_t sectors[kProbeSectors], uint32_t crcs[kProbeSectors]) {
+    uint8_t buf[512];
+    for (size_t i = 0; i < kProbeSectors; ++i) {
+        if (!SDM.readRAW(buf, sectors[i])) return false;
+        crcs[i] = esp_rom_crc32_le(0, buf, sizeof(buf));
+    }
+    return true;
+}
+
+bool mountSdAt(uint32_t hz) {
+    SDM.end();
+    return SDM.begin(_cs, sdcardSPI, hz);
+}
+
+void raiseSdClockForMsc() {
+    if (SDM.sectorSize() != 512) return;
+    const uint32_t total = SDM.numSectors();
+    if (total < kProbeSectors) return;
+
+    uint32_t sectors[kProbeSectors], reference[kProbeSectors], check[kProbeSectors];
+    probeSectors(total, sectors);
+    if (!probeCrcs(sectors, reference)) return;
+
+    const uint32_t candidates[] = {MSC_SD_FREQ_HZ, MSC_SD_FREQ_HZ / 2};
+    for (uint32_t hz : candidates) {
+        if (hz <= kSdDefaultHz) continue;
+        if (mountSdAt(hz) && SDM.numSectors() == total && probeCrcs(sectors, check) &&
+            memcmp(reference, check, sizeof(reference)) == 0) {
+            return;
+        }
+    }
+
+    // Nothing faster was reliable: go back to the clock the card was mounted with.
+    if (!mountSdAt(kSdDefaultHz)) sdcardMounted = false;
+}
+
+void restoreSdClock() {
+    if (!sdcardMounted) return;
+    if (!mountSdAt(kSdDefaultHz)) sdcardMounted = false;
+}
+} // namespace
+#endif
+
 MassStorage::MassStorage() { setup(); }
 
-MassStorage::~MassStorage() { endUsbRaw(); }
+MassStorage::~MassStorage() {
+    endUsbRaw();
+#if defined(MSC_SD_RAISE_CLOCK)
+    restoreSdClock();
+#endif
+}
 
 void MassStorage::setup() {
     displayMessage("Mounting...");
@@ -318,6 +396,9 @@ void MassStorage::setup() {
         return;
     }
 
+#if defined(MSC_SD_RAISE_CLOCK)
+    raiseSdClockForMsc();
+#endif
     beginUsb();
 
     vTaskDelay(pdTICKS_TO_MS(100));
