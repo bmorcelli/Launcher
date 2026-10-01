@@ -318,6 +318,7 @@ extern "C" int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void
 // restored when USB mode ends. Boards where the display shares the SD bus, and
 // SD_MMC boards, are left alone.
 // ---------------------------------------------------------------------------
+#define MSC_SD_FREQ_HZ 40000000 // Make it universal to all capable boards, solves windows issues too
 #if defined(MSC_SD_FREQ_HZ) && defined(SDM_SD) && !(TFT_MOSI == SDCARD_MOSI)
 #define MSC_SD_RAISE_CLOCK 1
 #include <esp_rom_crc.h>
