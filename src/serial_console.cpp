@@ -413,11 +413,22 @@ static void handleFlashCommand(const String &name, uint32_t size) {
         return;
     }
 
-    String label = launcherInstallNextAppLabel(table, name);
-    std::vector<LauncherInstallDataPartition> dataPartitions; // app image only, no data partitions
+    // Host pushes can't answer the on-device "which partition to replace?" menu, so
+    // pick for them: overwrite the slot a previous push of this name used (growing
+    // it if the image got bigger), else take free space, else fail instead of hanging.
     LauncherPartitionEntry appEntry;
-    if (!launcherSelectInstallLayout(table, size, label, dataPartitions, appEntry, error)) {
-        launcherConsolePrintf("ERR %s\n", error.c_str());
+    String label = launcherPartitionSanitizedAppLabelBase(name);
+    const LauncherPartitionEntry *old = launcherPartitionFindByLabel(table, label.c_str());
+    if (old && launcherPartitionIsReplaceableApp(*old)) {
+        if (old->size >= size) appEntry = *old;
+        else launcherPartitionRemoveEntryByOffset(table, old->offset);
+    } else {
+        label = launcherInstallNextAppLabel(table, name);
+    }
+    if (appEntry.size == 0 &&
+        (!launcherPartitionCreateOtaApp(table, size, label.c_str(), &appEntry, &error) ||
+         !launcherPartitionValidate(table, &error))) {
+        launcherConsolePrintf("ERR no space for app: %s\n", error.c_str());
         return;
     }
 
