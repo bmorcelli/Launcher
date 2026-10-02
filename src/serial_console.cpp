@@ -36,6 +36,8 @@
 //   flash firmware <name> <size>                  reserve space, reply "READY <size>", then
 //                                                  read <size> raw bytes from Serial and
 //                                                  install/boot them as a new app
+//   flash overwrite <name> <size>                 same, but reuse the slot <name> already
+//                                                  uses (grow/move it) instead of prompting
 //   wifi auto                                     connect to the first scanned network with
 //                                                  saved credentials, else print the scan
 //   wifi scan                                     scan and list nearby networks
@@ -400,7 +402,7 @@ static void handlePartitionCommand(const std::vector<String> &tokens) {
     launcherConsolePrintln("ERR unknown partition subcommand");
 }
 
-static void handleFlashCommand(const String &name, uint32_t size) {
+static void handleFlashCommand(const String &name, uint32_t size, bool overwrite) {
     if (size == 0) {
         launcherConsolePrintln("ERR invalid size");
         return;
@@ -413,23 +415,33 @@ static void handleFlashCommand(const String &name, uint32_t size) {
         return;
     }
 
-    // Host pushes can't answer the on-device "which partition to replace?" menu, so
-    // pick for them: overwrite the slot a previous push of this name used (growing
-    // it if the image got bigger), else take free space, else fail instead of hanging.
     LauncherPartitionEntry appEntry;
-    String label = launcherPartitionSanitizedAppLabelBase(name);
-    const LauncherPartitionEntry *old = launcherPartitionFindByLabel(table, label.c_str());
-    if (old && launcherPartitionIsReplaceableApp(*old)) {
-        if (old->size >= size) appEntry = *old;
-        else launcherPartitionRemoveEntryByOffset(table, old->offset);
+    if (overwrite) {
+        // Reuse the slot a previous push of this name used, growing it into adjacent
+        // free space when the image got bigger. A host on the other end of a serial
+        // link can't answer the on-device "which partition to replace?" menu, so this
+        // falls back to free space and fails instead of prompting.
+        String label = launcherPartitionSanitizedAppLabelBase(name);
+        const LauncherPartitionEntry *old = launcherPartitionFindByLabel(table, label.c_str());
+        if (old && launcherPartitionIsReplaceableApp(*old)) {
+            if (old->size >= size) appEntry = *old;
+            else launcherPartitionRemoveEntryByOffset(table, old->offset);
+        } else {
+            label = launcherInstallNextAppLabel(table, name);
+        }
+        if (appEntry.size == 0 &&
+            (!launcherPartitionCreateOtaApp(table, size, label.c_str(), &appEntry, &error) ||
+             !launcherPartitionValidate(table, &error))) {
+            launcherConsolePrintf("ERR no space for app: %s\n", error.c_str());
+            return;
+        }
     } else {
-        label = launcherInstallNextAppLabel(table, name);
-    }
-    if (appEntry.size == 0 &&
-        (!launcherPartitionCreateOtaApp(table, size, label.c_str(), &appEntry, &error) ||
-         !launcherPartitionValidate(table, &error))) {
-        launcherConsolePrintf("ERR no space for app: %s\n", error.c_str());
-        return;
+        String label = launcherInstallNextAppLabel(table, name);
+        std::vector<LauncherInstallDataPartition> dataPartitions; // app image only, no data partitions
+        if (!launcherSelectInstallLayout(table, size, label, dataPartitions, appEntry, error)) {
+            launcherConsolePrintf("ERR %s\n", error.c_str());
+            return;
+        }
     }
 
     // Tell the host it's safe to start streaming the raw firmware bytes now.
@@ -899,6 +911,7 @@ static void printHelp() {
     launcherConsolePrintln("  partition edit <label> <offset> <size>");
     launcherConsolePrintln("  partition create <type> <subtype> <label> <size>");
     launcherConsolePrintln("  flash firmware <name> <size>");
+    launcherConsolePrintln("  flash overwrite <name> <size>");
     launcherConsolePrintln("  wifi auto");
     launcherConsolePrintln("  wifi scan");
     launcherConsolePrintln("  wifi connect <SSID> [PWD]");
@@ -939,7 +952,11 @@ static void handleSerialCommand(const String &line) {
     } else if (
         cmd.equalsIgnoreCase("flash") && tokens.size() >= 4 && tokens[1].equalsIgnoreCase("firmware")
     ) {
-        handleFlashCommand(tokens[2], parseNumber(tokens[3]));
+        handleFlashCommand(tokens[2], parseNumber(tokens[3]), false);
+    } else if (
+        cmd.equalsIgnoreCase("flash") && tokens.size() >= 4 && tokens[1].equalsIgnoreCase("overwrite")
+    ) {
+        handleFlashCommand(tokens[2], parseNumber(tokens[3]), true);
     } else if (cmd.equalsIgnoreCase("wifi") && tokens.size() >= 2) {
         handleWifiCommand(tokens);
     } else if (cmd.equalsIgnoreCase("settings") && tokens.size() >= 2 && tokens[1].equalsIgnoreCase("get")) {
@@ -976,7 +993,7 @@ void taskSerialConsole(void *parameter) {
                 buffer = "";
                 line.trim();
                 if (line.length() > 0) handleSerialCommand(line);
-                // Stop draining here: a just-handled "flash firmware" command may have
+                // Stop draining here: a just-handled "flash" command may have
                 // already consumed the binary payload directly from Serial; re-checking
                 // Serial.available() from the top keeps that byte stream untouched by
                 // this line-oriented reader.
