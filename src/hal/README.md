@@ -194,8 +194,11 @@ Backlight PWM curve, shared by every plain-PWM/ledc backlight board:
 `HAL_BRIGHT_PWM_FREQ=5000`, `HAL_BRIGHT_PWM_RES_BITS=8`,
 `duty = pwm_min + round(pow(percent/100, gamma) * (pwm_max - pwm_min))`
 with defaults `pwm_min=0, pwm_max=255, gamma=2.2` (`HalBrightCurve`). No
-board currently overrides the curve — every plain-PWM board shares the
-exact same feel on purpose.
+board overrides the min/max/gamma — every plain-PWM board shares the exact
+same feel on purpose. The one field a board does set is
+`HalBrightCurve.invert = true`, for a backlight wired active LOW (duty 0 =
+fully lit, e.g. `boards/elecrow-thinknode-m9`): it mirrors the duty inside
+the `pwm_min..pwm_max` window so the curve keeps that same feel.
 
 - `hal_bright_attach(pin)` / `hal_bright_attach(pins[], count)` — call once
   from `_post_setup_gpio()`. Attaches one or more backlight pins to ledc at
