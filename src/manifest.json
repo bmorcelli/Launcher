@@ -714,6 +714,14 @@
             "link": "https://www.elecrow.com/crowpanel-advanced-7inch-esp32-p4-hmi-ai-display-1024x600-ips-touch-screen-with-wifi-6-compatible-with-arduino-lvgl-micropython.html",
             "family": "ESP32-P4",
             "id": "elecrow-esp32p4-7in"
+        },
+        {
+            "display": true,
+            "name": "ThinkNode M9",
+            "description": "",
+            "link": "https://www.elecrow.com/thinknode-m9-meshcore-communication-terminal-with-full-keyboard-2-4inch-lcd-esp32-s3-lr1110-gps-2300mah.html",
+            "family": "ESP32-S3",
+            "id": "elecrow-thinknode-m9"
         }
     ],
     "SeeedStudio": [
