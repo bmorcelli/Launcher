@@ -17,6 +17,17 @@
     #define ROTATION 3
 #endif
 
+// Mounting-family offset, added to ROTATION and to every rotation the settings
+// menu offers. Arduino_GFX has eight rotations: 0-3 are the four 90 degree
+// steps based at MADCTL=0, and 4-7 the same four steps based at MADCTL=MX --
+// two mirrored families, of which only one matches how a given glass is
+// bonded. A board whose panel needs the second family sets ROT_OFFSET=4 and
+// keeps ROTATION as the 0-3 index inside the family, so the menu offers 4-7
+// instead of the mirrored 0-3 (see gsetRotation() in settings.cpp).
+#ifndef ROT_OFFSET
+    #define ROT_OFFSET 0
+#endif
+
 #if CONFIG_ESP_HOSTED_ENABLED
     #if !defined(SDIO2_CLK) || !defined(SDIO2_CMD) || !defined(SDIO2_D0) || !defined(SDIO2_D1) || !defined(SDIO2_D2) || \
         !defined(SDIO2_D3) || !defined(SDIO2_RST)

@@ -46,7 +46,8 @@
 // every InputHandler() cycle.
 
 // For HAS_TOUCH with any TOUCH_CTRL_* set (XPT2046, GT911, CST8XX, FT6X36,
-// GT9895, HI8561 -- see src/hal/README.md for which chip each one is):
+// GT9895, HI8561, AXS5106L -- see src/hal/README.md for which chip each one
+// is):
 // #include "hal/device.h"
 // #include "hal/inputs/touch.h"
 // static DeviceTouch touchCfg() {

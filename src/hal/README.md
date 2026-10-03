@@ -109,6 +109,7 @@ Touchscreen drivers selected by one `TOUCH_CTRL_*` build flag:
 | `TOUCH_CTRL_FT6X36` | FT6206/FT6236/FT6336(U)/FT3267/FT5336/FT3068 family | I2C | One driver covers the whole family — there's no separate "FT6336" driver. Polling mode (`interruptPolling()`), not IRQ-driven. |
 | `TOUCH_CTRL_GT9895` | GT9895 | I2C | Digitizer grid is larger than the panel and the chip doesn't report native resolution over I2C — the board must supply it via `DeviceTouch.raw_width`/`raw_height` (a fixed vendor/panel constant, e.g. 1060x2400). |
 | `TOUCH_CTRL_HI8561` | HI8561 | I2C | Already reports in panel coordinates, no scaling needed. |
+| `TOUCH_CTRL_AXS5106L` | AXS5106L | I2C (fixed 0x63) | Self-contained driver in `touch.cpp` (SensorLib has none). Reports raw panel-native (portrait) coordinates, so the host-side `SwapXY`/`MirrorX`/`MirrorY` path applies, same as `TOUCH_CTRL_FT6X36`. INT is only a hint — the driver still polls at ~60Hz because some modules leave it high. Boards sharing the touch RST line with the LCD must leave `DeviceTouch.pin_rst` at -1 and init touch from `_post_setup_gpio()`. |
 
 API:
 
@@ -116,7 +117,7 @@ API:
   `_setup_gpio()` (or `_post_setup_gpio()` if the panel/bus needs to come up
   first).
 - `hal_touch_read(cfg, LTouchPoint &out)` — call every `InputHandler()`
-  cycle. XPT2046/FT6X36 return a raw point and the HAL applies
+  cycle. XPT2046/FT6X36/AXS5106L return a raw point and the HAL applies
   `cfg.SwapXY`/`MirrorX`/`MirrorY` on the host side; GT911/CST8xx/GT9895/
   HI8561 hand rotation to the driver itself
   (`setSwapXY()`/`setMirrorXY()`). Either way, `MirrorX`/`MirrorY`/`SwapXY`
@@ -131,7 +132,7 @@ API:
   point further.
 - `hal_touch_read_raw(out)` / `hal_touch_get_resolution(width, height)` — a
   raw escape hatch for `TOUCH_CTRL_GT911`/`_CST8XX`/`_FT6X36`/`_GT9895`/
-  `_HI8561`: returns the point exactly as the driver reports it (no
+  `_HI8561`/`_AXS5106L`: returns the point exactly as the driver reports it (no
   swap/mirror/scaling) plus the controller's own native resolution, for a
   board whose rotation/scale math doesn't fit `hal_touch_read()`'s model
   (e.g. a panel whose native touch resolution doesn't match its pixel

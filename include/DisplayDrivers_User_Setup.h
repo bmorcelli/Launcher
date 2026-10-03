@@ -21,9 +21,12 @@
 // The launcher calls the panel's mounting rotation ROTATION (it is also the
 // default the user can change at runtime); DisplayDrivers calls it
 // TFT_ROTATION. Same number, so bridge it here instead of duplicating it in
-// forty board files.
+// forty board files. ROT_OFFSET is the board's rotation family (0 for almost
+// every board, see pre_compiler.h) and has to be folded in here, because what
+// reaches the panel driver is an absolute Arduino_GFX rotation, not an index
+// inside the family.
 #ifndef TFT_ROTATION
-#define TFT_ROTATION ROTATION
+#define TFT_ROTATION (ROTATION + ROT_OFFSET)
 #endif
 
 #endif // _LAUNCHER_DISPLAYDRIVERS_USER_SETUP_H

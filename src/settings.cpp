@@ -764,7 +764,11 @@ int gsetRotation(bool set) {
     const int mountRotation = displayConfig.rotation;
     int result = mountRotation;
 
-    if (rotation > 3) {
+    // Selectable rotations live in the window ROT_OFFSET..ROT_OFFSET+3 -- the
+    // board's own rotation family (ROT_OFFSET is 0 for almost every board, see
+    // pre_compiler.h). Anything outside it is a stale value saved by a build
+    // with a different family, so fall back to the board's mounting rotation.
+    if (rotation < ROT_OFFSET || rotation > ROT_OFFSET + 3) {
         set = true;
         result = mountRotation;
     } else result = rotation;
@@ -772,24 +776,27 @@ int gsetRotation(bool set) {
     if (set) {
         const int DRV = (displayConfig.width < displayConfig.height) ? 1 : 0;
         const bool offerPortrait = panelWidth() >= 200 && panelHeight() >= 200;
+        // The four rotations this panel can take, in its own family.
+        const int landscapeA = DRV + ROT_OFFSET;
+        const int landscapeB = DRV + 2 + ROT_OFFSET;
+        const int portraitA = (DRV == 1 ? 0 : 1) + ROT_OFFSET;
+        const int portraitB = (DRV == 1 ? 2 : 3) + ROT_OFFSET;
         options = {
             {"Default (" + String(mountRotation) + ")", [&]() { result = mountRotation; }}
         };
         if (offerPortrait)
             options.push_back(
-                {"Portrait " + String(DRV == 1 ? 0 : 1),
-                 [&]() { result = (DRV == 1 ? 0 : 1); },
-                 _CLR_(rotation, (DRV == 1 ? 0 : 1))}
-            );
-        options.push_back({"Landscape " + String(DRV), [&]() { result = DRV; }, _CLR_(rotation, DRV)});
-        if (offerPortrait)
-            options.push_back(
-                {"Portrait " + String(DRV == 1 ? 2 : 3),
-                 [&]() { result = (DRV == 1 ? 2 : 3); },
-                 _CLR_(rotation, (DRV == 1 ? 2 : 3))}
+                {"Portrait " + String(portraitA), [&]() { result = portraitA; }, _CLR_(rotation, portraitA)}
             );
         options.push_back(
-            {"Landscape " + String(DRV + 2), [&]() { result = DRV + 2; }, _CLR_(rotation, (DRV + 2))}
+            {"Landscape " + String(landscapeA), [&]() { result = landscapeA; }, _CLR_(rotation, landscapeA)}
+        );
+        if (offerPortrait)
+            options.push_back(
+                {"Portrait " + String(portraitB), [&]() { result = portraitB; }, _CLR_(rotation, portraitB)}
+            );
+        options.push_back(
+            {"Landscape " + String(landscapeB), [&]() { result = landscapeB; }, _CLR_(rotation, landscapeB)}
         );
         loopOptions(options);
         rotation = result;

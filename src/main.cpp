@@ -112,7 +112,7 @@ int bright = 100;
 bool dimmer = false;
 int prog_handler; // 0 - Flash, 1 - SPIFFS
 int currentIndex;
-int rotation = ROTATION;
+int rotation = ROTATION + ROT_OFFSET;
 bool sdcardMounted;
 bool onlyBins;
 bool bootToApp = true;

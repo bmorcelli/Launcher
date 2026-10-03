@@ -101,6 +101,7 @@ Things that need to be done in future updates
 * 2.10.0:
      * [x] Port to [Elecrow ThinkNode M9"](https://www.elecrow.com/thinknode-m9-meshcore-communication-terminal-with-full-keyboard-2-4inch-lcd-esp32-s3-lr1110-gps-2300mah.html)
      * [x] Port to [SeeedStudio XIAO ESP32C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
+     * [x] Port to [SeeedStudio XIAO 1.47'' Touch Display (ESP32-S3)](https://wiki.seeedstudio.com/getting_started_1.47_inch_touch_display_esp32s3/)
      * [x] Port to [SeeedStudio XIAO ESP32S3 Plus](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32S3-Plus-p-6361.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
      * [x] Port to [SeeedStudio reTerminal D1001 8"](https://www.seeedstudio.com/reTerminal-D1001-p-6729.html?sensecap_affiliate=dhriNBA&referring_service=link)
      * [x] Port to [SeeedStudio reTerminal E1001 Monochrome e-Paper Display](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?sensecap_affiliate=dhriNBA&referring_service=link)
