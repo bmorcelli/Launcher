@@ -599,7 +599,12 @@ DONE:
     return success;
 }
 
-bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter = nullptr) {
+// outStatus, when given, receives the HTTP status of the last attempt, so the caller
+// can tell a definitive server answer (e.g. 404 for a category with no firmware
+// registered yet) from a transport failure and word the message itself.
+bool getInfo(
+    const String &serverUrl, JsonDocument &_doc, JsonDocument *filter = nullptr, int *outStatus = nullptr
+) {
     if (!launcherWifiIsConnected()) {
         displayError("WiFi not connected");
         return false;
@@ -651,6 +656,17 @@ bool getInfo(const String &serverUrl, JsonDocument &_doc, JsonDocument *filter =
             resp.status,
             resp.transport_error
         );
+        if (outStatus) *outStatus = resp.status;
+
+        // A 4xx is the server's final answer, not a glitch: retrying the same request
+        // can only get the same reply, so stop burning attempts and let the caller
+        // explain it.
+        if (resp.status >= 400 && resp.status < 500) {
+            resumeInputHandlerTask();
+            if (!outStatus) displayError(reason);
+            return false;
+        }
+
         displayRedStripe(String("GET failed (") + (attempt + 1) + "/" + maxAttempts + "): " + reason);
 
         // The connection may have dropped mid-flow; abort early instead of burning
@@ -710,12 +726,20 @@ bool GetJsonFromLauncherHub(uint8_t page, const String &order, bool star, const 
 
     JsonDocument filter;
     buildFirmwareListFilter(filter);
-    if (getInfo(serverUrl, doc, &filter)) {
+    int status = 0;
+    if (getInfo(serverUrl, doc, &filter, &status)) {
         total_firmware = doc["total"].as<int>();
         num_pages = doc["total"].as<int>() / doc["page_size"].as<int>();
         current_page = page;
         RAM_LOG("firmwareList-doc-resident");
         return true;
+    }
+    // 404 means LauncherHub doesn't know this category at all
+    // ({"error":"Category not found."}): nothing was ever published for this
+    // device, so there is nothing to retry and nothing to list.
+    if (status == 404) {
+        displayError("No firmware available on the list", true);
+        return false;
     }
     displayError("Firmware list fetch Failed");
     return false;

@@ -128,11 +128,25 @@ So landscape — the sane orientation for a 1.47" launcher UI, and what the
 comparable `waveshare-esp32-s3-lcd-147` ships — is rotation **7**, giving
 320×172 with `MADCTL = MV | BGR` (0x28).
 
-`gsetRotation()` in `settings.cpp` already understands a mount rotation above
-3: it offers "Default (7)" and otherwise only lets the user pick from 0–3.
-Picking one of those on this panel will look vertically mirrored, because they
-are the other family. That is a cosmetic quirk of a board whose natural
-rotation isn't in 0–3, not a bug — "Default (7)" restores it.
+Rather than hard-coding 7, the board declares the family with **`ROT_OFFSET=4`**
+and keeps `ROTATION=3` as the index inside it (3 + 4 = 7). `ROT_OFFSET`
+defaults to 0 in `include/pre_compiler.h`, so it changes nothing for every
+other board, and it is folded in at the three places a rotation becomes
+absolute:
+
+- `include/DisplayDrivers_User_Setup.h` — `TFT_ROTATION = ROTATION + ROT_OFFSET`,
+  the mounting rotation handed to the panel driver.
+- `src/main.cpp` — the initial value of the global `rotation`.
+- `src/settings.cpp` — `gsetRotation()` offers `ROT_OFFSET..ROT_OFFSET+3`
+  instead of `0..3`, and treats a saved value outside that window as stale.
+
+The point of the offset is the rotation menu: it now offers **Landscape 5** and
+**Landscape 7** — both correct on this panel — instead of 1 and 3, which were
+from the mirrored family and came up vertically flipped.
+
+`rotation & 3` (how the HAL indexes the touch mirror/swap table) still yields
+the index inside the family, because the offset is 4 — so index 1 is rotation 5
+and index 3 is rotation 7. See `touchCfg()` in `interface.cpp`.
 
 ## Touch
 
@@ -148,27 +162,23 @@ to a ~60 Hz poll. The driver reports raw panel-native (portrait) coordinates
 and lets the HAL's host-side `SwapXY`/`MirrorX`/`MirrorY` table rotate them,
 the same way `TOUCH_CTRL_FT6X36` works.
 
-## Still unverified on hardware
+## Verification status
 
-This port was written from the wiki, the vendor library and the arduino-esp32
-variant header; it builds clean but has **not** been run on the device. In
-likely order of needing a fix:
+Confirmed working on hardware: panel (orientation, colour order, inversion),
+touch, both buttons, backlight, microSD on the shared SPI bus, and the rotation
+menu offering 5 and 7.
 
-1. **Touch orientation.** `touchCfg()`'s mirror/swap table is derived from the
-   MADCTL/mirror pairs in the vendor driver, not from touching the four
-   corners. Note that index 3 of that table is populated for rotation **7**
-   (the shipped one), not rotation 3 — they collide on `rotation & 3`.
-2. **Panel orientation.** `ROTATION=7` is reasoned from the vendor's verified
-   `MADCTL=0x48` portrait, above. If the image is upside down, `ROTATION=5` is
-   the same family's other landscape; if it comes up mirrored instead, the
-   `MX`-based family assumption is wrong and `ROTATION=1` is the fix.
-3. **Colour order / inversion.** If red and blue are swapped, the glass is RGB
-   after all → `TFT_DISPLAY_DRIVER_N=1` (`Arduino_ST7789`). If the image is a
-   photographic negative, flip `TFT_IPS`.
-4. **Battery scale.** `ANALOG_BAT_MULTIPLIER=2.975f` comes from the wiki's
-   stated 316K/160K divider ((316+160)/160), not from a measurement.
-5. **SPI clock.** `TFT_PREF_SPEED=40000000` is the repo's conservative default
-   for a shared SPI bus, not a figure from the JD9853A datasheet.
+Two numbers are still only derived, not measured — fix them here if they ever
+look wrong:
+
+- **Battery scale.** `ANALOG_BAT_MULTIPLIER=2.975f` comes from the wiki's
+  stated 316K/160K divider ((316+160)/160), not from a meter.
+- **SPI clock.** `TFT_PREF_SPEED=40000000` is the repo's conservative default
+  for a shared SPI bus, not a figure from the JD9853A datasheet.
+
+The portrait entries (indices 0 and 2) of `touchCfg()`'s mirror/swap table are
+also untested, since a 172px-wide panel never gets a portrait option in the
+rotation menu.
 
 ## Inputs
 
