@@ -28,7 +28,8 @@
 #define KEY_DEL 0x08
 #define KEY_ENTER 0x0D
 #define KEY_FM_LONG 0x86
-#define KEY_NONE 0x88 // "no/invalid key", what the register reads when drained
+#define KEY_NONE 0x88   // "no/invalid key", what the register reads when drained
+#define KEY_PRESET 0x87 // stands in for a Sel long press, as in Meshtastic's M9 port
 #define KEY_DEL_LONG 0x89
 #define KEY_LEFT 0xB4
 #define KEY_UP 0xB5
@@ -44,6 +45,11 @@
 static const HalBrightCurve BL_CURVE = {0, 255, 2.2f, true};
 
 static uint8_t kbAddr = 0;
+
+// The coprocessor reports one code per press and never a held state, and Enter has
+// no long-press code, so Sel can't be seen held. Preset fakes it: it selects, then
+// keeps Sel reported as held while a long-press check (LongPress) runs, up to this deadline.
+static uint32_t selHeldUntil = 0;
 
 static void kbWrite(uint8_t reg, const uint8_t *data, uint8_t len) {
     if (!kbAddr) return;
@@ -133,8 +139,11 @@ void InputHandler(void) {
     // so the key register has to be polled. The reference firmware does the
     // same -- it polls every 300ms and only uses the line to cut that wait
     // short. Gating the read on the line instead loses most key presses.
+    if (LongPress && (int32_t)(selHeldUntil - launcherMillis()) > 0) SelPress = true;
+
     uint8_t key = kbRead(KB_REG_KEY);
     if (key == KEY_NONE || key == 0x00 || key == 0xFF) return;
+    selHeldUntil = 0; // any other key ends the faked hold
 #ifdef M9_KB_DEBUG
     launcherConsolePrintf("M9 kb: 0x%02x\n", key);
 #endif
@@ -147,6 +156,10 @@ void InputHandler(void) {
         case KEY_LEFT: PrevPress = true; return;
         case KEY_RIGHT: NextPress = true; return;
         case KEY_FM_LONG: EscPress = true; return;
+        case KEY_PRESET:
+            SelPress = true;
+            selHeldUntil = launcherMillis() + 1000;
+            return;
         default: break;
     }
 

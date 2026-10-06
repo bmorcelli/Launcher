@@ -78,7 +78,14 @@ Every code in this table was confirmed on hardware:
 | `0x0D` | Enter | Sel |
 | `0x08` / `0x89` | Del / Del long press | Esc + backspace |
 | `0x86` | FM long press | Esc |
-| `0x81`-`0x85`, `0x87` | Mute, Home, Time, GPS, FM, Preset | unmapped |
+| `0x87` | Preset | Sel long press (folder/file options: delete, rename, ...) |
+| `0x81`-`0x85` | Mute, Home, Time, GPS, FM | unmapped |
+
+The coprocessor never reports a key as *held*, and Enter has no long-press
+code, so the SD browser's "hold Sel" check can't see Enter held. **Preset**
+stands in for it (same as Meshtastic's M9 port, where Preset is
+`SELECT_LONG`): it selects, then keeps Sel reported as held while a
+long-press check runs.
 | `0x88` | no/invalid key | ignored (the drained value) |
 
 > The reference driver also reads the battery millivolts from `0x01`..`0x04`

@@ -186,6 +186,11 @@ void _setup_gpio() {
 
     M5.begin();
     M5.Power.setExtOutput(true);
+    launcherGpioOutput(SDIO2_RST);
+    launcherGpioWrite(SDIO2_RST, 1);
+    launcherDelayMs(100);
+    launcherGpioWrite(SDIO2_RST, 0);
+    launcherDelayMs(100);
     launcherWifiInitHostedSdioGuarded(
         SDIO2_CLK, SDIO2_CMD, SDIO2_D0, SDIO2_D1, SDIO2_D2, SDIO2_D3, SDIO2_RST
     );

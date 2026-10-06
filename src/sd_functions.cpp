@@ -51,8 +51,6 @@ bool setupSdCard() {
 #else
 #endif
     if (!SD_MMC.begin("/sdcard", OnebitMode, false)) // One bit mode, don't auto-format
-#elif (TFT_MOSI == SDCARD_MOSI)
-    if (!SDM.begin(_cs)) // https://github.com/Bodmer/TFT_eSPI/discussions/2420
 #elif defined(HEADLESS)
     if (_sck == 0 && _miso == 0 && _mosi == 0 && _cs == 0) {
         launcherConsolePrintln("SdCard pins not set");
@@ -63,9 +61,12 @@ bool setupSdCard() {
     vTaskDelay(pdTICKS_TO_MS(10));
     if (!SDM.begin(_cs, sdcardSPI))
 #else
-    sdcardSPI.begin(_sck, _miso, _mosi, _cs); // start SPI communications
-    vTaskDelay(pdTICKS_TO_MS(10));
-    if (!SDM.begin(_cs, sdcardSPI))
+    const bool sdOnTftBus = (_mosi == displayConfig.mosi && displayConfig.mosi >= 0);
+    if (!sdOnTftBus) {
+        sdcardSPI.begin(_sck, _miso, _mosi, _cs);
+        vTaskDelay(pdTICKS_TO_MS(10));
+    }
+    if (sdOnTftBus ? !SDM.begin(_cs) : !SDM.begin(_cs, sdcardSPI))
 #endif
     {
         // sdcardSPI.end(); // Closes SPI connections and release pin header.
