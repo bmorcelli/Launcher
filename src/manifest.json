@@ -759,6 +759,14 @@
         },
         {
             "display": true,
+            "name": "Wio Tracker L2",
+            "description": "",
+            "link": "https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/",
+            "family": "ESP32-S3",
+            "id": "seeedstudio-wio-tracker-l2"
+        },
+        {
+            "display": true,
             "name": "XIAO ESP32-S3-8mb & Sense",
             "description": "Headless",
             "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html?sensecap_affiliate=dhriNBA&referring_service=link",
