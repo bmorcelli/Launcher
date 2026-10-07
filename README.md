@@ -99,6 +99,7 @@ Things that need to be done in future updates
 
 ## Latest Changelog
 * 2.10.0:
+     * [x] Port to [SeeedStudio Wio Tracker L2"](https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/) **Beta**
      * [x] Port to [Elecrow ThinkNode M9"](https://www.elecrow.com/thinknode-m9-meshcore-communication-terminal-with-full-keyboard-2-4inch-lcd-esp32-s3-lr1110-gps-2300mah.html)
      * [x] Port to [SeeedStudio XIAO ESP32C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
      * [x] Port to [SeeedStudio XIAO 1.47'' Touch Display (ESP32-S3)](https://wiki.seeedstudio.com/getting_started_1.47_inch_touch_display_esp32s3/)

@@ -112,6 +112,7 @@
             - { env: "seeedstudio-reterminal-e1001" }
             - { env: "seeedstudio-reterminal-sticky" }
             - { env: "seeedstudio-sensecap"       }
+            - { env: "seeedstudio-wio-tracker-l2" }
             - { env: "smoochiee-board"            }
             - { env: "Marauder-v4-OG"             }
             - { env: "Marauder-v61"               }
