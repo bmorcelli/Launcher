@@ -563,6 +563,11 @@ void loop() {
                 resetGlobals(); // avoid leaking command after menu is shown
             }
         }
+#ifdef E_PAPER_DISPLAY
+        // Back has no action on the main menu. Consume it so an unread Escape
+        // cannot keep the input task from accepting navigation or Select.
+        check(EscPress);
+#endif
         if (touchPoint.pressed) {
             int i = 0;
             for (auto item : menuItems) {
