@@ -94,22 +94,26 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
             // freeze this task inside the allocator and deadlock loopTask - see mykeyboard.h.
             launcherInputLock();
 #ifdef E_PAPER_DISPLAY
-            // Keep a button flag the UI has not consumed yet (AnyKeyPress still set, check()
-            // clears it) instead of wiping it every cycle, so a tap landing while loopTask is
-            // blocked in a panel refresh is still there when it returns. Not while LongPress is
-            // set: display.cpp, mykeyboard.cpp and launcherSelectHeld() poll the raw flags and
-            // need them to drop on release. Touch and keystrokes are still cleared each cycle,
-            // their readers rely on it. Bounded at 1500 ms so an event nobody reads cannot ghost
-            // into a later screen. E-paper only: that is where a redraw outlasts the 75 ms poll.
-            const bool keep = AnyKeyPress && !LongPress &&
-                              (NextPress || PrevPress || UpPress || DownPress || SelPress || EscPress) &&
-                              launcherMillis() - raisedAt < 1500;
-            if (keep) {
+            // Keep button flags the UI has not consumed yet instead of wiping them every
+            // cycle, so a tap landing while loopTask is blocked in a panel refresh is still
+            // there when it returns. Judged on the flags themselves, not AnyKeyPress: check()
+            // drops AnyKeyPress on the first flag it consumes, and the rest must survive that.
+            // Not while LongPress is set: display.cpp, mykeyboard.cpp and launcherSelectHeld()
+            // poll the raw flags and need them to drop on release. Touch and keystrokes are
+            // still cleared each cycle, their readers rely on it. Bounded at 1500 ms so an
+            // event nobody reads cannot ghost into a later screen. E-paper only: that is where
+            // a redraw outlasts the 75 ms poll.
+            const bool pending = !LongPress &&
+                                 (NextPress || PrevPress || UpPress || DownPress || SelPress || EscPress) &&
+                                 launcherMillis() - raisedAt < 1500;
+            if (pending) {
                 touchPoint.Clear();
                 KeyStroke.Clear();
             } else {
                 resetGlobals();
             }
+            const bool hadNext = NextPress, hadPrev = PrevPress, hadUp = UpPress, hadDown = DownPress,
+                       hadSel = SelPress, hadEsc = EscPress;
 #else
             resetGlobals();
 #endif
@@ -118,7 +122,21 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
             cardkb2_poll();
 #endif
 #ifdef E_PAPER_DISPLAY
-            if (AnyKeyPress && !keep) raisedAt = launcherMillis();
+            if (pending) {
+                // Only one unread event at a time. The flags carry no order, so a second press
+                // stacked on an unread one would be applied in whatever order the UI polls them
+                // (move-then-confirm when the user did confirm-then-move). Drop what this poll
+                // newly raised, as every poll did before retention; a flag the handler cleared
+                // stays cleared so a press check() consumed meanwhile is never put back.
+                if (!hadNext) NextPress = false;
+                if (!hadPrev) PrevPress = false;
+                if (!hadUp) UpPress = false;
+                if (!hadDown) DownPress = false;
+                if (!hadSel) SelPress = false;
+                if (!hadEsc) EscPress = false;
+            } else if (NextPress || PrevPress || UpPress || DownPress || SelPress || EscPress) {
+                raisedAt = launcherMillis();
+            }
 #endif
             launcherInputUnlock();
             timer = launcherMillis();
