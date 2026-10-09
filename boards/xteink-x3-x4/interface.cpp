@@ -243,10 +243,6 @@ void InputHandler(void) {
     static int lastRawPage = -1;
     static int lastNavEvent = -1;
     static int lastPageEvent = -1;
-    static uint32_t navReleasedAt = 0;
-    static uint32_t pageReleasedAt = 0;
-    static bool navReleased = false;
-    static bool pageReleased = false;
     static bool lastPower = false;
     static uint32_t navRepeatAt = 0;
     static uint32_t pageRepeatAt = 0;
@@ -256,26 +252,20 @@ void InputHandler(void) {
     const bool power = launcherGpioRead(PWR_BTN) == LOW;
     const uint32_t now = launcherMillis();
 
-    // Observe releases during a hold, and rearm after 20 ms to reject a
-    // single idle ADC sample caused by contact bounce. Each ladder repeats
-    // independently; a different button is available immediately.
-    if (nav < 0 && lastRawNav >= 0) {
-        navReleasedAt = now;
-        navReleased = true;
-    }
-    if (page < 0 && lastRawPage >= 0) {
-        pageReleasedAt = now;
-        pageReleased = true;
-    }
-    const bool navNewPress = nav >= 0 &&
-        (nav != lastNavEvent || (navReleased && now - navReleasedAt >= 20));
-    const bool pageNewPress = page >= 0 &&
-        (page != lastPageEvent || (pageReleased && now - pageReleasedAt >= 20));
-    const bool navEvent = nav >= 0 && (navNewPress || now - navRepeatAt >= 200 || LongPress);
-    const bool pageEvent = page >= 0 && (pageNewPress || now - pageRepeatAt >= 200 || LongPress);
-    const bool powerEvent = power && (!lastPower || now - powerRepeatAt >= 200);
-    if (nav >= 0) navReleased = false;
-    if (page >= 0) pageReleased = false;
+    // A ladder reading only counts once two samples in a row agree: releasing
+    // a low button sweeps the node up through the other bands on its way to
+    // idle, and a single glitch sample mid-hold must not end the hold. A
+    // stable idle rearms the ladder; a stable different button is a new press.
+    // Each ladder repeats independently.
+    const bool navStable = nav == lastRawNav;
+    const bool pageStable = page == lastRawPage;
+    if (nav < 0 && navStable) lastNavEvent = -1;
+    if (page < 0 && pageStable) lastPageEvent = -1;
+    const bool navEvent =
+        nav >= 0 && navStable && (nav != lastNavEvent || now - navRepeatAt >= 200 || LongPress);
+    const bool pageEvent =
+        page >= 0 && pageStable && (page != lastPageEvent || now - pageRepeatAt >= 200 || LongPress);
+    const bool powerEvent = power && (!lastPower || now - powerRepeatAt >= 200 || LongPress);
     lastRawNav = nav;
     lastRawPage = page;
     lastPower = power;
@@ -293,16 +283,19 @@ void InputHandler(void) {
     if (!wakeUpScreen()) AnyKeyPress = true;
     else return;
 
-    switch (navEvent ? nav : -1) {
-        case NAV_BACK: EscPress = true; break;
-        case NAV_CONFIRM: SelPress = true; break;
-        case NAV_LEFT: PrevPress = true; break;
-        case NAV_RIGHT: NextPress = true; break;
-        default: break;
+    if (navEvent) {
+        switch (nav) {
+            case NAV_BACK: EscPress = true; break;
+            case NAV_CONFIRM: SelPress = true; break;
+            case NAV_LEFT: PrevPress = true; break;
+            case NAV_RIGHT: NextPress = true; break;
+            default: break;
+        }
     }
-
-    if (pageEvent && page == PAGE_UP) UpPress = true;
-    else if (pageEvent && page == PAGE_DOWN) DownPress = true;
+    if (pageEvent) {
+        if (page == PAGE_UP) UpPress = true;
+        else if (page == PAGE_DOWN) DownPress = true;
+    }
 }
 
 void powerOff() {
