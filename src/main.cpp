@@ -83,9 +83,8 @@ void launcherInputUnlock();
 
 void __attribute__((weak)) taskInputHandler(void *parameter) {
     auto timer = launcherMillis();
-#if defined(XTEINK_NAV_INPUT_LATCH)
-    uint32_t navRaisedAt[4] = {};
-    uint8_t validNav = 0;
+#ifdef E_PAPER_DISPLAY
+    unsigned long raisedAt = 0;
 #endif
     while (true) {
         checkPowerSaveTime();
@@ -94,42 +93,32 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
             // half-written KeyStroke. It replaces the old vTaskSuspend() scheme, which could
             // freeze this task inside the allocator and deadlock loopTask - see mykeyboard.h.
             launcherInputLock();
-#if defined(XTEINK_NAV_INPUT_LATCH)
-            const uint32_t now = launcherMillis();
-            uint8_t retainedNav = 0;
-            if (AnyKeyPress && !LongPress) {
-                if ((validNav & 1) && NextPress && uint32_t(now - navRaisedAt[0]) < 1500) retainedNav |= 1;
-                if ((validNav & 2) && PrevPress && uint32_t(now - navRaisedAt[1]) < 1500) retainedNav |= 2;
-                if ((validNav & 4) && UpPress && uint32_t(now - navRaisedAt[2]) < 1500) retainedNav |= 4;
-                if ((validNav & 8) && DownPress && uint32_t(now - navRaisedAt[3]) < 1500) retainedNav |= 8;
+#ifdef E_PAPER_DISPLAY
+            // Keep a button flag the UI has not consumed yet (AnyKeyPress still set, check()
+            // clears it) instead of wiping it every cycle, so a tap landing while loopTask is
+            // blocked in a panel refresh is still there when it returns. Not while LongPress is
+            // set: display.cpp, mykeyboard.cpp and launcherSelectHeld() poll the raw flags and
+            // need them to drop on release. Touch and keystrokes are still cleared each cycle,
+            // their readers rely on it. Bounded at 1500 ms so an event nobody reads cannot ghost
+            // into a later screen. E-paper only: that is where a redraw outlasts the 75 ms poll.
+            const bool keep = AnyKeyPress && !LongPress &&
+                              (NextPress || PrevPress || UpPress || DownPress || SelPress || EscPress) &&
+                              launcherMillis() - raisedAt < 1500;
+            if (keep) {
+                touchPoint.Clear();
+                KeyStroke.Clear();
+            } else {
+                resetGlobals();
             }
-#endif
+#else
             resetGlobals();
+#endif
             InputHandler();
 #ifdef USE_CARDKB2
             cardkb2_poll();
 #endif
-#if defined(XTEINK_NAV_INPUT_LATCH)
-            // Retain unread directions for at most 1500 ms each. Replaying a
-            // retained direction does not extend its age; Select and Back reset.
-            const uint8_t sampledNav = (NextPress ? 1 : 0) | (PrevPress ? 2 : 0) |
-                                       (UpPress ? 4 : 0) | (DownPress ? 8 : 0);
-            const uint8_t newNav = sampledNav & ~retainedNav;
-            if (LongPress) {
-                retainedNav = 0; // preserve the live held/released level
-                validNav = 0;
-            } else if (AnyKeyPress) {
-                if (newNav & 1) navRaisedAt[0] = now;
-                if (newNav & 2) navRaisedAt[1] = now;
-                if (newNav & 4) navRaisedAt[2] = now;
-                if (newNav & 8) navRaisedAt[3] = now;
-                validNav |= newNav;
-            }
-            NextPress |= (retainedNav & 1) != 0;
-            PrevPress |= (retainedNav & 2) != 0;
-            UpPress |= (retainedNav & 4) != 0;
-            DownPress |= (retainedNav & 8) != 0;
-            if (retainedNav) AnyKeyPress = true;
+#ifdef E_PAPER_DISPLAY
+            if (AnyKeyPress && !keep) raisedAt = launcherMillis();
 #endif
             launcherInputUnlock();
             timer = launcherMillis();
