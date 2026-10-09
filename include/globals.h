@@ -132,7 +132,15 @@ extern volatile bool SelPress;
 extern volatile bool EscPress;
 extern volatile bool AnyKeyPress;
 
+#if defined(XTEINK_NAV_INPUT_LATCH)
+void launcherInputLock();
+void launcherInputUnlock();
+#endif
+
 inline void resetGlobals(void) {
+#if defined(XTEINK_NAV_INPUT_LATCH)
+    launcherInputLock();
+#endif
     NextPress = false;
     PrevPress = false;
     UpPress = false;
@@ -142,6 +150,9 @@ inline void resetGlobals(void) {
     AnyKeyPress = false;
     touchPoint.Clear();
     KeyStroke.Clear();
+#if defined(XTEINK_NAV_INPUT_LATCH)
+    launcherInputUnlock();
+#endif
 }
 
 extern volatile uint16_t tftHeight;
@@ -149,9 +160,20 @@ extern volatile uint16_t tftWidth;
 
 extern TaskHandle_t xHandle;
 extern inline bool check(volatile bool &btn) {
-    if (!btn) return false;
+#if defined(XTEINK_NAV_INPUT_LATCH)
+    launcherInputLock();
+#endif
+    if (!btn) {
+#if defined(XTEINK_NAV_INPUT_LATCH)
+        launcherInputUnlock();
+#endif
+        return false;
+    }
     btn = false;
     AnyKeyPress = false;
+#if defined(XTEINK_NAV_INPUT_LATCH)
+    launcherInputUnlock();
+#endif
     return true;
 }
 
