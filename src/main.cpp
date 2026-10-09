@@ -83,6 +83,9 @@ void launcherInputUnlock();
 
 void __attribute__((weak)) taskInputHandler(void *parameter) {
     auto timer = launcherMillis();
+#ifdef E_PAPER_DISPLAY
+    unsigned long raisedAt = 0;
+#endif
     while (true) {
         checkPowerSaveTime();
         if (!AnyKeyPress || launcherMillis() - timer > 75) {
@@ -90,10 +93,50 @@ void __attribute__((weak)) taskInputHandler(void *parameter) {
             // half-written KeyStroke. It replaces the old vTaskSuspend() scheme, which could
             // freeze this task inside the allocator and deadlock loopTask - see mykeyboard.h.
             launcherInputLock();
+#ifdef E_PAPER_DISPLAY
+            // Keep button flags the UI has not consumed yet instead of wiping them every
+            // cycle, so a tap landing while loopTask is blocked in a panel refresh is still
+            // there when it returns. Judged on the flags themselves, not AnyKeyPress: check()
+            // drops AnyKeyPress on the first flag it consumes, and the rest must survive that.
+            // Not while LongPress is set: display.cpp, mykeyboard.cpp and launcherSelectHeld()
+            // poll the raw flags and need them to drop on release. Touch and keystrokes are
+            // still cleared each cycle, their readers rely on it. Bounded at 1500 ms so an
+            // event nobody reads cannot ghost into a later screen. E-paper only: that is where
+            // a redraw outlasts the 75 ms poll.
+            const bool pending = !LongPress &&
+                                 (NextPress || PrevPress || UpPress || DownPress || SelPress || EscPress) &&
+                                 launcherMillis() - raisedAt < 1500;
+            if (pending) {
+                touchPoint.Clear();
+                KeyStroke.Clear();
+            } else {
+                resetGlobals();
+            }
+            const bool hadNext = NextPress, hadPrev = PrevPress, hadUp = UpPress, hadDown = DownPress,
+                       hadSel = SelPress, hadEsc = EscPress;
+#else
             resetGlobals();
+#endif
             InputHandler();
 #ifdef USE_CARDKB2
             cardkb2_poll();
+#endif
+#ifdef E_PAPER_DISPLAY
+            if (pending) {
+                // Only one unread event at a time. The flags carry no order, so a second press
+                // stacked on an unread one would be applied in whatever order the UI polls them
+                // (move-then-confirm when the user did confirm-then-move). Drop what this poll
+                // newly raised, as every poll did before retention; a flag the handler cleared
+                // stays cleared so a press check() consumed meanwhile is never put back.
+                if (!hadNext) NextPress = false;
+                if (!hadPrev) PrevPress = false;
+                if (!hadUp) UpPress = false;
+                if (!hadDown) DownPress = false;
+                if (!hadSel) SelPress = false;
+                if (!hadEsc) EscPress = false;
+            } else if (NextPress || PrevPress || UpPress || DownPress || SelPress || EscPress) {
+                raisedAt = launcherMillis();
+            }
 #endif
             launcherInputUnlock();
             timer = launcherMillis();
@@ -520,6 +563,11 @@ void loop() {
                 resetGlobals(); // avoid leaking command after menu is shown
             }
         }
+#ifdef E_PAPER_DISPLAY
+        // Back has no action on the main menu. Consume it so an unread Escape
+        // cannot keep the input task from accepting navigation or Select.
+        check(EscPress);
+#endif
         if (touchPoint.pressed) {
             int i = 0;
             for (auto item : menuItems) {
