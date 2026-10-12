@@ -261,16 +261,18 @@ void setup() {
         tftWidth = displayConfig.width;
     }
     tft->fillScreen(BGCOLOR);
-    setBrightness(bright, false);
     initDisplay(true);
     RAM_LOG("after-first-display");
+
+    // Init post setup GPIO before SD Card initializes
+    _post_setup_gpio();
+
+    // Set Brightness to the value stored in NVS, or default if not set
+    _setBrightness(bright);
 
     // Performs the verification when Launcher is installed through OTA
     partitionCrawler();
     RAM_LOG("after-partitionCrawler");
-
-    // Init post setup GPIO before SD Card initializes
-    _post_setup_gpio();
 
 #if defined(HAS_RESISTIVE_TOUCH)
     if (!loadTouchCalibration()) calibrateTouch();

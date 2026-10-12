@@ -44,6 +44,6 @@ void _post_setup_gpio() {
 
 int getBattery() { return 0; }
 
-void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, 100 - brightval); }
 
 void InputHandler(void) { hal_buttons_poll_1(DeviceButtons{SEL_BTN}); }

@@ -29,7 +29,7 @@
 #define KEY_ENTER 0x0D
 #define KEY_FM_LONG 0x86
 #define KEY_NONE 0x88   // "no/invalid key", what the register reads when drained
-#define KEY_PRESET 0x87 // stands in for a Sel long press, as in Meshtastic's M9 port
+#define KEY_PRESET 0xa3 // stands in for a Sel long press, as in Meshtastic's M9 port
 #define KEY_DEL_LONG 0x89
 #define KEY_LEFT 0xB4
 #define KEY_UP 0xB5
