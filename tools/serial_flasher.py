@@ -16,7 +16,9 @@ What it does:
        and, if so, extracts just the app image portion instead of sending the
        whole file — mirrors the detection in src/sd_functions.cpp/webUi/scripts.js.
     4. Sends "flash firmware <name> <size>" and waits for the "READY <size>"
-       reply, then streams just the app image bytes.
+       reply, then streams just the app image bytes. Pass --overwrite to send
+       "flash overwrite" instead, which reuses the slot <name> already occupies
+       rather than adding a second copy (and uses windowed streaming).
     5. Waits for the final "OK"/"ERR" line and reports the result.
 """
 
@@ -124,26 +126,61 @@ def detect_app_region(data):
 
 
 def reset_board(port):
-    """Reset the board via esptool so it reboots into the Launcher's bootscreen."""
+    """Reset the board via esptool so it reboots into the Launcher's bootscreen.
+
+    Retries while the port is missing/busy: right after a previous run the device
+    can be mid re-enumeration, and esptool then fails to open it."""
     print(f"[*] Resetting board on {port} via esptool...")
     cmd = [sys.executable, "-m", "esptool", "--port", port, "--after", "hard_reset", "run"]
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except FileNotFoundError:
-        sys.exit("esptool not found. Install it with: pip install esptool")
-    except subprocess.CalledProcessError as exc:
-        print(exc.stdout)
-        print(exc.stderr)
-        sys.exit(f"esptool failed to reset the board: {exc}")
+    last = None
+    for _ in range(20):
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            return
+        except FileNotFoundError:
+            sys.exit("esptool not found. Install it with: pip install esptool")
+        except subprocess.CalledProcessError as exc:
+            last = exc
+            time.sleep(0.5)
+    print(last.stdout)
+    print(last.stderr)
+    sys.exit(f"esptool failed to reset the board: {last}")
+
+
+def open_serial(port, baud, attempts=40, delay=0.25):
+    """Open the port, retrying while the device is mid re-enumeration: a USB-CDC
+    board drops off the bus for a moment around a reset, so an immediate open can
+    fail even though the port is fine a few hundred ms later."""
+    last = None
+    for _ in range(attempts):
+        try:
+            return serial.Serial(port, baud, timeout=0.2)
+        except serial.SerialException as exc:
+            last = exc
+            time.sleep(delay)
+    sys.exit(f"Could not open {port}: {last}")
 
 
 class LineReader:
     """Buffers partial reads across calls so a line that arrives in the same
-    chunk as (but after) the one a caller was waiting for is never dropped."""
+    chunk as (but after) the one a caller was waiting for is never dropped.
 
-    def __init__(self, ser):
+    A reset re-enumerates the USB-CDC device, which invalidates the open handle
+    (reads then fail with "Device not configured"); reopen and keep waiting so a
+    banner emitted during that reconnect is still caught."""
+
+    def __init__(self, ser, port, baud):
         self.ser = ser
+        self.port = port
+        self.baud = baud
         self.buf = b""
+
+    def _reopen(self):
+        try:
+            self.ser.close()
+        except Exception:
+            pass
+        self.ser = open_serial(self.port, self.baud)
 
     def wait_for_line(self, predicate, timeout, echo=True):
         deadline = time.time() + timeout
@@ -157,7 +194,11 @@ class LineReader:
                     return text
             if time.time() >= deadline:
                 return None
-            chunk = self.ser.read(self.ser.in_waiting or 1)
+            try:
+                chunk = self.ser.read(self.ser.in_waiting or 1)
+            except (serial.SerialException, OSError):
+                self._reopen()
+                continue
             if chunk:
                 self.buf += chunk
 
@@ -168,6 +209,65 @@ def send_command(ser, command):
     ser.flush()
 
 
+def stream_firmware(reader, data, legacy):
+    """Send the app image, waiting for the device to acknowledge progress.
+
+    legacy=True is the original behavior: one 2048-byte write, then wait for a
+    single "ACK <written>/<size>" line, repeated. The device can consume a write
+    as several partial reads (USB-CDC arrives in bursts), which breaks that 1:1
+    chunk/ack assumption; legacy=False instead follows the byte count the device
+    reports and keeps a small window in flight so it is never left starved."""
+    chunk_size = 2048
+    last_report = time.time()
+
+    if legacy:
+        sent = 0
+        while sent < len(data):
+            chunk = data[sent : sent + chunk_size]
+            reader.ser.write(chunk)
+            reader.ser.flush()
+            sent += len(chunk)
+
+            ack = reader.wait_for_line(
+                lambda line: line.startswith("ACK") or line.startswith("ERR"), timeout=15.0, echo=False
+            )
+            if ack is None:
+                sys.exit(f"Timed out waiting for ACK at {sent}/{len(data)} bytes.")
+            if ack.startswith("ERR"):
+                sys.exit(f"Device reported an error at {sent}/{len(data)} bytes: {ack}")
+
+            if time.time() - last_report > 1.0:
+                print(f"    > {sent}/{len(data)} bytes")
+                last_report = time.time()
+        return
+
+    window = 2 * chunk_size
+    sent = 0
+    acked = 0
+    while acked < len(data):
+        while sent < len(data) and sent - acked < window:
+            chunk = data[sent : sent + chunk_size]
+            reader.ser.write(chunk)
+            reader.ser.flush()
+            sent += len(chunk)
+
+        ack = reader.wait_for_line(
+            lambda line: line.startswith("ACK") or line.startswith("ERR"), timeout=15.0, echo=False
+        )
+        if ack is None:
+            sys.exit(f"Timed out waiting for ACK at {sent}/{len(data)} bytes.")
+        if ack.startswith("ERR"):
+            sys.exit(f"Device reported an error at {sent}/{len(data)} bytes: {ack}")
+        try:
+            acked = int(ack.split(None, 1)[1].split("/", 1)[0])
+        except (IndexError, ValueError):
+            sys.exit(f"Malformed ACK from device: {ack}")
+
+        if time.time() - last_report > 1.0:
+            print(f"    > {acked}/{len(data)} bytes")
+            last_report = time.time()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-f", "--file", required=True, help="Path to the firmware .bin to flash")
@@ -176,6 +276,13 @@ def main():
     parser.add_argument("-n", "--name", default=None, help="App name to register (default: file name)")
     parser.add_argument(
         "--no-reset", action="store_true", help="Skip the esptool reset step (board is already at the bootscreen)"
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Reuse the slot an existing push of this name occupies (sends 'flash overwrite' "
+        "and uses windowed streaming). Default sends 'flash firmware' with the original "
+        "one-chunk-per-ack streaming, matching the behavior before this change.",
     )
     parser.add_argument(
         "--boot-timeout", type=float, default=15.0, help="Seconds to wait for the Launcher boot banner"
@@ -204,18 +311,18 @@ def main():
         reset_board(args.port)
 
     print(f"[*] Opening {args.port} @ {args.baud}...")
-    with serial.Serial(args.port, args.baud, timeout=0.2) as ser:
-        reader = LineReader(ser)
+    with open_serial(args.port, args.baud) as ser:
+        reader = LineReader(ser, args.port, args.baud)
         print("[*] Waiting for the Launcher boot banner...")
         banner = reader.wait_for_line(lambda line: BOOT_BANNER in line, args.boot_timeout)
         if banner is None:
             sys.exit("Timed out waiting for the Launcher boot banner. Is the board running this firmware?")
 
-        send_command(ser, "nav SelPress")
+        send_command(reader.ser, "nav SelPress")
         time.sleep(0.3)
 
         print(f"[*] Flashing '{name}' ({size} bytes)...")
-        send_command(ser, f"flash firmware {name} {size}")
+        send_command(reader.ser, f"flash {'overwrite' if args.overwrite else 'firmware'} {name} {size}")
 
         reply = reader.wait_for_line(lambda line: line.startswith(READY_PREFIX) or line.startswith("ERR"), 10.0)
         if reply is None:
@@ -224,31 +331,7 @@ def main():
             sys.exit(f"Device rejected the flash request: {reply}")
 
         print("[*] Streaming firmware bytes...")
-        data = app_data
-        # Send one chunk, then wait for the device's ACK before sending the next.
-        # A blind multi-second single write was observed to silently stall a few
-        # percent short of completion on some Windows USB-serial drivers; keeping
-        # only one chunk in flight at a time avoids that class of issue entirely.
-        chunk_size = 2048
-        sent = 0
-        last_report = time.time()
-        while sent < len(data):
-            chunk = data[sent : sent + chunk_size]
-            ser.write(chunk)
-            ser.flush()
-            sent += len(chunk)
-
-            ack = reader.wait_for_line(
-                lambda line: line.startswith("ACK") or line.startswith("ERR"), timeout=15.0, echo=False
-            )
-            if ack is None:
-                sys.exit(f"Timed out waiting for ACK at {sent}/{len(data)} bytes.")
-            if ack.startswith("ERR"):
-                sys.exit(f"Device reported an error at {sent}/{len(data)} bytes: {ack}")
-
-            if time.time() - last_report > 1.0:
-                print(f"    > {sent}/{len(data)} bytes")
-                last_report = time.time()
+        stream_firmware(reader, app_data, legacy=not args.overwrite)
 
         result = reader.wait_for_line(lambda line: line.startswith("OK") or line.startswith("ERR"), timeout=60.0)
         if result is None:
