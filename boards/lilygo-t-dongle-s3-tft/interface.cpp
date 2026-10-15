@@ -12,7 +12,7 @@
 #endif
 
 void _setup_gpio() {
-#ifdef SOC_SDMMC_HOST_SUPPORTED
+#ifdef CONFIG_IDF_TARGET_ESP32S3
     /* T-DONGLE S3 */
     SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
     gpio_pulldown_dis(GPIO_NUM_21);
@@ -44,6 +44,6 @@ void _post_setup_gpio() {
 
 int getBattery() { return 0; }
 
-void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, 100 - brightval); }
 
 void InputHandler(void) { hal_buttons_poll_1(DeviceButtons{SEL_BTN}); }

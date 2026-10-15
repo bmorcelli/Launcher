@@ -10,6 +10,9 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#if defined(SDM_SD)
+#include "diskio.h"
+#endif
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "esp_private/periph_ctrl.h"
 #include "hal/usb_serial_jtag_ll.h"
@@ -37,16 +40,37 @@ bool s_usbMounted = false;
 #if MSC_DEBUG_LOG
 constexpr const char *kMscLogPath = "/Launcher_error.log";
 
+// Lines are kept in RAM while the host has the card and written out once USB mode ends:
+// appending to the FAT volume from here would write behind the host's back (and stall
+// the SCSI command being served while it does).
+char s_mscLog[1024];
+size_t s_mscLogLen = 0;
+
 void mscLog(const char *fmt, ...) {
-    File f = SDM.open(kMscLogPath, FILE_APPEND, true);
-    if (!f) return;
-    char buf[128];
+    const size_t avail = sizeof(s_mscLog) - s_mscLogLen;
+    if (avail < 2) return;
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
+    const int n = vsnprintf(s_mscLog + s_mscLogLen, avail - 1, fmt, args);
     va_end(args);
-    f.println(buf);
-    f.close();
+    if (n < 0) return;
+    s_mscLogLen += std::min<size_t>(n, avail - 2);
+    s_mscLog[s_mscLogLen++] = '\n';
+}
+
+void flushMscLog() {
+    if (s_mscLogLen == 0) return;
+    // Remount first: FatFs still caches the FAT as it was before the host wrote to it.
+    SDM.end();
+    sdcardMounted = false;
+    if (setupSdCard()) {
+        File f = SDM.open(kMscLogPath, FILE_APPEND, true);
+        if (f) {
+            f.write(reinterpret_cast<const uint8_t *>(s_mscLog), s_mscLogLen);
+            f.close();
+        }
+    }
+    s_mscLogLen = 0;
 }
 #define MSC_LOG(...) mscLog(__VA_ARGS__)
 #else
@@ -304,9 +328,91 @@ extern "C" int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void
     }
 }
 
+// ---------------------------------------------------------------------------
+// Faster SD clock while exporting the card
+//
+// READ10/WRITE10 are served one sector at a time, so MSC throughput is bound by the
+// SPI clock the card was mounted with (4 MHz by default). macOS' FSKit FAT driver reads
+// the whole FAT while mounting and fails with EIO if that takes too long, which a 4 MHz
+// clock can do on a large card (~277 KB/s measured on a Cardputer ADV).
+//
+// Boards opt in by defining MSC_SD_FREQ_HZ (e.g. -DMSC_SD_FREQ_HZ=20000000) once the
+// wiring is known to cope with it. The raised clock is verified against reference
+// sectors read at the default clock, steps down to half, then to the default, and is
+// restored when USB mode ends. Boards where the display shares the SD bus, and
+// SD_MMC boards, are left alone.
+// ---------------------------------------------------------------------------
+#define MSC_SD_FREQ_HZ 40000000 // Make it universal to all capable boards, solves windows issues too
+#if defined(MSC_SD_FREQ_HZ) && defined(SDM_SD) && !(TFT_MOSI == SDCARD_MOSI)
+#define MSC_SD_RAISE_CLOCK 1
+#include <esp_rom_crc.h>
+
+namespace {
+constexpr uint32_t kSdDefaultHz = 4000000; // Arduino SD.begin() default
+constexpr size_t kProbeSectors = 16;
+
+// A few consecutive sectors from the start of the card (MBR, boot sector, FAT) plus
+// some spread across it.
+void probeSectors(uint32_t total, uint32_t out[kProbeSectors]) {
+    size_t n = 0;
+    for (uint32_t i = 0; i < 8 && n < kProbeSectors; ++i) out[n++] = i < total ? i : total - 1;
+    for (uint32_t i = 1; i <= 8 && n < kProbeSectors; ++i) out[n++] = (uint32_t)(((uint64_t)total * i) / 9);
+}
+
+bool probeCrcs(const uint32_t sectors[kProbeSectors], uint32_t crcs[kProbeSectors]) {
+    uint8_t buf[512];
+    for (size_t i = 0; i < kProbeSectors; ++i) {
+        if (!SDM.readRAW(buf, sectors[i])) return false;
+        crcs[i] = esp_rom_crc32_le(0, buf, sizeof(buf));
+    }
+    return true;
+}
+
+bool mountSdAt(uint32_t hz) {
+    SDM.end();
+    return SDM.begin(_cs, sdcardSPI, hz);
+}
+
+void raiseSdClockForMsc() {
+    if (SDM.sectorSize() != 512) return;
+    const uint32_t total = SDM.numSectors();
+    if (total < kProbeSectors) return;
+
+    uint32_t sectors[kProbeSectors], reference[kProbeSectors], check[kProbeSectors];
+    probeSectors(total, sectors);
+    if (!probeCrcs(sectors, reference)) return;
+
+    const uint32_t candidates[] = {MSC_SD_FREQ_HZ, MSC_SD_FREQ_HZ / 2};
+    for (uint32_t hz : candidates) {
+        if (hz <= kSdDefaultHz) continue;
+        if (mountSdAt(hz) && SDM.numSectors() == total && probeCrcs(sectors, check) &&
+            memcmp(reference, check, sizeof(reference)) == 0) {
+            return;
+        }
+    }
+
+    // Nothing faster was reliable: go back to the clock the card was mounted with.
+    if (!mountSdAt(kSdDefaultHz)) sdcardMounted = false;
+}
+
+void restoreSdClock() {
+    if (!sdcardMounted) return;
+    if (!mountSdAt(kSdDefaultHz)) sdcardMounted = false;
+}
+} // namespace
+#endif
+
 MassStorage::MassStorage() { setup(); }
 
-MassStorage::~MassStorage() { endUsbRaw(); }
+MassStorage::~MassStorage() {
+    endUsbRaw();
+#if defined(MSC_SD_RAISE_CLOCK)
+    restoreSdClock();
+#endif
+#if MSC_DEBUG_LOG
+    if (sdcardMounted) flushMscLog();
+#endif
+}
 
 void MassStorage::setup() {
     displayMessage("Mounting...");
@@ -318,6 +424,9 @@ void MassStorage::setup() {
         return;
     }
 
+#if defined(MSC_SD_RAISE_CLOCK)
+    raiseSdClockForMsc();
+#endif
     beginUsb();
 
     vTaskDelay(pdTICKS_TO_MS(100));
@@ -431,6 +540,28 @@ int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_
     return bufsize;
 }
 
+#if defined(SDM_SD)
+namespace {
+// SDFS keeps its FatFs drive number protected. Reaching it lets a run of sectors be
+// read with one multi-block command (CMD18) instead of a command per sector.
+struct SdDrive : fs::SDFS {
+    static uint8_t pdrv() { return SDM.*(&SdDrive::_pdrv); }
+};
+} // namespace
+#endif
+
+static bool readSectors(uint8_t *dst, uint32_t sector, uint32_t count, uint32_t secSize) {
+#if defined(SDM_SD)
+    (void)secSize;
+    return disk_read(SdDrive::pdrv(), dst, sector, count) == RES_OK;
+#else
+    for (uint32_t i = 0; i < count; ++i) {
+        if (!SDM.readRAW(dst + i * secSize, sector + i)) return false;
+    }
+    return true;
+#endif
+}
+
 int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
     const uint32_t secSize = SDM.sectorSize();
     if (secSize == 0 || secSize > 512) {
@@ -452,15 +583,20 @@ int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bu
     uint8_t *dst = reinterpret_cast<uint8_t *>(buffer);
 
     while (remaining > 0) {
-        const uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
+        uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
+        uint32_t count = 1;
 
         if (sectorOffset == 0 && chunk == secSize) {
-            if (!SDM.readRAW(dst, sectorLba)) {
+            // Every whole sector left goes straight into the USB buffer in one read
+            count = remaining / secSize;
+            chunk = count * secSize;
+            if (!readSectors(dst, sectorLba, count, secSize)) {
                 MSC_LOG(
-                    "RD lba=%lu off=%lu size=%lu: readRAW failed at sector %lu",
+                    "RD lba=%lu off=%lu size=%lu: read of %lu sectors failed at sector %lu",
                     (unsigned long)lba,
                     (unsigned long)offset,
                     (unsigned long)bufsize,
+                    (unsigned long)count,
                     (unsigned long)sectorLba
                 );
                 tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
@@ -483,7 +619,7 @@ int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bu
 
         remaining -= chunk;
         dst += chunk;
-        sectorLba++;
+        sectorLba += count;
         sectorOffset = 0;
     }
 

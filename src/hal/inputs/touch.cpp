@@ -103,10 +103,60 @@ static uint8_t touchLastRot = 0xFF;
 #include <Wire.h>
 static TouchDrvHI8561 touch;
 static uint8_t touchLastRot = 0xFF;
+
+#elif defined(TOUCH_CTRL_AXS5106L)
+#include <Wire.h>
+// AXS5106L (seeedstudio-esp32s3-touch-147). SensorLib has no driver for this
+// chip and lib/SensorLib is a submodule, so the whole driver lives here -- it
+// is one register read: a 14-byte report from 0x01, whose byte 1 is the touch
+// count and whose points are 12-bit X/Y packed as low nibble + low byte.
+// Coordinates come out in the panel's native (portrait) range already, so this
+// reports them raw and rides the same host-side mirror/swap path as
+// TOUCH_CTRL_FT6X36 instead of rotating them itself.
+#define AXS5106L_ADDRESS 0x63
+#define AXS5106L_DATA_REG 0x01
+#define AXS5106L_REPORT_LEN 14
+
+struct TouchDrvAXS5106L {
+    TwoWire *wire = nullptr;
+    int8_t irq = -1;
+    uint32_t lastPoll = 0;
+
+    bool readReport(uint8_t *buf) {
+        if (!wire) return false;
+        wire->beginTransmission(AXS5106L_ADDRESS);
+        wire->write(AXS5106L_DATA_REG);
+        if (wire->endTransmission() != 0) return false;
+        if (wire->requestFrom((uint8_t)AXS5106L_ADDRESS, (size_t)AXS5106L_REPORT_LEN) < AXS5106L_REPORT_LEN)
+            return false;
+        for (uint8_t i = 0; i < AXS5106L_REPORT_LEN; ++i) buf[i] = (uint8_t)wire->read();
+        return true;
+    }
+
+    bool getPoint(int16_t *x, int16_t *y, uint8_t) {
+        // INT is an active-low hint only: some revisions of this module leave
+        // it high even with a finger down, so a high INT only defers the read
+        // to the ~60Hz poll below rather than skipping it (the vendor driver
+        // falls back the same way).
+        const uint32_t now = launcherMillis();
+        if (irq >= 0 && launcherGpioRead(irq) != LOW && (uint32_t)(now - lastPoll) < 16) return false;
+        lastPoll = now;
+
+        uint8_t b[AXS5106L_REPORT_LEN];
+        if (!readReport(b)) return false;
+        if (b[1] == 0) return false; // no finger down
+        *x = (int16_t)(((b[2] & 0x0F) << 8) | b[3]);
+        *y = (int16_t)(((b[4] & 0x0F) << 8) | b[5]);
+        return true;
+    }
+
+    void reset() {}
+};
+static TouchDrvAXS5106L touch;
 #endif
 
 #if defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36) ||                 \
-    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561)
+    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) || defined(TOUCH_CTRL_AXS5106L)
 #include <Wire.h>
 static TwoWire &wireFor(const DeviceTouch &cfg) {
     return cfg.i2c_bus ? *static_cast<TwoWire *>(cfg.i2c_bus) : Wire;
@@ -196,6 +246,31 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
     touchResetPulse(cfg);
     touch.setPins(cfg.reset_cb ? -1 : cfg.pin_rst, cfg.pin_irq);
     return touch.begin(wireFor(cfg), HI8561_SLAVE_ADDRESS, cfg.pin_sda, cfg.pin_scl);
+#elif defined(TOUCH_CTRL_AXS5106L)
+    (void)xpt_shared_spi;
+    (void)i2c_addr; // fixed AXS5106L_ADDRESS, like FT6X36/HI8561's fixed address
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    // Boards whose touch RST is its own line still get the usual pulse; the
+    // one board on this chip shares RST with the LCD and so leaves pin_rst at
+    // -1, because pulsing it after the panel is up blanks the panel.
+    touchResetPulse(cfg);
+    if (cfg.pin_rst >= 0) {
+        launcherGpioOutput(cfg.pin_rst);
+        launcherGpioWrite(cfg.pin_rst, LOW);
+        launcherDelayMs(200);
+        launcherGpioWrite(cfg.pin_rst, HIGH);
+        launcherDelayMs(300);
+    }
+    if (cfg.pin_irq >= 0) launcherGpioInputPullup(cfg.pin_irq);
+    touch.wire = &wireFor(cfg);
+    touch.irq = cfg.pin_irq;
+    // Probe with a real register read: the chip doesn't ACK an empty write on
+    // every revision, so beginTransmission/endTransmission alone would report
+    // a working controller as missing.
+    {
+        uint8_t probe[AXS5106L_REPORT_LEN];
+        return touch.readReport(probe);
+    }
 #else
     (void)cfg;
     (void)i2c_addr;
@@ -206,25 +281,26 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
 
 bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
 #if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) ||                \
-    defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561)
+    defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) ||                \
+    defined(TOUCH_CTRL_AXS5106L)
     uint8_t r = rotation & 0x03;
     int16_t screenW, screenH;
     panelSize(screenW, screenH);
 #endif
 
-    // XPT2046/FT6X36 give a raw, unrotated point -- the mirror/swap math
-    // below is applied on the host side. GT911/CST8xx hand rotation to the
-    // driver itself instead (setSwapXY/setMirrorXY), see the other half of
+    // XPT2046/FT6X36/AXS5106L give a raw, unrotated point -- the mirror/swap
+    // math below is applied on the host side. GT911/CST8xx hand rotation to
+    // the driver itself instead (setSwapXY/setMirrorXY), see the other half of
     // this function.
 #if defined(TOUCH_CTRL_XPT2046)
     if (!touch.touched()) return false;
     auto p = touch.getPointScaled();
     int16_t x = p.x, y = p.y;
-#elif defined(TOUCH_CTRL_FT6X36)
+#elif defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L)
     int16_t x = 0, y = 0;
     if (!touch.getPoint(&x, &y, 1)) return false;
 #endif
-#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36)
+#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L)
     if (cfg.SwapXY[r]) {
         int16_t t = x;
         x = y;
@@ -278,7 +354,7 @@ bool hal_touch_read_raw(LTouchPoint &out) {
     out.pressed = true;
     return true;
 #elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36) ||               \
-    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561)
+    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) || defined(TOUCH_CTRL_AXS5106L)
     int16_t x = 0, y = 0;
     if (!touch.getPoint(&x, &y, 1)) return false;
     out.x = x;
