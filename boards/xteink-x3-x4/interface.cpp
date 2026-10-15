@@ -239,30 +239,79 @@ void _setBrightness(uint8_t brightval) {
 }
 
 void InputHandler(void) {
-    static unsigned long tm = launcherMillis();
-    if (launcherMillis() - tm > 200 || LongPress) {
-    } else return;
-
+    static int lastRawNav = -1;
+    static int lastRawPage = -1;
+    static int lastNavEvent = -1;
+    static int lastPageEvent = -1;
+    static bool lastPower = false;
+    static uint32_t navPressedAt = 0;
+    static uint32_t pagePressedAt = 0;
+    static uint32_t navRepeatAt = 0;
+    static uint32_t pageRepeatAt = 0;
+    static uint32_t powerRepeatAt = 0;
+    // A hold starts repeating only after REPEAT_START_MS: measured taps on the
+    // X3 run up to ~240 ms, so a 200 ms first repeat double-stepped them. Only
+    // the four navigation buttons repeat; a repeated Confirm or Back is retained
+    // by the e-paper input task and lands in whatever screen the first one
+    // opened.
+    constexpr uint32_t REPEAT_START_MS = 400;
+    constexpr uint32_t REPEAT_MS = 200;
     const int nav = buttonFromLadder(analogRead(BTN_LADDER_1), LADDER_1_BOUNDS, NAV_COUNT);
     const int page = buttonFromLadder(analogRead(BTN_LADDER_2), LADDER_2_BOUNDS, PAGE_COUNT);
     const bool power = launcherGpioRead(PWR_BTN) == LOW;
+    const uint32_t now = launcherMillis();
 
-    if (nav < 0 && page < 0 && !power) return;
+    // A ladder reading only counts once two samples in a row agree: releasing
+    // a low button sweeps the node up through the other bands on its way to
+    // idle, and a single glitch sample mid-hold must not end the hold. A
+    // stable idle rearms the ladder; a stable different button is a new press.
+    // Each ladder repeats independently.
+    const bool navStable = nav == lastRawNav;
+    const bool pageStable = page == lastRawPage;
+    if (nav < 0 && navStable) lastNavEvent = -1;
+    if (page < 0 && pageStable) lastPageEvent = -1;
+    const bool navNew = nav >= 0 && navStable && nav != lastNavEvent;
+    const bool navRepeat = nav >= 0 && navStable && nav == lastNavEvent &&
+                           (nav == NAV_LEFT || nav == NAV_RIGHT) && now - navPressedAt >= REPEAT_START_MS &&
+                           now - navRepeatAt >= REPEAT_MS;
+    const bool navEvent = navNew || navRepeat || (nav >= 0 && navStable && LongPress);
+    const bool pageNew = page >= 0 && pageStable && page != lastPageEvent;
+    const bool pageRepeat = page >= 0 && pageStable && page == lastPageEvent &&
+                            now - pagePressedAt >= REPEAT_START_MS && now - pageRepeatAt >= REPEAT_MS;
+    const bool pageEvent = pageNew || pageRepeat || (page >= 0 && pageStable && LongPress);
+    const bool powerEvent = power && (!lastPower || now - powerRepeatAt >= REPEAT_MS || LongPress);
+    lastRawNav = nav;
+    lastRawPage = page;
+    lastPower = power;
+    if (!navEvent && !pageEvent && !powerEvent) return;
 
-    tm = launcherMillis();
+    if (navEvent) {
+        if (navNew) navPressedAt = now;
+        navRepeatAt = now;
+        lastNavEvent = nav;
+    }
+    if (pageEvent) {
+        if (pageNew) pagePressedAt = now;
+        pageRepeatAt = now;
+        lastPageEvent = page;
+    }
+    if (powerEvent) powerRepeatAt = now;
     if (!wakeUpScreen()) AnyKeyPress = true;
     else return;
 
-    switch (nav) {
-        case NAV_BACK: EscPress = true; break;
-        case NAV_CONFIRM: SelPress = true; break;
-        case NAV_LEFT: PrevPress = true; break;
-        case NAV_RIGHT: NextPress = true; break;
-        default: break;
+    if (navEvent) {
+        switch (nav) {
+            case NAV_BACK: EscPress = true; break;
+            case NAV_CONFIRM: SelPress = true; break;
+            case NAV_LEFT: PrevPress = true; break;
+            case NAV_RIGHT: NextPress = true; break;
+            default: break;
+        }
     }
-
-    if (page == PAGE_UP) UpPress = true;
-    else if (page == PAGE_DOWN) DownPress = true;
+    if (pageEvent) {
+        if (page == PAGE_UP) UpPress = true;
+        else if (page == PAGE_DOWN) DownPress = true;
+    }
 }
 
 void powerOff() {
