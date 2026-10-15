@@ -10,6 +10,9 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#if defined(SDM_SD)
+#include "diskio.h"
+#endif
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "esp_private/periph_ctrl.h"
 #include "hal/usb_serial_jtag_ll.h"
@@ -37,16 +40,37 @@ bool s_usbMounted = false;
 #if MSC_DEBUG_LOG
 constexpr const char *kMscLogPath = "/Launcher_error.log";
 
+// Lines are kept in RAM while the host has the card and written out once USB mode ends:
+// appending to the FAT volume from here would write behind the host's back (and stall
+// the SCSI command being served while it does).
+char s_mscLog[1024];
+size_t s_mscLogLen = 0;
+
 void mscLog(const char *fmt, ...) {
-    File f = SDM.open(kMscLogPath, FILE_APPEND, true);
-    if (!f) return;
-    char buf[128];
+    const size_t avail = sizeof(s_mscLog) - s_mscLogLen;
+    if (avail < 2) return;
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
+    const int n = vsnprintf(s_mscLog + s_mscLogLen, avail - 1, fmt, args);
     va_end(args);
-    f.println(buf);
-    f.close();
+    if (n < 0) return;
+    s_mscLogLen += std::min<size_t>(n, avail - 2);
+    s_mscLog[s_mscLogLen++] = '\n';
+}
+
+void flushMscLog() {
+    if (s_mscLogLen == 0) return;
+    // Remount first: FatFs still caches the FAT as it was before the host wrote to it.
+    SDM.end();
+    sdcardMounted = false;
+    if (setupSdCard()) {
+        File f = SDM.open(kMscLogPath, FILE_APPEND, true);
+        if (f) {
+            f.write(reinterpret_cast<const uint8_t *>(s_mscLog), s_mscLogLen);
+            f.close();
+        }
+    }
+    s_mscLogLen = 0;
 }
 #define MSC_LOG(...) mscLog(__VA_ARGS__)
 #else
@@ -385,6 +409,9 @@ MassStorage::~MassStorage() {
 #if defined(MSC_SD_RAISE_CLOCK)
     restoreSdClock();
 #endif
+#if MSC_DEBUG_LOG
+    if (sdcardMounted) flushMscLog();
+#endif
 }
 
 void MassStorage::setup() {
@@ -513,6 +540,28 @@ int32_t usbWriteCallback(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_
     return bufsize;
 }
 
+#if defined(SDM_SD)
+namespace {
+// SDFS keeps its FatFs drive number protected. Reaching it lets a run of sectors be
+// read with one multi-block command (CMD18) instead of a command per sector.
+struct SdDrive : fs::SDFS {
+    static uint8_t pdrv() { return SDM.*(&SdDrive::_pdrv); }
+};
+} // namespace
+#endif
+
+static bool readSectors(uint8_t *dst, uint32_t sector, uint32_t count, uint32_t secSize) {
+#if defined(SDM_SD)
+    (void)secSize;
+    return disk_read(SdDrive::pdrv(), dst, sector, count) == RES_OK;
+#else
+    for (uint32_t i = 0; i < count; ++i) {
+        if (!SDM.readRAW(dst + i * secSize, sector + i)) return false;
+    }
+    return true;
+#endif
+}
+
 int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
     const uint32_t secSize = SDM.sectorSize();
     if (secSize == 0 || secSize > 512) {
@@ -534,15 +583,20 @@ int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bu
     uint8_t *dst = reinterpret_cast<uint8_t *>(buffer);
 
     while (remaining > 0) {
-        const uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
+        uint32_t chunk = std::min<uint32_t>(remaining, secSize - sectorOffset);
+        uint32_t count = 1;
 
         if (sectorOffset == 0 && chunk == secSize) {
-            if (!SDM.readRAW(dst, sectorLba)) {
+            // Every whole sector left goes straight into the USB buffer in one read
+            count = remaining / secSize;
+            chunk = count * secSize;
+            if (!readSectors(dst, sectorLba, count, secSize)) {
                 MSC_LOG(
-                    "RD lba=%lu off=%lu size=%lu: readRAW failed at sector %lu",
+                    "RD lba=%lu off=%lu size=%lu: read of %lu sectors failed at sector %lu",
                     (unsigned long)lba,
                     (unsigned long)offset,
                     (unsigned long)bufsize,
+                    (unsigned long)count,
                     (unsigned long)sectorLba
                 );
                 tud_msc_set_sense(0, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
@@ -565,7 +619,7 @@ int32_t usbReadCallback(uint32_t lba, uint32_t offset, void *buffer, uint32_t bu
 
         remaining -= chunk;
         dst += chunk;
-        sectorLba++;
+        sectorLba += count;
         sectorOffset = 0;
     }
 
