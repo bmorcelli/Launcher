@@ -373,9 +373,11 @@ void InputHandler(void) {
         if (status.fn) key.fn = true;
         key.pressed = true;
         KeyStroke = key;
-        if (Keyboard.isKeyPressed(',') || Keyboard.isKeyPressed(';')) PrevPress = true;
+        if (Keyboard.isKeyPressed(',')) PrevPress = true;
+        if (Keyboard.isKeyPressed(';')) UpPress = true;
         if (Keyboard.isKeyPressed('`') || Keyboard.isKeyPressed(KEY_BACKSPACE)) EscPress = true;
-        if (Keyboard.isKeyPressed('/') || Keyboard.isKeyPressed('.')) NextPress = true;
+        if (Keyboard.isKeyPressed('/')) NextPress = true;
+        if (Keyboard.isKeyPressed('.')) DownPress = true;
         if (Keyboard.isKeyPressed(KEY_ENTER)) SelPress = true;
         if (!KeyStroke.pressed) return;
         String keyStr = "";
