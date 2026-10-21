@@ -767,6 +767,14 @@
         },
         {
             "display": true,
+            "name": "XIAO 1.47in IPS Display",
+            "description": "",
+            "link": "https://wiki.seeedstudio.com/getting_started_1.47_inch_touch_display_esp32s3/",
+            "family": "ESP32-S3",
+            "id": "seeedstudio-esp32s3-touch-147"
+        },
+        {
+            "display": true,
             "name": "XIAO ESP32-S3-8mb & Sense",
             "description": "Headless",
             "link": "https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html?sensecap_affiliate=dhriNBA&referring_service=link",
