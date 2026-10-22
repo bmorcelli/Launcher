@@ -50,12 +50,15 @@ static DeviceTouch touchCfg() {
     cfg.pin_scl = -1;
     cfg.pin_rst = -1; // RST and INT are on the IO expander, reset by hand in _setup_gpio()
     cfg.pin_irq = -1;
-    // The digitizer is mounted 180 degrees from the panel's native portrait
-    // (LovyanGFX touch offset_rotation=2 in Meshtastic's setup).
+    // GT911 reports panel-native portrait (x 0-239, y 0-319). In the default
+    // landscape (rotation 1) screen = (319 - raw_y, raw_x), as meshpunk's
+    // hardware-tested mapping; the other rotations follow Panel_NV3031B's
+    // MADCTL table (0: MX|MY, 1: MY|MV, 2: none, 3: MX|MV). SensorLib swaps
+    // first, then mirrors against the rotated size.
     //                 rotation: 0      1      2      3
     bool swapXY[4] = {false, true, false, true};
-    bool mirrorX[4] = {false, false, true, true};
-    bool mirrorY[4] = {false, true, true, false};
+    bool mirrorX[4] = {true, true, false, false};
+    bool mirrorY[4] = {true, false, false, true};
     for (int i = 0; i < 4; i++) {
         cfg.SwapXY[i] = swapXY[i];
         cfg.MirrorX[i] = mirrorX[i];

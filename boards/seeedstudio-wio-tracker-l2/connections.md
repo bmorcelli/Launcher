@@ -18,12 +18,14 @@ Wiki: https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/
 | RST    | expander P06 |
 | Power  | expander P05 (high = on) |
 
-- Driver `TFT_DISPLAY_DRIVER_N=51` (`Arduino_NV3031B`, in DisplayDrivers'
-  `src/panels/`), on `Arduino_ESP32QSPI`. SPI mode 3, 40MHz.
+- LovyanGFX `Panel_NV3031B` on a quad `Bus_SPI` (`USE_LOVYANGFX`,
+  LovyanGFX >= 1.2.27), SPI mode 3, 75MHz -- same values as meshpunk's
+  hardware-tested `WioL2Lgfx` (env `meshpunk_wio_l2`).
 - Native 240x320 portrait; `ROTATION=1` (MADCTL MY|MV) is the landscape the
-  case is built for. Needs INVON (`TFT_IPS=1`), RGB order.
-- SLPOUT leaves the panel shifted by one column, so the driver's
-  `displayOn()` does a full SWRESET + init instead.
+  case is built for. RGB order. The panel must end init on INVOFF:
+  `Panel_NV3031B::setInvert()` ignores `cfg.invert`, so that is what
+  LovyanGFX sends (Arduino_GFX's driver 51 with `TFT_IPS=1` sent INVON and
+  showed inverted colors).
 - Expander P04 is named `LCD_CS` in Meshtastic but the panel CS is GPIO46;
   P04 is just parked high, same as Meshtastic does.
 
@@ -67,10 +69,10 @@ CLK 2, CMD 3, D0 1; powered from expander P14.
 - BOOT/User button, GPIO0 -- `HAS_1_BUTTON` (click Next, double click Prev,
   hold Sel, long hold Esc).
 - WAKE button on expander P00 -- Esc.
-- GT911 touch, polled (INT is on the expander). Digitizer is mounted 180
-  degrees from the panel's native orientation; the Swap/Mirror tables in
-  `interface.cpp` are derived from that and still need a 4-corner check on
-  hardware.
+- GT911 touch, polled (INT is on the expander). Reports panel-native
+  portrait (x 0-239, y 0-319); in landscape (rotation 1) screen =
+  (319 - raw_y, raw_x), per meshpunk. Rotations 0/2/3 in `interface.cpp` are
+  derived from the panel's MADCTL table and not yet checked on hardware.
 
 ## Unused here
 SX1262 LoRa (SCK 4, MISO 5, MOSI 6, CS 21 held high, RST 7, DIO1 9, BUSY 8),
