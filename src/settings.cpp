@@ -1050,7 +1050,12 @@ void chargeMode() {
     unsigned long tmp = 0;
     while (!check(SelPress)) {
         if (launcherMillis() - tmp > 5000) {
-            displayRedStripe(String(getBattery()) + " %", getComplementaryColor(BGCOLOR), ALCOLOR, false);
+            displayRedStripe(
+                String(getBattery()) + (isCharging() ? " % CHG" : " %"),
+                getComplementaryColor(BGCOLOR),
+                ALCOLOR,
+                false
+            );
             tmp = launcherMillis();
         }
     }

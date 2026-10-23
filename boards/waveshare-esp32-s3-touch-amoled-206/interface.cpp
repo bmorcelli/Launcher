@@ -66,11 +66,12 @@ int getBattery() {
     return percent;
 }
 
+bool isCharging() { return axp2101.isCharging(); }
+
 void _setBrightness(uint8_t brightval) {
     auto *panel = static_cast<Arduino_CO5300 *>(tft->outputDriver());
     if (panel) panel->setBrightness((brightval * 255) / 100);
 }
-
 
 void InputHandler(void) {
     if (touch_OK) {
@@ -92,6 +93,4 @@ void InputHandler(void) {
 
 void powerOff() { axp2101.shutdown(); }
 
-void reboot() {
-    ESP.restart();
-}
+void reboot() { ESP.restart(); }

@@ -118,6 +118,8 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
+bool isCharging() { return PPM.isCharging(); }
+
 void _setBrightness(uint8_t brightval) {
     // The AMOLED has no backlight rail; brightness is a CO5300 register.
     // outputDriver() is the panel behind the canvas — see DisplayDrivers.

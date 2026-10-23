@@ -4,6 +4,10 @@
 #include "powerSave.h"
 #include "settings.h"
 #include <globals.h>
+#include <soc/soc_caps.h>
+#if SOC_USB_SERIAL_JTAG_SUPPORTED
+#include <driver/usb_serial_jtag.h>
+#endif
 #ifdef USE_CARDKB2
 #include <cardkb2.h>
 #endif
@@ -1036,22 +1040,27 @@ void __attribute__((weak)) reboot() { ESP.restart(); }
 
 /* Verifies if the appropriate btn was pressed to turn off device */
 void __attribute__((weak)) checkReboot() {}
+#ifdef ANALOG_BAT_PIN
+#ifndef ANALOG_BAT_MULTIPLIER
+#define ANALOG_BAT_MULTIPLIER 2.0f
+#endif
+static float analogBatMv() {
+    static bool adcInitialized = false;
+    if (!adcInitialized) {
+        launcherGpioInput(ANALOG_BAT_PIN);
+        adcInitialized = true;
+    }
+    return (float)analogReadMilliVolts(ANALOG_BAT_PIN) * ANALOG_BAT_MULTIPLIER;
+}
+#endif
+
 /***************************************************************************************
 ** Function name: getBattery()
 ** Description:   Delivers the battery value from 0-100
 ***************************************************************************************/
 int __attribute__((weak)) getBattery() {
 #ifdef ANALOG_BAT_PIN
-#ifndef ANALOG_BAT_MULTIPLIER
-#define ANALOG_BAT_MULTIPLIER 2.0f
-#endif
-    static bool adcInitialized = false;
-    if (!adcInitialized) {
-        launcherGpioInput(ANALOG_BAT_PIN);
-        adcInitialized = true;
-    }
-    uint32_t adcReading = analogReadMilliVolts(ANALOG_BAT_PIN);
-    float actualVoltage = (float)adcReading * ANALOG_BAT_MULTIPLIER;
+    float actualVoltage = analogBatMv();
     const float MIN_VOLTAGE = 3300.0f;
     const float MAX_VOLTAGE = 4150.0f;
     float percent = ((actualVoltage - MIN_VOLTAGE) / (MAX_VOLTAGE - (MIN_VOLTAGE + 50.0f))) * 100.0f;
@@ -1061,4 +1070,56 @@ int __attribute__((weak)) getBattery() {
     return (int)percent;
 #endif
     return 0;
+}
+
+/***************************************************************************************
+** Function name: isCharging()
+** Description:   true while the battery is charging. Boards with a PMIC/gauge override it.
+**                 The default has no charger to ask, so it guesses:
+**                 - native USB (USB-Serial-JTAG): a host sending SOF frames means VBUS is
+**                   up, so the charger is running. Blind to wall chargers/power banks.
+**                 - ANALOG_BAT_PIN: the cell voltage jumps up when a charger is plugged in,
+**                   drops when it is pulled, and only a charger holds it above a resting
+**                   cell's ceiling. A big load change can fake a plug-in until the next
+**                   drop; that is the price of having no charge-status line.
+***************************************************************************************/
+bool __attribute__((weak)) isCharging() {
+    bool charging = false;
+#if SOC_USB_SERIAL_JTAG_SUPPORTED
+    charging = usb_serial_jtag_is_connected();
+#endif
+#ifdef ANALOG_BAT_PIN
+    const float CHARGER_MV = 4220.0f; // no resting LiPo reads above this
+    const float STEP_MV = 100.0f;     // plug/unplug step vs the running average
+    static bool plugged = false;
+    static float avg = 0;
+    static uint8_t falling = 0;
+    static unsigned long last = 0;
+    const unsigned long now = launcherMillis();
+    // Callers poll every few seconds; sampling faster only adds ADC noise.
+    if (last == 0 || now - last >= 2000) {
+        last = now;
+        float mv = 0;
+        for (int i = 0; i < 8; ++i) mv += analogBatMv();
+        mv /= 8;
+        if (avg == 0) avg = mv;
+        const float d = mv - avg;
+        if (mv > CHARGER_MV || d > STEP_MV) {
+            plugged = true;
+            falling = 0;
+        } else if (d < -STEP_MV) {
+            plugged = false;
+        } else if (plugged) {
+            // A charger never lets the cell sag steadily; ~16s of decline means it is gone.
+            if (d < -8.0f) {
+                if (++falling >= 8) plugged = false;
+            } else if (d > 0) {
+                falling = 0;
+            }
+        }
+        avg += (mv - avg) / 4;
+    }
+    charging = charging || plugged;
+#endif
+    return charging;
 }

@@ -87,6 +87,13 @@ int getBattery() {
     return (level < 0) ? 0 : (level >= 100) ? 100 : level;
 }
 
+// M5PM1 exposes no charge-state flag; running off USB (5VIN) with charging enabled is
+// the closest it gets.
+bool isCharging() {
+    m5pm1_pwr_src_t src;
+    return pm1.getPowerSource(&src) == M5PM1_OK && src == M5PM1_PWR_SRC_5VIN;
+}
+
 void InputHandler(void) { hal_buttons_poll_2(); }
 
 void powerOff() { pm1.shutdown(); }

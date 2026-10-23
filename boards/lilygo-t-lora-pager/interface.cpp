@@ -204,6 +204,8 @@ void _setup_gpio() {
 
 int getBattery() { return hal_gauge_get_percent(); }
 
+bool isCharging() { return hal_gauge_is_charging(); }
+
 void _setBrightness(uint8_t brightval) {
     uint8_t blPins[] = {TFT_BL, KEYBOARD_BL};
     hal_bright_set(blPins, 2, brightval);

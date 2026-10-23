@@ -37,4 +37,7 @@ int getBattery() {
     }
 }
 
+// Uses the current sampled by the last gauge.refresh() in getBattery().
+bool isCharging() { return gauge.isCharging(); }
+
 void InputHandler(void) { hal_buttons_poll_2(); }

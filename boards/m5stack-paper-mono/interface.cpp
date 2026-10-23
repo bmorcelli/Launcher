@@ -141,6 +141,13 @@ int getBattery() {
     return (level < 0) ? 0 : (level >= 100) ? 100 : level;
 }
 
+// M5PM1 exposes no charge-state flag; running off USB (5VIN) with charging enabled is
+// the closest it gets.
+bool isCharging() {
+    m5pm1_pwr_src_t src;
+    return pm1.getPowerSource(&src) == M5PM1_OK && src == M5PM1_PWR_SRC_5VIN;
+}
+
 void _setBrightness(uint8_t brightval) {
     // Same PWM0/GPIO3 recipe as M5GFX's Light_M5PaperMono::setBrightness():
     // duty is brightness^2 (gamma correction) as a 12-bit value; 0 disables

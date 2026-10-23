@@ -35,6 +35,18 @@ int getBattery() {
     return (int)hi;
 }
 
+// CRATE (0x16): signed charge rate, 0.208 %/h per LSB, positive while charging.
+// A few LSB of margin keep idle noise from flickering the bolt.
+bool isCharging() {
+    Wire.beginTransmission(MAX17048_ADDR);
+    Wire.write(0x16);
+    if (Wire.endTransmission(false) != 0) return false;
+    if (Wire.requestFrom((int)MAX17048_ADDR, 2) != 2) return false;
+    const uint8_t hi = Wire.read();
+    const uint8_t lo = Wire.read();
+    return (int16_t)((hi << 8) | lo) > 4;
+}
+
 void _setup_gpio() {
     pinMode(SDCARD_CS, OUTPUT);
     pinMode(TOUCH_CS, OUTPUT);

@@ -15,5 +15,6 @@ int hal_pmic_get_input_current_limit_ma();
 int hal_pmic_get_charger_constant_curr_ma();
 int hal_pmic_get_system_voltage_mv();
 int hal_pmic_get_ntc_percent();
+bool hal_pmic_is_charging();
 
 #endif

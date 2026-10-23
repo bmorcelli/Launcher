@@ -85,3 +85,11 @@ int hal_pmic_get_ntc_percent() {
     return -1;
 #endif
 }
+
+bool hal_pmic_is_charging() {
+#if defined(PMIC_BQ25896)
+    return ppm.isCharging();
+#else
+    return false;
+#endif
+}

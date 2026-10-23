@@ -860,6 +860,7 @@ void InputHandler(void) {
 ** A wedged gauge now costs a stale percentage instead of a frozen launcher.
 **********************************************************************/
 static volatile int gaugePercent = 0;
+static volatile bool gaugeCharging = false;
 
 static void _gauge_task(void *) {
     for (;;) {
@@ -867,6 +868,7 @@ static void _gauge_task(void *) {
             if (gauge.refresh()) {
                 const int percent = gauge.getStateOfCharge();
                 gaugePercent = (percent < 0) ? 0 : (percent > 100) ? 100 : percent;
+                gaugeCharging = gauge.getCurrent() > 0; // BQ27220 current is positive while charging
             }
         }
         vTaskDelay(pdMS_TO_TICKS(5000));
@@ -874,6 +876,8 @@ static void _gauge_task(void *) {
 }
 
 int getBattery() { return gaugePercent; }
+
+bool isCharging() { return gaugeCharging; }
 
 static void _peripherals_power_down() {
     SD_MMC.end();

@@ -195,6 +195,9 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
+// AXP192 power-status register 0x01, bit 6: battery is being charged
+bool isCharging() { return axp192.Read8bit(0x01) & 0x40; }
+
 void _setBrightness(uint8_t brightval) {
     if (brightval > 100) brightval = 100;
     axp192.ScreenBreath(brightval);

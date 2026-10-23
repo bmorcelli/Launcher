@@ -127,6 +127,18 @@ int getBattery() {
     return 0;
 }
 
+/***************************************************************************************
+** Function name: isCharging()
+** location: display.cpp
+** Description:   true while charging: draws a bolt on the battery icon. Optional, the
+**                 weak default returns false (e.g. a plain ANALOG_BAT_PIN divider).
+***************************************************************************************/
+bool isCharging() {
+    // With GAUGE_BQ27220 set: return hal_gauge_is_charging();
+    // With PMIC_BQ25896 set:  return hal_pmic_is_charging();
+    return false;
+}
+
 /*********************************************************************
 ** Function: setBrightness
 ** location: settings.cpp

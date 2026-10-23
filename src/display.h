@@ -112,7 +112,9 @@ Opt_Coord drawOptions(
 
 void drawDeviceBorder();
 
-void drawBatteryStatus(uint8_t bat);
+void drawBatteryStatus(uint8_t bat, bool charging = false);
+
+bool drawStatusIcons(bool reset);
 
 void drawWifiStatus(bool hasBattery = false);
 

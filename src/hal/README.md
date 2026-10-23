@@ -174,6 +174,8 @@ support for that chip is added — don't force it through `DevicePmic`.
 - `hal_pmic_get_ntc_percent()` — battery percent estimated from the
   charger's own NTC reading, for a board with no separate fuel gauge
   (instead of `hal_pmic_get_system_voltage_mv()`).
+- `hal_pmic_is_charging()` — charger status register reports pre-charge,
+  fast charge or charge-done. Return it from the board's `isCharging()`.
 - With no `PMIC_*` macro defined, every function above is a no-op returning
   `false`/`-1`.
 
@@ -187,7 +189,13 @@ a MAX17048 or other gauge stays board-specific until HAL support is added.
   into the gauge. Leave `design_capacity_mah` at 0 (default) to skip
   `setDesignCap()` entirely.
 - `hal_gauge_get_percent()` — 0-100, or -1 if unavailable/unread.
-- `hal_gauge_is_charging()`.
+- `hal_gauge_is_charging()` — gauge's DSG flag is clear (not discharging).
+  Return it from the board's `isCharging()`.
+
+`isCharging()` (weak, `src/mykeyboard.cpp`, default `false`) is the
+board-level hook next to `getBattery()`: when it returns true the main-menu
+battery icon gets a lightning bolt (the header polls it every 3s, so
+plugging/unplugging shows up without any input).
 
 ## `bright/bright.*`
 

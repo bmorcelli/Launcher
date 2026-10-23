@@ -151,6 +151,8 @@ void _post_setup_gpio() {
 
 int getBattery() { return hal_gauge_get_percent(); }
 
+bool isCharging() { return hal_gauge_is_charging(); }
+
 void _setBrightness(uint8_t brightval) { hal_bright_set(isH752_1 ? 11 : 40, brightval); }
 
 void InputHandler(void) {

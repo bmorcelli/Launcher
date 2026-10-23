@@ -78,6 +78,8 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
+bool isCharging() { return pmu_OK && hal_pmic_is_charging(); }
+
 void _setBrightness(uint8_t brightval) {
     // The AMOLED has no backlight rail; brightness is the RM67162's 0x51
     // register, which the driver writes for us.

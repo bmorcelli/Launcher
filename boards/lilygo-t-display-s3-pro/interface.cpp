@@ -99,6 +99,8 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
+bool isCharging() { return PMU.isCharging(); }
+
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 void InputHandler(void) {

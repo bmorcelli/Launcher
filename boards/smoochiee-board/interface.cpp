@@ -45,4 +45,6 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
+bool isCharging() { return hal_pmic_is_charging(); }
+
 void InputHandler(void) { hal_buttons_poll_5(buttonsCfg()); }

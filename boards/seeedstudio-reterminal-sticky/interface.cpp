@@ -261,6 +261,19 @@ int getBattery() {
     return cached;
 }
 
+bool isCharging() {
+    // BatteryStatus() (0x0A) bit 0 is DSG, set while the gauge sees the cell discharging.
+    static bool cached = false;
+    Wire1.beginTransmission(BQ27220_ADDR);
+    Wire1.write(0x0A);
+    if (Wire1.endTransmission(false) != 0) return cached;
+    if (Wire1.requestFrom(BQ27220_ADDR, 2) < 2) return cached;
+    const uint8_t lo = Wire1.read();
+    Wire1.read();
+    cached = !(lo & 0x01);
+    return cached;
+}
+
 void _setBrightness(uint8_t brightval) {
     // No backlight and no frontlight on this panel.
     (void)brightval;

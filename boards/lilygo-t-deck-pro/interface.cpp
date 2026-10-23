@@ -240,6 +240,8 @@ void _post_setup_gpio() {
 
 int getBattery() { return hal_gauge_get_percent(); }
 
+bool isCharging() { return hal_gauge_is_charging(); }
+
 void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 #define KB_ROWS 4

@@ -565,6 +565,18 @@ void loop() {
                 resetGlobals(); // avoid leaking command after menu is shown
             }
         }
+#ifndef E_PAPER_DISPLAY
+#define REFRESH_TIME_CHARGE 3000 // 3 seconds
+#else
+#define REFRESH_TIME_CHARGE 300000 // 5 minutes
+#endif
+        // Plugging/unplugging the charger raises no input event, so poll the header icons.
+        static unsigned long statusTmr = 0;
+        if (launcherMillis() - statusTmr > REFRESH_TIME_CHARGE) {
+            statusTmr = launcherMillis();
+            if (drawStatusIcons(false)) tft->display(false);
+        }
+
 #ifdef E_PAPER_DISPLAY
         // Back has no action on the main menu. Consume it so an unread Escape
         // cannot keep the input task from accepting navigation or Select.

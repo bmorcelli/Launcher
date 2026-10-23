@@ -977,8 +977,6 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
     // The grid layout (position/size per item) never changes between calls in the same
     // session, so all other icons stay pixel-identical and don't need to be touched.
     static int lastIndex = -1;
-    static int bat = 0;
-    static bool wifi = false;
 
     uint8_t size = opt.size();
     if (size < 1) {
@@ -1104,18 +1102,40 @@ void drawMainMenu(std::vector<MenuOptions> &opt, int index, bool forceFullRedraw
         tft->setTextSize(maxIconTextSize);
         drawDeviceBorder();
         TouchFooter();
+    }
+    drawStatusIcons(fullRedraw);
+    tft->display(false);
+}
+
+/***************************************************************************************
+** Function name: drawStatusIcons
+** Description:   Repaints the battery/wifi icons of the main menu header when their state
+**                 changed (or always, after a full redraw). Returns true if anything was drawn.
+***************************************************************************************/
+bool drawStatusIcons(bool reset) {
+    static int bat = 0;
+    static bool chg = false;
+    static bool wifi = false;
+    if (reset) {
         bat = 0;
         wifi = false;
     }
+    bool changed = false;
     int _bat = getBattery();
-    if (bat != _bat && _bat > 0) {
-        drawBatteryStatus(_bat);
+    bool _chg = isCharging();
+    if ((bat != _bat || chg != _chg) && _bat > 0) {
+        drawBatteryStatus(_bat, _chg);
         bat = _bat;
+        chg = _chg;
+        changed = true;
     }
     bool _wifi = launcherWifiIsConnected();
-    if (_wifi && wifi != _wifi) drawWifiStatus(bat > 0);
+    if (_wifi && wifi != _wifi) {
+        drawWifiStatus(bat > 0);
+        changed = true;
+    }
     wifi = _wifi;
-    tft->display(false);
+    return changed;
 }
 /***************************************************************************************
 ** Function name: launcherBootAppShortcuts
@@ -1223,7 +1243,7 @@ void drawWifiStatus(bool hasBattery) {
     tft->fillRect(cx - dot / 2, by - dot / 2 + 2, dot, dot, FGCOLOR);
 }
 
-void drawBatteryStatus(uint8_t bat) {
+void drawBatteryStatus(uint8_t bat, bool charging) {
     tft->drawRoundRect(tftWidth - 42 - RES, 7, 34, _fp * LH + 9, 2, FGCOLOR);
     tft->setTextSize(_fp);
     tft->setTextColor(FGCOLOR, BGCOLOR);
@@ -1234,6 +1254,28 @@ void drawBatteryStatus(uint8_t bat) {
     tft->fillRoundRect(tftWidth - 40 - RES, 9, 30 * bat / 100, _fp * LH + 5, 2, FGCOLOR);
     tft->drawLine(tftWidth - 30 - RES, 9, tftWidth - 30 - RES, 9 + _fp * LH + 6, BGCOLOR);
     tft->drawLine(tftWidth - 20 - RES, 9, tftWidth - 20 - RES, 9 + _fp * LH + 6, BGCOLOR);
+    if (!charging) return;
+    // Lightning bolt centred on the gauge. Its body takes the opposite colour of the bar
+    // under the centre and a halo in the other colour outlines it over the rest of the bar.
+    const int cx = tftWidth - 25 - RES;
+    const int t = 10, b = 12 + _fp * LH, cy = (t + b) / 2;
+    const int u = (_fp * LH + 5) / 5;
+    const bool full = bat > 50;
+    const uint16_t halo = full ? FGCOLOR : BGCOLOR;
+    const uint16_t body = full ? BGCOLOR : FGCOLOR;
+    const int8_t offs[][2] = {
+        {-2, 0 },
+        {2,  0 },
+        {0,  -1},
+        {0,  1 },
+        {0,  0 }
+    };
+    for (const auto &o : offs) {
+        uint16_t c = (o[0] || o[1]) ? halo : body;
+        const int x = cx + o[0], y = o[1];
+        tft->fillTriangle(x + u, t + y, x - 2 * u, cy + 1 + y, x, cy + 1 + y, c);
+        tft->fillTriangle(x - u, b + y, x + 2 * u, cy - 1 + y, x, cy - 1 + y, c);
+    }
 }
 
 /*********************************************************************

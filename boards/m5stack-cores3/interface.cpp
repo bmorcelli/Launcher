@@ -11,6 +11,8 @@ int getBattery() {
     return (percent < 0) ? 0 : (percent >= 100) ? 100 : percent;
 }
 
+bool isCharging() { return M5.Power.isCharging() == m5::Power_Class::is_charging; }
+
 void _setBrightness(uint8_t brightval) { M5.Display.setBrightness(brightval); }
 
 void InputHandler(void) {

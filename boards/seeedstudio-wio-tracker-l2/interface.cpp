@@ -181,7 +181,9 @@ int getBattery() {
     Wire.write(0x00);
     if (Wire.endTransmission(false) != 0) return cached;
     if (Wire.requestFrom(ADS1115_ADDR, 2) < 2) return cached;
-    int16_t raw = (int16_t)((Wire.read() << 8) | Wire.read());
+    const uint8_t hi = Wire.read(); // ADS1115 sends MSB first
+    const uint8_t lo = Wire.read();
+    int16_t raw = (int16_t)((hi << 8) | lo);
 
     // 0.125mV per LSB, x2 for the divider
     const float mv = raw * 0.25f;

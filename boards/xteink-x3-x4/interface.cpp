@@ -233,6 +233,20 @@ int getBattery() {
     return (int)(percent + 0.5);
 }
 
+bool isCharging() {
+    if (!isX3) return false; // X4: plain ADC divider, no way to tell
+    // BatteryStatus() (0x0A) bit 0 is DSG, set while the gauge sees the cell discharging.
+    static bool cached = false;
+    Wire.beginTransmission(BQ27220_ADDR);
+    Wire.write(0x0A);
+    if (Wire.endTransmission(false) != 0) return cached;
+    if (Wire.requestFrom(BQ27220_ADDR, 2) < 2) return cached;
+    const uint8_t lo = Wire.read();
+    Wire.read();
+    cached = !(lo & 0x01);
+    return cached;
+}
+
 void _setBrightness(uint8_t brightval) {
     // No backlight and no frontlight on this panel.
     (void)brightval;
