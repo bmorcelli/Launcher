@@ -186,6 +186,14 @@ type WifiNetwork = {
   saved: boolean;
 };
 
+// The console splits arguments on spaces; a token starting with '"' runs to
+// the closing '"' (\" and \\ escape inside). Only quote when needed so plain
+// SSIDs/passwords stay compatible with older firmware.
+const serialArg = (value: string): string =>
+  value === "" || /\s/.test(value) || value.startsWith('"')
+    ? `"${value.replace(/[\\"]/g, "\\$&")}"`
+    : value;
+
 // Printed with "%-32s rssi=%-4d auth=%-9s%s\n" — parse by fixed column so
 // SSIDs containing spaces don't confuse a whitespace-based split.
 const parseWifiScan = (lines: string[]): WifiNetwork[] => {
@@ -1178,22 +1186,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setBusy(true);
 
+        const ssidArg = serialArg(network.ssid);
         if (network.saved && pwd.length > 0) {
           setStatus(`Updating saved password for ${network.ssid}...`);
-          await runCommand("wifi del", `wifi del ${network.ssid}`, { idleMs: 400, maxMs: 4000 });
+          await runCommand("wifi del", `wifi del ${ssidArg}`, { idleMs: 400, maxMs: 4000 });
           await sleep(200);
           await runCommand(
             "wifi add",
-            `wifi add ${network.ssid} ${pwd}`,
+            `wifi add ${ssidArg} ${serialArg(pwd)}`,
             { idleMs: 400, maxMs: 4000 },
-            `wifi add ${network.ssid} ${PASSWORD_MASK}`
+            `wifi add ${ssidArg} ${PASSWORD_MASK}`
           );
         }
 
         setStatus(`Connecting to ${network.ssid}...`);
-        const command = passwordRequired ? `wifi connect ${network.ssid} ${pwd}` : `wifi connect ${network.ssid}`;
+        const command = passwordRequired ? `wifi connect ${ssidArg} ${serialArg(pwd)}` : `wifi connect ${ssidArg}`;
         const displayCommand = passwordRequired
-          ? `wifi connect ${network.ssid} ${PASSWORD_MASK}`
+          ? `wifi connect ${ssidArg} ${PASSWORD_MASK}`
           : command;
         const lines = await runCommand(
           "wifi connect",
@@ -1216,7 +1225,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (busy) return;
           setBusy(true);
           setStatus(`Removing ${network.ssid}...`);
-          const lines = await runCommand("wifi del", `wifi del ${network.ssid}`, { idleMs: 400, maxMs: 4000 });
+          const lines = await runCommand("wifi del", `wifi del ${serialArg(network.ssid)}`, { idleMs: 400, maxMs: 4000 });
           setStatus(firstNonEmptyLine(lines) || `No response removing ${network.ssid}.`);
           row.remove();
           setBusy(false);
@@ -1276,9 +1285,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(`Saving ${ssid}...`);
     const lines = await runCommand(
       "wifi add",
-      `wifi add ${ssid} ${pwd}`,
+      `wifi add ${serialArg(ssid)} ${serialArg(pwd)}`,
       { idleMs: 400, maxMs: 4000 },
-      `wifi add ${ssid} ${PASSWORD_MASK}`
+      `wifi add ${serialArg(ssid)} ${PASSWORD_MASK}`
     );
     setStatus(firstNonEmptyLine(lines) || `No response saving ${ssid}.`);
     setBusy(false);
@@ -1293,7 +1302,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     setBusy(true);
     setStatus(`Removing ${ssid}...`);
-    const lines = await runCommand("wifi del", `wifi del ${ssid}`, { idleMs: 400, maxMs: 4000 });
+    const lines = await runCommand("wifi del", `wifi del ${serialArg(ssid)}`, { idleMs: 400, maxMs: 4000 });
     setStatus(firstNonEmptyLine(lines) || `No response removing ${ssid}.`);
     setBusy(false);
   });
