@@ -45,6 +45,8 @@
 //   wifi disconnect                                disconnect and stop the WiFi radio
 //   wifi add <SSID> <PWD>                          save a network without connecting to it
 //   wifi del <SSID>                                remove one saved network
+//                                                  (wrap SSID/PWD in "double quotes" if they
+//                                                  contain spaces; \" and \\ escape inside)
 //   wifi clear                                     remove all saved networks
 //   wifi list                                      list saved networks, same format as "wifi
 //                                                  scan" but rssi=0; auth is "unknown" for
@@ -86,13 +88,28 @@ static std::vector<String> splitTokens(const String &line) {
     }
     clean.trim();
 
+    // A token starting with '"' runs to the closing '"' and may contain spaces
+    // (SSIDs like "My Home WiFi"); inside it, \" and \\ are escapes. Quotes
+    // elsewhere in a token are literal, so unquoted passwords keep working.
     int start = 0;
     int len = static_cast<int>(clean.length());
     while (start < len) {
         while (start < len && clean[start] == ' ') start++;
+        if (start >= len) break;
+        if (clean[start] == '"') {
+            String token;
+            int i = start + 1;
+            while (i < len && clean[i] != '"') {
+                if (clean[i] == '\\' && i + 1 < len && (clean[i + 1] == '"' || clean[i + 1] == '\\')) i++;
+                token += clean[i++];
+            }
+            tokens.push_back(token);
+            start = i + 1;
+            continue;
+        }
         int end = start;
         while (end < len && clean[end] != ' ') end++;
-        if (end > start) tokens.push_back(clean.substring(start, end));
+        tokens.push_back(clean.substring(start, end));
         start = end;
     }
     return tokens;
@@ -914,7 +931,7 @@ static void printHelp() {
     launcherConsolePrintln("  flash overwrite <name> <size>");
     launcherConsolePrintln("  wifi auto");
     launcherConsolePrintln("  wifi scan");
-    launcherConsolePrintln("  wifi connect <SSID> [PWD]");
+    launcherConsolePrintln("  wifi connect <SSID> [PWD]  (quote SSID/PWD with spaces: \"My WiFi\")");
     launcherConsolePrintln("  wifi disconnect");
     launcherConsolePrintln("  wifi add <SSID> <PWD>");
     launcherConsolePrintln("  wifi del <SSID>");

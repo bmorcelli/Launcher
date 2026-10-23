@@ -112,6 +112,7 @@ Things that need to be done in future updates
      * [x] **Added** Option to control bootscreen time (from 1 to 5 seconds).
      * [x] **Added** Option to disable starting Launcher from DeepSleep. Some e-ink firmwares (CrossInk, CrossPoint etc..)  use agressive deepsleep controls to save energy, and by default it used to trigger Launcher bootscreen, adding time to the device/firmware recovery. Now you can Disable this behaviour and trigger Launcher only on Power On reason. Use it with care, and in devices with exposed RST button, otherwise getting back to Launcher can be impossible on some devices
      * [x] **Added** Option to start Launcher when a button is pressed during a restart. This is a siruation where you will only see the Launcher bootscreen if you Turn on/Restart/recover from deepsleep the device if that configured button is pressed. Combined with the previous option it makes Launcher *stealthy*, and will only show up if you want. Boot Button can't be configured for this function, and it is available only on devices with GPIO driven buttons available (Touchscreen/keyboard/encoder only devices will not have this option)
+     * [x] **FIXED** Serial command now accept spaces on wifi SSID and Passwords using quotes `wifi add "My SSID Network" "my p@sSw0rd"` [issue](https://github.com/bmorcelli/Launcher/issues/454)
      * [x] **FIXED** `Lilygo T-Watch Ultra` and `Lilygo T-Display S3 Amoled Plus` touchscreen
      * [x] **FIXED** `M5Stack Tab5` OTA function randomly crashing.
      * [x] **Changed** `M4Stack Paper Mono` display backend.
