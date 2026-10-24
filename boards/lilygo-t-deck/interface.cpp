@@ -117,6 +117,7 @@ void _post_setup_gpio() {}
 void _setBrightness(uint8_t brightval) {
     Wire.beginTransmission(LILYGO_KB_SLAVE_ADDRESS);
     Wire.write(LILYGO_KB_BRIGHTNESS_CMD);
+    Wire.write(brightval); // kybd light on as default
     hal_bright_set(TFT_BL, brightval);
     Wire.endTransmission();
 }
