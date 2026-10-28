@@ -134,6 +134,7 @@
             - { env: "elecrow-thinknode-m9"       }
             - { env: "waveshare-esp32-s3-lcd-147" }
             - { env: "waveshare-esp32-c5-lcd-147" }
+            - { env: "waveshare-esp32-c5-touch-lcd-35"}
             - { env: "waveshare-esp32-c6-lcd-147" }
             - { env: "waveshare-esp32-c6-lcd-130" }
             - { env: "waveshare-esp32-s3-touch-amoled-206"}
