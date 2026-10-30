@@ -225,8 +225,27 @@ void InputHandler(void) {
         wakeWasDown = wakeDown;
     }
 
+    // One applied touch when the finger lands; a hold repeats only after
+    // 500 ms, then every 250 ms (hold-to-scroll on the +/- rows). The input
+    // task clears touchPoint every cycle and the menus act on each applied
+    // press without waiting for a release, so re-applying a held finger at
+    // the 250 ms cadence alone tapped the next menu while the finger was
+    // still down from selecting the previous one. While LongPress is set the
+    // finger is re-applied every pass: launcherSelectHeld() reads
+    // touchPoint.pressed to tell whether the select input is still engaged.
+    static bool touchWasDown = false;
+    static uint32_t touchDownAt = 0;
+    static uint32_t touchAppliedAt = 0;
     LTouchPoint t;
-    if (hal_touch_read(touchCfg(), t)) {
+    const bool touchDown = hal_touch_read(touchCfg(), t);
+    const bool touchEdge = touchDown && !touchWasDown;
+    touchWasDown = touchDown;
+    if (!touchDown) return;
+    const uint32_t now = launcherMillis();
+    if (touchEdge) touchDownAt = now;
+    const bool repeat = now - touchDownAt > 500 && now - touchAppliedAt > 250;
+    if (touchEdge || repeat || LongPress) {
+        touchAppliedAt = now;
         if (!hal_touch_apply(t)) return;
     }
 }
