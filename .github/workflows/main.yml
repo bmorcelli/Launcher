@@ -62,6 +62,7 @@
             - { env: "m5stack-paper-s3"           }
             - { env: "m5stack-paper"              }
             - { env: "m5stack-paper-color"        }
+            - { env: "m5stack-paper-diy"          }
             - { env: "m5stack-paper-mono"         }
             - { env: "m5stack-sticks3"            }
             - { env: "headless-esp32s3-4mb"       }
