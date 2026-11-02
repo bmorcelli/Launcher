@@ -163,7 +163,7 @@ bool isCharging() {
 void reboot() {
     launcherConsoleFlush();
 
-    ledcWrite(TFT_BL, 0);
+    _setBrightness(0);
     launcherGpioWrite(TFT_BL, LOW);
 
     drv.setWaveform(0, 0);

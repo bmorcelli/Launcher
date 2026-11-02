@@ -29,10 +29,9 @@ void _setup_gpio() {
 ** Description:   second stage gpio setup to make a few functions work
 ***************************************************************************************/
 void _post_setup_gpio() {
-    // Brightness control setup
-    pinMode(TFT_BL, OUTPUT);
-    ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-    ledcWrite(TFT_BL, bright);
+    // Backlight PWM -- must be done after tft.init()
+    hal_bright_attach(TFT_BL);
+    hal_bright_set(TFT_BL, bright);
 
     if (!touch.begin()) {
         launcherConsolePrintf("%s\n", String("Touch IC not Started").c_str());
@@ -61,23 +60,7 @@ int getBattery() { return 0; }
 ** location: settings.cpp
 ** set brightness value
 **********************************************************************/
-void _setBrightness(uint8_t brightval) {
-    int dutyCycle;
-    if (brightval == 100) dutyCycle = 250;
-    else if (brightval == 75) dutyCycle = 130;
-    else if (brightval == 50) dutyCycle = 70;
-    else if (brightval == 25) dutyCycle = 20;
-    else if (brightval == 0) dutyCycle = 0;
-    else dutyCycle = ((brightval * 250) / 100);
-
-    log_i("dutyCycle for bright 0-255: %d", dutyCycle);
-    if (!ledcWrite(TFT_BL, dutyCycle)) {
-        launcherConsolePrintf("%s\n", String("Failed to set brightness").c_str());
-        ledcDetach(TFT_BL);
-        ledcAttach(TFT_BL, TFT_BRIGHT_FREQ, TFT_BRIGHT_Bits);
-        ledcWrite(TFT_BL, dutyCycle);
-    }
-}
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 /*********************************************************************
 ** Function: InputHandler
