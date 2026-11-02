@@ -236,21 +236,24 @@ void setup() {
     RAM_LOG("after-nvs-partition-defaults");
 
 #if BOOT_LOGIC_ON_NVS
-    lnvs::Handle nvsHandle("launcher", true);
     bool init = false;
-    if (!lnvs::getBool(nvsHandle.raw(), "init", init)) {
-        lnvs::setBool(nvsHandle.raw(), "init", false);
-        nvsHandle.commit();
-        init = false;
+    {
+        lnvs::Handle nvsHandle("launcher", true);
+        if (!lnvs::getBool(nvsHandle.raw(), "init", init)) {
+            lnvs::setBool(nvsHandle.raw(), "init", false);
+            nvsHandle.commit();
+            init = false;
+        }
+        if (init) { // restart com eeprom em 1
+            lnvs::setBool(nvsHandle.raw(), "init", false);
+            nvsHandle.commit();
+        } else {
+            lnvs::setBool(nvsHandle.raw(), "init", true);
+            nvsHandle.commit();
+        }
     }
-    if (init) { // restart com eeprom em 1
-        lnvs::setBool(nvsHandle.raw(), "init", false);
-        nvsHandle.commit();
-        ESP.restart();
-    } else {
-        lnvs::setBool(nvsHandle.raw(), "init", true);
-        nvsHandle.commit();
-    }
+    if(init) ESP.restart();
+
 #endif
 
 // Setup GPIOs and stuff

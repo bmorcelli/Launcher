@@ -99,7 +99,8 @@ Things that need to be done in future updates
 
 ## Latest Changelog
 * 2.10.0:
-     * [x] Port to [SeeedStudio Wio Tracker L2"](https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/) **Beta**
+     * [x] Port to [M5 Stack PaperDIY](https://shop.m5stack.com/products/paperdiy-complete-kit-esp32-s3?ref=Pirata)
+     * [x] Port to [SeeedStudio Wio Tracker L2"](https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/)
      * [x] Port to [Elecrow ThinkNode M9"](https://www.elecrow.com/thinknode-m9-meshcore-communication-terminal-with-full-keyboard-2-4inch-lcd-esp32-s3-lr1110-gps-2300mah.html)
      * [x] Port to [SeeedStudio XIAO ESP32C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html?sensecap_affiliate=dhriNBA&referring_service=link) on **Headless** environment
      * [x] Port to [SeeedStudio XIAO 1.47'' Touch Display (ESP32-S3)](https://wiki.seeedstudio.com/getting_started_1.47_inch_touch_display_esp32s3/)
@@ -108,6 +109,8 @@ Things that need to be done in future updates
      * [x] Port to [SeeedStudio reTerminal E1001 Monochrome e-Paper Display](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html?sensecap_affiliate=dhriNBA&referring_service=link)
      * [x] Port to [SeeedStudio SenseCAP Indicator](https://www.seeedstudio.com/SenseCAP-Indicator-D1L-for-Meshtastic-p-6304.html?sensecap_affiliate=dhriNBA&referring_service=link)
      * [x] Port to [Waveshare ESP32-S3 2.06inch AMOLED Touch Watch](https://www.waveshare.com/esp32-s3-touch-amoled-2.06.htm?&aff_id=179888), thanks to @nevelate
+     * [x] Port to [Waveshare ESP32-C5-Touch-LCD-3.5](https://www.waveshare.com/esp32-c5-touch-lcd-3.5.htm?&aff_id=179888)
+     * [x] Port to [ESP32-S3 ES3C28P 4.0"](https://www.lcdwiki.com/4.0inch_ESP32-S3_Display)
      * [x] **BETA**: [XTeink X4 Pro](https://www.xteink.com/products/xteink-x4-pro-pocket-ereader) Validated UC8xxx display.
      * [x] **Added** Changing Icon over battery bar on supported devices.
      * [x] **Added** Option to control bootscreen time (from 1 to 5 seconds).
