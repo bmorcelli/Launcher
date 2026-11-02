@@ -375,6 +375,14 @@
         },
         {
             "display": true,
+            "name": "ES3C40P 4.0in",
+            "description": "",
+            "link": "https://www.lcdwiki.com/4.0inch_ESP32-S3_Display",
+            "family": "ESP32-S3",
+            "id": "ES3C40P"
+        },
+        {
+            "display": true,
             "name": "E32R40T 4in",
             "description": "",
             "link": "https://www.lcdwiki.com/4.0inch_ESP32-32E_Display",
