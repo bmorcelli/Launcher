@@ -395,7 +395,7 @@ void InputHandler(void) {
 void reboot() {
     launcherConsolePrintf("%s", String("\r\n").c_str());
     launcherConsoleFlush();
-    launcherConsoleEnd();
+    // launcherConsoleEnd();
     vTaskDelay(pdMS_TO_TICKS(50));
     launcherGpioInput(1);
     launcherGpioInput(2);
