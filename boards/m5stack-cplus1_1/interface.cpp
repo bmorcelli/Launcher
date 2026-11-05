@@ -116,6 +116,7 @@ static void _detect_panel() {
         _fg = 2;
 
         device_name = "M5Stack StickC";
+        ota_tag = "stickc";
     }
 
     launcherConsolePrintf(

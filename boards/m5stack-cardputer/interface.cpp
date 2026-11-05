@@ -138,6 +138,8 @@ void _post_setup_gpio() {
     // INT_STAT, which was resetting the sel/esc hold state one frame too early.
     attachInterruptArg(digitalPinToInterrupt(11), gpio_isr_handler, nullptr, FALLING);
     tca.enableInterrupts();
+    device_name = "M5Stack Cardputer ADV";
+    ota_tag = "cardputer-adv";
 }
 
 void InputHandler(void) {
