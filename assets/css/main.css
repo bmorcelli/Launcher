@@ -379,6 +379,28 @@ header {
     "controls";
 }
 
+.card--firmware--with-category {
+  position: relative;
+  padding-top: calc(clamp(20px, 2.5vw, 28px) + 14px);
+}
+
+.card--firmware__category {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 1;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 221, 0, 0.35);
+  background: rgba(0, 221, 0, 0.1);
+  color: var(--accent, #00dd00);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
 .card--firmware__image {
   grid-area: image;
   margin: 0;

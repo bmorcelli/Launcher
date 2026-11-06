@@ -813,6 +813,14 @@ document.addEventListener("DOMContentLoaded", () => {
       .join(" ");
     article.setAttribute("data-filter-item", "");
 
+    if (categorySelect.value === "all" && entry.category) {
+      const categoryBadge = document.createElement("span");
+      categoryBadge.className = "card--firmware__category";
+      categoryBadge.textContent = entry.category;
+      article.classList.add("card--firmware--with-category");
+      article.append(categoryBadge);
+    }
+
     let figure: HTMLElement | null = null;
     if (hasCover) {
       figure = document.createElement("figure");
@@ -1078,6 +1086,13 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCounter();
   };
 
+  // Official Launcher builds lead the "downloads" ordering inside a category.
+  const PINNED_AUTHOR = "bmorcelli";
+  const PINNED_GITHUB = "https://github.com/bmorcelli/launcher";
+  const isPinnedLauncher = (entry: FirmwareEntry) =>
+    entry.author?.trim().toLowerCase() === PINNED_AUTHOR &&
+    (entry.github ?? "").trim().replace(/\/+$/, "").toLowerCase() === PINNED_GITHUB;
+
   const sortFiltered = () => {
     if (currentOrder === "name") {
       filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -1094,7 +1109,16 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
-    filtered.sort((a, b) => (b.download ?? 0) - (a.download ?? 0));
+    // Pinning only applies within a specific category, not "All categories".
+    const pinLauncher = categorySelect.value !== "all";
+    filtered.sort((a, b) => {
+      const aPinned = pinLauncher && isPinnedLauncher(a);
+      const bPinned = pinLauncher && isPinnedLauncher(b);
+      if (aPinned !== bPinned) {
+        return aPinned ? -1 : 1;
+      }
+      return (b.download ?? 0) - (a.download ?? 0);
+    });
   };
 
   const applyFilters = () => {
