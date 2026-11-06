@@ -414,11 +414,13 @@
         env:
           M5BURNER_USER: ${{ secrets.M5BURNER_USER }}
           M5BURNER_PWD: ${{ secrets.M5BURNER_PWD }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.launcher_version.outputs.version }}
         run: |
-          python support_files/m5burner_post.py \
-            --user "$M5BURNER_USER" \
-            --password "$M5BURNER_PWD" \
-            --tag "${{ steps.launcher_version.outputs.version }}"
+          gh release view "$VERSION" --repo "${{ github.repository }}" --json body -q .body > m5burner_notes.md || true
+          python support_files/m5burner_publish.py \
+            --tag "$VERSION" \
+            --notes-file m5burner_notes.md
 
       - name: Trigger WebPage deploy (workflow_dispatch)
         env:

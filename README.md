@@ -98,7 +98,7 @@ Things that need to be done in future updates
 * [ ] Move to ESP-IDF Platform
 
 ## Latest Changelog
-* 2.10.0:
+* 3.0.0:
      * [x] Port to [M5 Stack PaperDIY](https://shop.m5stack.com/products/paperdiy-complete-kit-esp32-s3?ref=Pirata)
      * [x] Port to [SeeedStudio Wio Tracker L2"](https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/)
      * [x] Port to [Elecrow ThinkNode M9"](https://www.elecrow.com/thinknode-m9-meshcore-communication-terminal-with-full-keyboard-2-4inch-lcd-esp32-s3-lr1110-gps-2300mah.html)
@@ -120,6 +120,9 @@ Things that need to be done in future updates
      * [x] **FIXED** `Lilygo T-Watch Ultra` and `Lilygo T-Display S3 Amoled Plus` touchscreen
      * [x] **FIXED** `M5Stack Tab5` OTA function randomly crashing.
      * [x] **Changed** `M4Stack Paper Mono` display backend.
+
+<details>
+  <summary><h2>Older Changelogs</h2></summary>
 
 * 2.9.1:
      * [x] Fix **M5-Paper Mono** rendering and touch issues.
@@ -177,9 +180,6 @@ Things that need to be done in future updates
      * [x] Fix M5Stack PaperS3 touchscreen https://github.com/bmorcelli/Launcher/issues/338
      * [x] Fix WebUI OTA installation
      * [x] Added "dev" option to Reset Config and wifi credentials
-
-<details>
-  <summary><h2>Older Changelogs</h2></summary>
 
 * 2.7.2:
      * [x] Adjusted boot logic, now it works as it was before.
