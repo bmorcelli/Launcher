@@ -68,7 +68,7 @@ by the ESP-IDF `button` component instead of raw polling, gated by
   `_init` once from `_setup_gpio()`, the matching `_poll_N` every
   `InputHandler()` cycle. `count` must match which `_poll_N` you call.
   `cfg.pullup = false` for boards without internal/external pull-ups.
-- `hal_buttons_init_2(cfg, long_press_ms = 600)` / `hal_buttons_poll_2()` —
+- `hal_buttons_init_2(cfg, long_press_ms = 600, btn2ActiveHigh = false)` / `hal_buttons_poll_2()` —
   the `HAS_2_BUTTONS` pair, needs `lib_deps =
   https://github.com/bmorcelli/ESP32_Button` and `-DBUTTONS_IDF_COMPONENT=1`.
   btn1: short click → Next, double-click/hold → Sel. btn2: short click →

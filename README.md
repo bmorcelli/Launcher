@@ -13,6 +13,8 @@ Join our [Discord community](https://discord.gg/BE9by2a2FF)
 * Use M5Burner, or
 * Download the .bin file from Releases for your device and use https://web.esphome.io/ or esptool.py to flash the file `Launcher-{YourDevice}.bin` to your device.
 
+For the [Heltec WiFi LoRa 32 Expansion Kit V2](boards/heltec-lora32-expansion-v2/connections.md), see the board guide for installation, button controls and recovery.
+
 ## How to Use
 * Turn your device on
 * Press Sel (Enter) on the Launcher start screen to get into Launcher
