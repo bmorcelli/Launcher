@@ -47,7 +47,7 @@ void hal_buttons_init(const DeviceButtons &cfg, uint8_t count) {
     if (count >= 6) configurePin(cfg.btn6, cfg.pullup);
 }
 
-void hal_buttons_init_2(const DeviceButtons &cfg, uint16_t long_press_ms) {
+void hal_buttons_init_2(const DeviceButtons &cfg, uint16_t long_press_ms, bool btn2ActiveHigh) {
 #if defined(BUTTONS_IDF_COMPONENT)
     button_config_t btn1Cfg = {
         .type = BUTTON_TYPE_GPIO,
@@ -59,7 +59,7 @@ void hal_buttons_init_2(const DeviceButtons &cfg, uint16_t long_press_ms) {
         .type = BUTTON_TYPE_GPIO,
         .long_press_time = long_press_ms,
         .short_press_time = 120,
-        .gpio_button_config = {.gpio_num = cfg.btn2, .active_level = 0},
+        .gpio_button_config = {.gpio_num = cfg.btn2, .active_level = btn2ActiveHigh},
     };
     hal2Btn1 = new Button(btn1Cfg);
     hal2Btn1->attachSingleClickEventCb(&hal2OnBtn1Click, nullptr);
@@ -73,6 +73,7 @@ void hal_buttons_init_2(const DeviceButtons &cfg, uint16_t long_press_ms) {
 #else
     (void)cfg;
     (void)long_press_ms;
+    (void)btn2ActiveHigh;
 #endif
 }
 
