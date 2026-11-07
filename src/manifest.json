@@ -873,5 +873,15 @@
             "family": "ESP32-S3",
             "id": "xteink-x4pro"
         }
+    ],
+    "Heltec": [
+        {
+            "display": true,
+            "name": "WiFi LoRa 32 Expansion Kit V2",
+            "description": "",
+            "link": "https://heltec.org/project/v4-r8-ex/",
+            "family": "ESP32-S3",
+            "id": "heltec-lora32-expansion-v2"
+        }
     ]
 }
