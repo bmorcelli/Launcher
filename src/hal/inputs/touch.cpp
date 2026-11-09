@@ -153,10 +153,88 @@ struct TouchDrvAXS5106L {
     void reset() {}
 };
 static TouchDrvAXS5106L touch;
+
+#elif defined(TOUCH_CTRL_ST77922)
+#include <Wire.h>
+// ST77922 (lcdwiki-es3c35p). The touch block lives inside the display controller
+// and is NOT FT6x36-compatible: register addresses are 16 bits wide (MSB first)
+// and reads use a repeated start. SensorLib has no driver for it, so, like
+// AXS5106L above, the whole driver lives here. Layout (from the vendor's
+// esp_lcd_touch_st77922):
+//   0x0010  info byte: bit 3 = "a coordinate report is available"
+//   0x0014  8-byte report per touch: [valid:1|rsvd:1|x_h:6] x_l y_h y_l area intensity rsvd rsvd
+// Coordinates are reported raw (panel-native portrait), so the host-side
+// SwapXY/MirrorX/MirrorY path applies, same as FT6X36/AXS5106L.
+#define ST77922_TOUCH_ADDRESS 0x55
+#define ST77922_REG_FW_VERSION 0x0000
+#define ST77922_REG_MAX_XY 0x0005 // max X (2 bytes), max Y (2 bytes), max touches (1 byte)
+#define ST77922_REG_MAX_TOUCHES 0x0009
+#define ST77922_MAX_TOUCHES 10 // upper bound for the on-stack report buffer
+#define ST77922_REG_INFO 0x0010
+#define ST77922_REG_REPORT 0x0014
+#define ST77922_INFO_WITH_COORD 0x08
+#define ST77922_REPORT_VALID 0x80
+
+struct TouchDrvST77922 {
+    TwoWire *wire = nullptr;
+    int8_t irq = -1;
+    uint8_t addr = ST77922_TOUCH_ADDRESS;
+    uint32_t lastPoll = 0;
+
+    bool readReg(uint16_t reg, uint8_t *buf, size_t len) {
+        if (!wire) return false;
+        wire->beginTransmission(addr);
+        wire->write((uint8_t)(reg >> 8));
+        wire->write((uint8_t)(reg & 0xFF));
+        if (wire->endTransmission(false) != 0) return false; // repeated start, no STOP
+        if (wire->requestFrom((uint8_t)addr, len) < len) return false;
+        for (size_t i = 0; i < len; ++i) buf[i] = (uint8_t)wire->read();
+        return true;
+    }
+
+    bool getPoint(int16_t *x, int16_t *y, uint8_t) {
+        // INT is an active-low hint; poll at ~60Hz when it is not asserted so a
+        // module that never pulls it low still works.
+        const uint32_t now = launcherMillis();
+        if (irq >= 0 && launcherGpioRead(irq) != LOW && (uint32_t)(now - lastPoll) < 16) return false;
+        lastPoll = now;
+
+        uint8_t info = 0;
+        if (!readReg(ST77922_REG_INFO, &info, 1)) return false;
+        if (!(info & ST77922_INFO_WITH_COORD)) return false;
+        // Read the whole report block in one transfer, as the vendor driver does
+        // (max-touches x 8 bytes): the controller does not refresh its report
+        // buffer if only the first record is read, so a partial read leaves the
+        // same stale point reported forever.
+        uint8_t maxTouches = 0;
+        if (!readReg(ST77922_REG_MAX_TOUCHES, &maxTouches, 1)) return false;
+        if (maxTouches == 0 || maxTouches > ST77922_MAX_TOUCHES) maxTouches = ST77922_MAX_TOUCHES;
+        uint8_t r[ST77922_MAX_TOUCHES * 8];
+        if (!readReg(ST77922_REG_REPORT, r, (size_t)maxTouches * 8)) return false;
+        int p = -1;
+        for (uint8_t i = 0; i < maxTouches; ++i) {
+            if (r[i * 8] & ST77922_REPORT_VALID) {
+                p = i * 8;
+                break;
+            }
+        }
+        if (p < 0) return false;
+        *x = (int16_t)(((r[p] & 0x3F) << 8) | r[p + 1]);
+        *y = (int16_t)((r[p + 2] << 8) | r[p + 3]);
+#ifdef ST77922_TOUCH_DEBUG
+        launcherConsolePrintf("[ST77922 touch] raw x=%d y=%d\n", (int)*x, (int)*y);
+#endif
+        return true;
+    }
+
+    void reset() {}
+};
+static TouchDrvST77922 touch;
 #endif
 
 #if defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36) ||                 \
-    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) || defined(TOUCH_CTRL_AXS5106L)
+    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) || defined(TOUCH_CTRL_AXS5106L) ||              \
+    defined(TOUCH_CTRL_ST77922)
 #include <Wire.h>
 static TwoWire &wireFor(const DeviceTouch &cfg) {
     return cfg.i2c_bus ? *static_cast<TwoWire *>(cfg.i2c_bus) : Wire;
@@ -271,6 +349,31 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
         uint8_t probe[AXS5106L_REPORT_LEN];
         return touch.readReport(probe);
     }
+#elif defined(TOUCH_CTRL_ST77922)
+    (void)xpt_shared_spi;
+    if (cfg.pin_sda >= 0 && cfg.pin_scl >= 0) wireFor(cfg).begin(cfg.pin_sda, cfg.pin_scl);
+    wireFor(cfg).setClock(400000);
+    // The touch half of the ST77922 idles in reset on this board; the board's
+    // _setup_gpio() releases that line (GPIO 48) before this runs, so pin_rst
+    // stays -1 here and touchResetPulse() only handles an optional reset_cb.
+    touchResetPulse(cfg);
+    if (cfg.pin_irq >= 0) launcherGpioInputPullup(cfg.pin_irq);
+    touch.wire = &wireFor(cfg);
+    touch.irq = cfg.pin_irq;
+    touch.addr = i2c_addr ? i2c_addr : ST77922_TOUCH_ADDRESS;
+    // Probe with real register reads and report what the chip says about itself.
+    {
+        uint8_t ver = 0, info[5] = {0};
+        if (!touch.readReg(ST77922_REG_FW_VERSION, &ver, 1) || !touch.readReg(ST77922_REG_MAX_XY, info, sizeof(info))) {
+            launcherConsolePrintf("[ST77922 touch] no answer at 0x%02X\n", touch.addr);
+            return false;
+        }
+        launcherConsolePrintf(
+            "[ST77922 touch] fw=%u maxX=%u maxY=%u maxTouches=%u\n", ver, (info[0] << 8) | info[1],
+            (info[2] << 8) | info[3], info[4]
+        );
+        return true;
+    }
 #else
     (void)cfg;
     (void)i2c_addr;
@@ -282,7 +385,7 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
 bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
 #if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) ||                \
     defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) ||                \
-    defined(TOUCH_CTRL_AXS5106L)
+    defined(TOUCH_CTRL_AXS5106L) || defined(TOUCH_CTRL_ST77922)
     uint8_t r = rotation & 0x03;
     int16_t screenW, screenH;
     panelSize(screenW, screenH);
@@ -296,11 +399,12 @@ bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
     if (!touch.touched()) return false;
     auto p = touch.getPointScaled();
     int16_t x = p.x, y = p.y;
-#elif defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L)
+#elif defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L) || defined(TOUCH_CTRL_ST77922)
     int16_t x = 0, y = 0;
     if (!touch.getPoint(&x, &y, 1)) return false;
 #endif
-#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L)
+#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L) ||              \
+    defined(TOUCH_CTRL_ST77922)
     if (cfg.SwapXY[r]) {
         int16_t t = x;
         x = y;
@@ -354,7 +458,8 @@ bool hal_touch_read_raw(LTouchPoint &out) {
     out.pressed = true;
     return true;
 #elif defined(TOUCH_CTRL_GT911) || defined(TOUCH_CTRL_CST8XX) || defined(TOUCH_CTRL_FT6X36) ||               \
-    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) || defined(TOUCH_CTRL_AXS5106L)
+    defined(TOUCH_CTRL_GT9895) || defined(TOUCH_CTRL_HI8561) || defined(TOUCH_CTRL_AXS5106L) ||              \
+    defined(TOUCH_CTRL_ST77922)
     int16_t x = 0, y = 0;
     if (!touch.getPoint(&x, &y, 1)) return false;
     out.x = x;
