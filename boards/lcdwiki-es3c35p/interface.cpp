@@ -77,23 +77,15 @@ void _setup_gpio() {
 }
 
 void _post_setup_gpio() {
-#ifndef ST77922_BRINGUP_TEST
     // Backlight PWM -- must be done after tft.init()
     hal_bright_attach(TFT_BL);
     hal_bright_set(TFT_BL, bright);
-#endif
 
     // Capacitive touch, at this board's nonstandard I2C address.
     hal_touch_init(touchCfg(), TOUCH_I2C_ADDR);
 }
 
-void _setBrightness(uint8_t brightval) {
-#ifndef ST77922_BRINGUP_TEST
-    hal_bright_set(TFT_BL, brightval);
-#else
-    (void)brightval; // bring-up: backlight held solid on by _setup_gpio()
-#endif
-}
+void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 void InputHandler(void) {
     static long tm = launcherMillis();

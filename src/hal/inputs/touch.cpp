@@ -221,9 +221,6 @@ struct TouchDrvST77922 {
         if (p < 0) return false;
         *x = (int16_t)(((r[p] & 0x3F) << 8) | r[p + 1]);
         *y = (int16_t)((r[p + 2] << 8) | r[p + 3]);
-#ifdef ST77922_TOUCH_DEBUG
-        launcherConsolePrintf("[ST77922 touch] raw x=%d y=%d\n", (int)*x, (int)*y);
-#endif
         return true;
     }
 
@@ -364,13 +361,17 @@ bool hal_touch_init(const DeviceTouch &cfg, uint8_t i2c_addr, bool xpt_shared_sp
     // Probe with real register reads and report what the chip says about itself.
     {
         uint8_t ver = 0, info[5] = {0};
-        if (!touch.readReg(ST77922_REG_FW_VERSION, &ver, 1) || !touch.readReg(ST77922_REG_MAX_XY, info, sizeof(info))) {
+        if (!touch.readReg(ST77922_REG_FW_VERSION, &ver, 1) ||
+            !touch.readReg(ST77922_REG_MAX_XY, info, sizeof(info))) {
             launcherConsolePrintf("[ST77922 touch] no answer at 0x%02X\n", touch.addr);
             return false;
         }
         launcherConsolePrintf(
-            "[ST77922 touch] fw=%u maxX=%u maxY=%u maxTouches=%u\n", ver, (info[0] << 8) | info[1],
-            (info[2] << 8) | info[3], info[4]
+            "[ST77922 touch] fw=%u maxX=%u maxY=%u maxTouches=%u\n",
+            ver,
+            (info[0] << 8) | info[1],
+            (info[2] << 8) | info[3],
+            info[4]
         );
         return true;
     }
@@ -403,7 +404,7 @@ bool hal_touch_read(const DeviceTouch &cfg, LTouchPoint &out) {
     int16_t x = 0, y = 0;
     if (!touch.getPoint(&x, &y, 1)) return false;
 #endif
-#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L) ||              \
+#if defined(TOUCH_CTRL_XPT2046) || defined(TOUCH_CTRL_FT6X36) || defined(TOUCH_CTRL_AXS5106L) ||             \
     defined(TOUCH_CTRL_ST77922)
     if (cfg.SwapXY[r]) {
         int16_t t = x;
