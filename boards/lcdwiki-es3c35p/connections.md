@@ -95,5 +95,9 @@ Verified on real hardware (COM6, 2026-11-09): display (orientation, colours,
 backlight PWM), capacitive touch (menu navigation, on-screen keyboard / Wi-Fi
 password entry), SD card, and all four rotations (display and touch, switched at
 runtime from the Launcher Rotation menu), and battery sense (GPIO 8, checked
-against a multimeter with a 3.7 V 850 mAh LiPo). Not yet verified: audio,
-deep sleep / wake.
+against a multimeter with a 3.7 V 850 mAh LiPo), and Turn-off / deep sleep
+(screen fully dark, wakes on BOOT; tested on USB + battery). Touch cannot wake
+it: the touch INT is GPIO 47, which is not an RTC pad, so BOOT (GPIO 0) is the
+only wake source. `powerOff()` in `interface.cpp` latches the backlight pin low
+for the sleep and releases it in `_setup_gpio()`. Not yet verified: audio, and
+sleep on battery alone (USB unplugged).

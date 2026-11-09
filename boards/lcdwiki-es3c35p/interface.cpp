@@ -4,6 +4,8 @@
 #include "idf/launcher_platform.h"
 #include "powerSave.h"
 #include <Wire.h>
+#include <driver/gpio.h>
+#include <esp_sleep.h>
 #include <interface.h>
 
 // lcdwiki-es3c35p -- ESP32-S3 + 3.5" ST77922 (QSPI) with the capacitive touch
@@ -42,6 +44,11 @@ static DeviceTouch touchCfg() {
 }
 
 void _setup_gpio() {
+    // Coming back from powerOff(): release the backlight pin hold it set, or the
+    // digitalWrite() below would be ignored and the screen would stay dark.
+    gpio_deep_sleep_hold_dis();
+    gpio_hold_dis((gpio_num_t)TFT_BL);
+
     // The ST77922 is one chip doing both display and touch, and the touch half's
     // reset line (GPIO 48, "TOUCH_RST") idles LOW on this board: the chip does
     // not answer on I2C (0x55) until it is pulsed. Release it once, up front.
@@ -108,5 +115,18 @@ void InputHandler(void) {
 
 void powerOff() {
     neopixelWrite(RGB_LED_PIN, 0, 0, 0);
+
+    // Backlight off and latched off for the duration of deep sleep; the pad would
+    // otherwise float once the LEDC peripheral loses power. Released in _setup_gpio().
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, LOW);
+    gpio_hold_en((gpio_num_t)TFT_BL);
+    gpio_deep_sleep_hold_en();
+
+    // The BOOT button (GPIO0, an RTC pad) is the only possible wake source: the
+    // touch interrupt is on GPIO47, which is not an RTC GPIO, so a touch cannot
+    // wake a deep sleep. Without this the board only restarts via reset / power.
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);
+    vTaskDelay(pdMS_TO_TICKS(200));
     esp_deep_sleep_start();
 }
