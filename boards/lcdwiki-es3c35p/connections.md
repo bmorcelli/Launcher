@@ -99,5 +99,9 @@ against a multimeter with a 3.7 V 850 mAh LiPo), and Turn-off / deep sleep
 (screen fully dark, wakes on BOOT; tested on USB + battery). Touch cannot wake
 it: the touch INT is GPIO 47, which is not an RTC pad, so BOOT (GPIO 0) is the
 only wake source. `powerOff()` in `interface.cpp` latches the backlight pin low
-for the sleep and releases it in `_setup_gpio()`. Not yet verified: audio, and
-sleep on battery alone (USB unplugged).
+for the sleep and releases it in `_setup_gpio()`. Not yet verified: sleep on
+battery alone (USB unplugged).
+
+Audio is out of scope: Launcher has no sound output on any board (no tone/I2S/
+buzzer code in `src/`). The ES8311 codec (I2C 0x18) and SC8002B amp are only
+kept quiet -- the amp enable (GPIO 1) is held off at boot -- and are untested.
