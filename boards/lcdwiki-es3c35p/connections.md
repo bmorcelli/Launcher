@@ -86,7 +86,7 @@ SDCARD", which is expected.
 | WS2812 status LED | 40 | Single LED, driven via `neopixelWrite()` |
 | SC8002B audio amp shutdown | 1 | Active LOW; held HIGH (disabled) at boot |
 | BOOT button | 0 | Only physical key; doubles as Esc |
-| Battery sense | *unknown* | Not documented in any source consulted; `ANALOG_BAT_PIN` is left unset. |
+| Battery sense | 8 | ADC1, 1:2 resistor divider (`ANALOG_BAT_PIN=8`, default `ANALOG_BAT_MULTIPLIER` 2.0). Found by an ADC scan of the unclaimed pins; verified against a multimeter (ADC 2.007 V x 2 = 4.01 V vs 3.99-4.00 V measured while charging). With USB attached the charger holds the rail near 4.1 V, so it reads high and Launcher shows the charging icon. |
 | Free/unclaimed | 45, 46 | Per HARDWARE.md |
 
 ## Status
@@ -94,5 +94,6 @@ SDCARD", which is expected.
 Verified on real hardware (COM6, 2026-11-09): display (orientation, colours,
 backlight PWM), capacitive touch (menu navigation, on-screen keyboard / Wi-Fi
 password entry), SD card, and all four rotations (display and touch, switched at
-runtime from the Launcher Rotation menu). Not yet verified: audio, battery
-sense, deep sleep / wake.
+runtime from the Launcher Rotation menu), and battery sense (GPIO 8, checked
+against a multimeter with a 3.7 V 850 mAh LiPo). Not yet verified: audio,
+deep sleep / wake.
