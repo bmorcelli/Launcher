@@ -100,6 +100,12 @@ Things that need to be done in future updates
 * [ ] Move to ESP-IDF Platform
 
 ## Latest Changelog
+* 3.1.0 (WIP):
+     * [x] Port to [Waveshare ESP32-P4-WIFI5 5inch display](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm?&aff_id=179888) thanks to @fermintm
+     * [x] Port to [Heltec WiFi Lora Expansion kit V2](https://heltec.org/project/v4-r8-ex/) thanks to @valleytechsolutions
+     * [ ] Port to [LCDwiki ES3C35P](https://www.lcdwiki.com/3.5inch_ESP32-S3_Display) thanks to @EnygmaINC
+     * [ ] Port to [Cerberus by 463n7.io](https://463n7.io/products/cerberus-development-board)
+
 * 3.0.0:
      * [x] Port to [M5 Stack PaperDIY](https://shop.m5stack.com/products/paperdiy-complete-kit-esp32-s3?ref=Pirata)
      * [x] Port to [SeeedStudio Wio Tracker L2"](https://wiki.seeedstudio.com/meshtastic_wio_tracker_l2_intro/)
