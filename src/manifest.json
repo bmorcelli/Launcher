@@ -854,6 +854,14 @@
             "link": "https://www.waveshare.com/esp32-s3-touch-amoled-2.06.htm?&aff_id=179888",
             "family": "ESP32-S3",
             "id": "waveshare-esp32-s3-touch-amoled-206"
+        },
+        {
+            "display": true,
+            "name": "Waveshare ESP32-P4-WIFI6-Touch-LCD-5",
+            "description": "",
+            "link": "https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm?&aff_id=179888",
+            "family": "ESP32-P4",
+            "id": "waveshare-esp32-p4-wifi6-touch-lcd-5"
         }
     ],
     "xteink": [
