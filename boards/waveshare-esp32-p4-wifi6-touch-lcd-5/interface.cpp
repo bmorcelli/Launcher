@@ -187,26 +187,66 @@ void _setBrightness(uint8_t brightval) { hal_bright_set(TFT_BL, brightval); }
 
 void InputHandler(void) {
     if (!touchReady) return;
-    // Apply a touch only on its press edge. The input task clears touchPoint
-    // every pass and the menus/keyboard act on each applied press without
-    // waiting for a release, so re-applying a held finger at the old 250 ms
-    // cadence alone typed the next key while the finger was still down from
-    // the previous one. A finger held past 500 ms repeats at 250 ms, same as
-    // seeedstudio-wio-tracker-l2 (LongPress keeps re-applying every pass so
-    // launcherSelectHeld() still sees the held state).
-    static bool touchWasDown = false;
+    // Touch is edge-triggered: one applied press per finger-down. The input
+    // task clears touchPoint every pass and the menus/keyboard act on each
+    // applied press without waiting for a release, so re-applying a held
+    // finger every pass typed the next key while the previous one was still
+    // down. A held finger repeats only after kHoldRepeatDelay, then every
+    // kHoldRepeatRate (hold-to-scroll on the +/- rows and long lists).
+    //
+    // A new press is accepted only after the panel has reported "up" for
+    // kReleaseDebounceMs. The GT911 occasionally drops a sample mid-press;
+    // without this the drop reads as a fresh tap and fires far faster than
+    // the repeat timers below.
+    static constexpr uint32_t kReleaseDebounceMs = 60;
+    static constexpr uint32_t kHoldRepeatDelay = 800;
+    static constexpr uint32_t kHoldRepeatRate = 400;
+
+    static bool touchWasDown = false; // panel reported a contact last pass
+    static bool touchActive = false;  // that contact was accepted by the UI
+    static bool touchArmed = true;    // false until a stable release is seen
+    static uint32_t touchUpAt = 0;
     static uint32_t touchDownAt = 0;
     static uint32_t touchAppliedAt = 0;
+
     LTouchPoint t;
-    const bool touchDown = hal_touch_read(touchCfg(), t);
-    const bool touchEdge = touchDown && !touchWasDown;
-    touchWasDown = touchDown;
-    if (!touchDown) return;
     const uint32_t now = launcherMillis();
-    if (touchEdge) touchDownAt = now;
-    const bool repeat = now - touchDownAt > 500 && now - touchAppliedAt > 250;
-    if (touchEdge || repeat || LongPress) {
-        touchAppliedAt = now;
-        if (!hal_touch_apply(t)) return;
+    const bool touchDown = hal_touch_read(touchCfg(), t);
+
+    if (!touchDown) {
+        if (touchWasDown) touchUpAt = now;
+        touchWasDown = false;
+        touchActive = false;
+        if (!touchArmed && now - touchUpAt >= kReleaseDebounceMs) touchArmed = true;
+        return;
     }
+
+    const bool newContact = !touchWasDown;
+    touchWasDown = true;
+
+    // sd_functions' long-press detector polls launcherSelectHeld() and needs
+    // the contact re-asserted while LongPress is set. Only for a contact the
+    // UI already accepted -- never for one still inside the release window.
+    if (LongPress && touchActive) {
+        hal_touch_apply(t);
+        return;
+    }
+
+    if (newContact) {
+        if (!touchArmed) return; // started inside the release debounce: ignore
+        touchArmed = false;
+        touchActive = true;
+        touchDownAt = now;
+        touchAppliedAt = now;
+        hal_touch_apply(t);
+        return;
+    }
+
+    // Continuation of an accepted contact: repeat only after the initial
+    // delay, then at the slower hold rate.
+    if (!touchActive) return;
+    if (now - touchDownAt <= kHoldRepeatDelay) return;
+    if (now - touchAppliedAt < kHoldRepeatRate) return;
+    touchAppliedAt = now;
+    hal_touch_apply(t);
 }
