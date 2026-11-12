@@ -99,6 +99,10 @@ void launcherWifiHostedResetGuard() {}
 
 String wifiPwdEncrypt(const String &plain) { return plain; }
 String wifiPwdDecrypt(const String &cipher) { return cipher; }
+bool wifiPwdDecryptStored(const String &cipher, String &plain) {
+    plain = cipher;
+    return true;
+}
 
 namespace lnvs {
 Handle::Handle(const char *, bool) {}

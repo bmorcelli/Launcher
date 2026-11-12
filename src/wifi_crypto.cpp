@@ -1,5 +1,6 @@
 #include "wifi_crypto.h"
 #include "mbedtls/aes.h"
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -99,17 +100,20 @@ String wifiPwdEncrypt(const String &plain) {
     return result;
 }
 
-String wifiPwdDecrypt(const String &cipher) {
-    if (cipher.isEmpty()) return cipher;
+// Decrypt one layer. Returns false when `cipher` is not a clean ciphertext for
+// this build's key (not base64, not whole AES blocks, or bad PKCS7 padding).
+static bool decryptOnce(const String &cipher, String &plain) {
+    plain = "";
+    if (cipher.isEmpty()) return true;
 
     size_t maxBin = (cipher.length() / 4) * 3 + 4;
     uint8_t *buf = (uint8_t *)malloc(maxBin);
-    if (!buf) return cipher;
+    if (!buf) return false;
 
     size_t binLen = b64Decode(cipher, buf, maxBin);
     if (binLen == 0 || binLen % 16 != 0) {
         free(buf);
-        return cipher;
+        return false;
     }
 
     uint8_t key[16];
@@ -124,13 +128,71 @@ String wifiPwdDecrypt(const String &cipher) {
     mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_DECRYPT, binLen, iv, buf, buf);
     mbedtls_aes_free(&ctx);
 
-    // Validate and strip PKCS7 padding
+    // Validate and strip PKCS7 padding. Checking every pad byte (not just the
+    // last) and rejecting control characters in the payload keeps a wrong-key
+    // decrypt from being accepted as a password by chance (~6% with the last
+    // byte alone).
     uint8_t padByte = buf[binLen - 1];
-    if (padByte == 0 || padByte > 16 || padByte > binLen) {
+    bool ok = padByte != 0 && padByte <= 16 && padByte <= binLen;
+    for (size_t i = binLen - padByte; ok && i < binLen; i++) ok = buf[i] == padByte;
+    for (size_t i = 0; ok && i < binLen - padByte; i++) ok = buf[i] >= 0x20 && buf[i] != 0x7F;
+    if (!ok) {
         free(buf);
-        return cipher;
+        return false;
     }
-    String result((char *)buf, binLen - padByte);
+    plain = String((char *)buf, binLen - padByte);
     free(buf);
-    return result;
+    return true;
+}
+
+// Shape test for "this is one of our ciphertexts", independent of whether the
+// key matches. Used to tell a real password apart from a foreign ciphertext
+// that failed to decrypt. An all-hex value is a raw 64-char WPA PSK (same
+// shape as a 48-byte ciphertext), never base64 of random bytes in practice.
+static bool looksLikeCipher(const String &value) {
+    const size_t len = value.length();
+    if (len < 24 || len % 4 != 0) return false;
+
+    size_t pad = 0;
+    bool allHex = true;
+    for (size_t i = 0; i < len; i++) {
+        const char c = value[i];
+        if (c == '=') {
+            if (i < len - 2) return false;
+            pad++;
+        } else if (b64Val(c) < 0) {
+            return false;
+        }
+        if (!isxdigit((unsigned char)c)) allHex = false;
+    }
+    if (pad > 2 || allHex) return false;
+    return ((len / 4) * 3 - pad) % 16 == 0;
+}
+
+String wifiPwdDecrypt(const String &cipher) {
+    String plain;
+    if (!decryptOnce(cipher, plain)) return cipher;
+    return plain;
+}
+
+bool wifiPwdDecryptStored(const String &cipher, String &plain) {
+    plain = "";
+    if (cipher.isEmpty()) return true;
+
+    String value = cipher;
+    // A value written by this build decrypts in one step. Older builds could
+    // wrap a password more than once: when they could not decrypt a value
+    // (different WIFI_ENC_KEY) they re-encrypted the ciphertext, so unwrap
+    // until the value no longer looks like one of our ciphertexts.
+    for (int depth = 0; depth < 3; depth++) {
+        String inner;
+        if (!decryptOnce(value, inner)) {
+            if (looksLikeCipher(value)) return false;
+            plain = value;
+            return true;
+        }
+        value = inner;
+    }
+    plain = value;
+    return true;
 }
