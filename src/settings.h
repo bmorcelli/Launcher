@@ -23,12 +23,7 @@ config.conf JSON structure
       "ALCOLOR":63488,
       "even":13029,
       "odd": 12485,
-      "wifi":[
-         {
-            "ssid":"myNetSSID",
-            "pwd":"myNetPwd",
-         },
-      ]
+      "wifi": []
    }
 ]
 

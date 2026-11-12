@@ -62,6 +62,35 @@ JsonArray ensureWifiListInternal() {
     return wifiList;
 }
 
+// NVS and config.conf are merged on every boot, so the same SSID can end up in
+// the list twice (a copy from another device, a trailing-space twin, or the
+// old "myNetSSID" placeholder). Keep one entry per SSID, preferring the copy
+// that still has a password. The legacy placeholder pair is dropped entirely.
+void dedupeWifiList(JsonArray wifiList) {
+    if (wifiList.isNull()) return;
+
+    for (size_t i = wifiList.size(); i-- > 0;) {
+        JsonObject entry = wifiList[i].as<JsonObject>();
+        String ssid = entry.isNull() ? String() : entry["ssid"].as<String>();
+        String pwd = entry.isNull() ? String() : entry["pwd"].as<String>();
+
+        if (ssid.isEmpty() || (ssid == "myNetSSID" && (pwd.isEmpty() || pwd == "myNetPwd"))) {
+            wifiList.remove(i);
+            wifiListDirty = true;
+            continue;
+        }
+
+        for (size_t j = 0; j < i; j++) {
+            JsonObject other = wifiList[j].as<JsonObject>();
+            if (other.isNull() || other["ssid"].as<String>() != ssid) continue;
+            if (other["pwd"].as<String>().isEmpty() && !pwd.isEmpty()) other["pwd"] = pwd;
+            wifiList.remove(i);
+            wifiListDirty = true;
+            break;
+        }
+    }
+}
+
 JsonObject ensureKeyBindingObjectInternal() {
     JsonObject setting = ensureSettingsRoot();
     if (setting.isNull()) return JsonObject();
@@ -282,7 +311,18 @@ int applySettingsFromRoot(JsonObject setting) {
     if (setting["wifi"].is<JsonArray>()) {
         for (JsonObject wifiEntry : setting["wifi"].as<JsonArray>()) {
             if (wifiEntry["secure"].as<bool>()) {
-                wifiEntry["pwd"] = wifiPwdDecrypt(wifiEntry["pwd"].as<String>());
+                String decoded;
+                if (wifiPwdDecryptStored(wifiEntry["pwd"].as<String>(), decoded)) {
+                    wifiEntry["pwd"] = decoded;
+                } else {
+                    // Written by a build with a different WIFI_ENC_KEY (for
+                    // example config.conf carried over from another device).
+                    // Keep the SSID but drop the unreadable password so it is
+                    // not re-encrypted as if it were the plaintext, and force
+                    // a re-save so the stale ciphertext disappears.
+                    wifiEntry["pwd"] = "";
+                    ++count;
+                }
                 wifiEntry.remove("secure");
             } else if (!wifiEntry["ssid"].as<String>().isEmpty()) {
                 ++count; // plain-text entry — trigger re-save with encryption
@@ -427,11 +467,20 @@ bool setWifiCredential(const String &ssidValue, const String &passwordValue, boo
     if (wifiList.isNull()) return false;
 
     JsonObject target;
-    for (JsonObject wifiEntry : wifiList) {
-        if (wifiEntry["ssid"].as<String>() == ssidValue) {
-            target = wifiEntry;
-            break;
+    for (size_t i = 0; i < wifiList.size();) {
+        JsonObject wifiEntry = wifiList[i].as<JsonObject>();
+        if (wifiEntry.isNull() || wifiEntry["ssid"].as<String>() != ssidValue) {
+            i++;
+            continue;
         }
+        if (target.isNull()) {
+            target = wifiEntry;
+            i++;
+            continue;
+        }
+        // Collapse duplicates that survived an NVS/config.conf merge.
+        wifiList.remove(i);
+        wifiListDirty = true;
     }
     if (target.isNull()) { target = wifiList.createNestedObject(); }
     if (target.isNull()) {
@@ -451,15 +500,18 @@ bool removeWifiCredential(const String &ssidValue) {
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
 
-    for (size_t i = 0; i < wifiList.size(); i++) {
+    bool removed = false;
+    for (size_t i = wifiList.size(); i-- > 0;) {
         if (wifiList[i]["ssid"].as<String>() == ssidValue) {
             wifiList.remove(i);
-            wifiListDirty = true;
-            saveConfigs();
-            return true;
+            removed = true;
         }
     }
-    return false;
+    if (removed) {
+        wifiListDirty = true;
+        saveConfigs();
+    }
+    return removed;
 }
 
 bool clearWifiCredentials() {
@@ -1132,10 +1184,10 @@ bool saveSessionToken(const String &token) {
 }
 
 bool saveWifiIntoNVS() {
-    if (!wifiListDirty) return true;
-
     JsonArray wifiList = ensureWifiListInternal();
     if (wifiList.isNull()) return false;
+    dedupeWifiList(wifiList);
+    if (!wifiListDirty) return true;
 
     lnvs::Handle nvsHandle("l_wifi", true);
     if (!nvsHandle) return false;
@@ -1274,11 +1326,28 @@ bool getWifiFromNVS(bool mergeExisting) {
 
         uint8_t isSecure = 0;
         nvs_get_u8(handle.raw(), ("b_" + suffix).c_str(), &isSecure);
-        if (isSecure) pwdValue = wifiPwdDecrypt(pwdValue);
+        if (isSecure) {
+            String decoded;
+            if (wifiPwdDecryptStored(pwdValue, decoded)) {
+                pwdValue = decoded;
+            } else {
+                // NVS was written by a build with a different WIFI_ENC_KEY.
+                // Keep a good password already loaded from config.conf;
+                // otherwise store the SSID without one so it can be entered
+                // again instead of re-encrypting the ciphertext.
+                String existing;
+                if (getWifiCredential(ssid, existing) && !existing.isEmpty()) {
+                    launcherConsolePrintf("SSID: %s (password kept from config.conf)\n", ssid.c_str());
+                    continue;
+                }
+                pwdValue = "";
+            }
+        }
 
         setWifiCredential(ssid, pwdValue, false);
         launcherConsolePrintf("SSID: %s\n", ssid.c_str());
     }
+    dedupeWifiList(wifiList);
     return true;
 }
 
@@ -1353,15 +1422,10 @@ void saveConfigs() {
 
     populateSettingsFromGlobals(setting);
 
-    // Ensure wifi array has at least a placeholder entry
-    JsonArray wifiList = setting["wifi"].as<JsonArray>();
-    if (!wifiList.isNull() && wifiList.size() == 0) {
-        JsonObject wifiObj = wifiList.add<JsonObject>();
-        if (!wifiObj.isNull()) {
-            wifiObj["ssid"] = ssid.length() == 0 ? "myNetSSID" : ssid;
-            wifiObj["pwd"] = pwd.length() == 0 ? "myNetPwd" : pwd;
-        }
-    }
+    // An empty list is valid: WiFi is optional, and seeding it with a fake
+    // "myNetSSID" entry made that placeholder look like a saved network and
+    // kept coming back after every reset. Just collapse duplicates here.
+    dedupeWifiList(setting["wifi"].as<JsonArray>());
 
     // Encrypt wifi passwords before writing to SD
     {
