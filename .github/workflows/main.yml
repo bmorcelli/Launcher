@@ -139,6 +139,7 @@
             - { env: "waveshare-esp32-c5-touch-lcd-35"}
             - { env: "waveshare-esp32-c6-lcd-147" }
             - { env: "waveshare-esp32-c6-lcd-130" }
+            - { env: "waveshare-esp32-c6-touch-lcd-28" }
             - { env: "waveshare-esp32-p4-wifi6-touch-lcd-5" }
             - { env: "waveshare-esp32-s3-touch-amoled-206"}
             - { env: "ES3C28P"                    }
