@@ -180,6 +180,11 @@ void _setup_gpio() {
     gpio_hold_dis((gpio_num_t)SD_PWR_EN);
     gpio_hold_dis((gpio_num_t)EPD_EN);
     gpio_hold_dis((gpio_num_t)BAT_CHG_EN);
+    // CrossPoint (FreeInk SDK, PowerManager::powerDownRailsForSleep) also holds
+    // the panel RESET LOW through deep sleep, so the gated EPD rail cannot
+    // back-power the controller. Left held, the panel stays in reset and every
+    // GxEPD2 call ends in "Busy Timeout!".
+    gpio_hold_dis((gpio_num_t)TFT_RST);
     gpio_deep_sleep_hold_dis();
 
     // Powered up here, well ahead of the first setupSdCard() call later in
