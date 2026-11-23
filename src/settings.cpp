@@ -813,11 +813,7 @@ void getBrightness() {
 **********************************************************************/
 int gsetRotation(bool set) {
 
-#if defined(USE_LOVYANGFX)
-    const int mountRotation = ROTATION + ROT_OFFSET;
-#else
     const int mountRotation = displayConfig.rotation;
-#endif
     int result = mountRotation;
 
     // Selectable rotations live in the window ROT_OFFSET..ROT_OFFSET+3 -- the
