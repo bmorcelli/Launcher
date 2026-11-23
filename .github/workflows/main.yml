@@ -134,6 +134,7 @@
             - { env: "elecrow-esp32p4-7in"        }
             - { env: "elecrow-esp32s3-5in"        }
             - { env: "elecrow-thinknode-m9"       }
+            - { env: "waveshare-esp32-c3-lcd-147" }
             - { env: "waveshare-esp32-s3-lcd-147" }
             - { env: "waveshare-esp32-c5-lcd-147" }
             - { env: "waveshare-esp32-c5-touch-lcd-35"}
