@@ -91,6 +91,7 @@
             - { env: "NM-CYD-C5"                  }
             - { env: "CYD-3248W535C"              }
             - { env: "CYD-4827S043R"              }
+            - { env: "lcdwiki-es3c35p"            }
             - { env: "lilygo-t-dongle-s3-tft"     }
             - { env: "lilygo-t-dongle-c5-tft"     }
             - { env: "lilygo-t-display-S3-touch"  }
