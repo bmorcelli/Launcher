@@ -98,18 +98,25 @@ const char *fferr2str[] = {
  * SD SPI
  * */
 
+// Ready only after two consecutive 0xFF: after the MISO release clock in sdDeselectCard(),
+// re-selecting a card that is still programming can return one non-zero transition byte
+// before it drives DO low (same idea as ESP-IDF sdspi poll_busy()).
 bool sdWait(uint8_t pdrv, int timeout) {
-  char resp;
+  uint8_t ff_count = 0;
   uint32_t start = millis();
 
   do {
-    resp = s_cards[pdrv]->spi->transfer(0xFF);
-  } while (resp == 0x00 && (millis() - start) < (unsigned int)timeout);
+    if (s_cards[pdrv]->spi->transfer(0xFF) == 0xFF) {
+      if (++ff_count == 2) {
+        return true;
+      }
+    } else {
+      ff_count = 0;
+    }
+  } while ((millis() - start) < (unsigned int)timeout);
 
-  if (!resp) {
-    log_w("Wait Failed");
-  }
-  return (resp > 0x00);
+  log_w("Wait Failed");
+  return false;
 }
 
 void sdStop(uint8_t pdrv) {
@@ -128,7 +135,7 @@ bool sdSelectCard(uint8_t pdrv) {
   bool s = sdWait(pdrv, 500);
   if (!s) {
     log_e("Select Failed");
-    digitalWrite(card->ssPin, HIGH);
+    sdDeselectCard(pdrv);
     return false;
   }
   return true;
@@ -310,16 +317,23 @@ bool sdWriteSector(uint8_t pdrv, const char *buffer, unsigned long long sector) 
       return false;
     }
     if (!sdCommand(pdrv, WRITE_BLOCK_SINGLE, (s_cards[pdrv]->type == CARD_SDHC) ? sector : sector << 9, NULL)) {
+      // Data response token (masked 0x1F): 0x05 accepted, 0x0B CRC error, 0x0D write error.
       char token = sdWriteBytes(pdrv, buffer, 0xFE);
+      if (token != 0x05) {
+        sdDeselectCard(pdrv);
+        if (token == 0x0B) {
+          continue;
+        }
+        return false;
+      }
+      // Wait for programming to finish while CS is still low.
+      bool ready = sdWait(pdrv, 500);
       sdDeselectCard(pdrv);
-
-      if (token == 0x0A) {
-        continue;
-      } else if (token == 0x0C) {
+      if (!ready) {
         return false;
       }
 
-      unsigned int resp;
+      unsigned int resp = 0;
       if (sdTransaction(pdrv, SEND_STATUS, 0, &resp) || resp) {
         return false;
       }
