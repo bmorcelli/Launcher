@@ -716,6 +716,10 @@ static bool installFromSdDynamic(
     pauseSdInstallInput();
     bool success = false;
     prog_handler = 0;
+    if (!updateLabel.isEmpty() && !launcherApplyUpdateLayoutMoves(table, appEntry, error)) {
+        displayError(error.length() ? error : "Move failed");
+        goto DONE;
+    }
     if (!flashRawFromSd(file, appOffset, appSize, appEntry, true)) {
         displayError(String("APP: ") + launcherUpdateLastErrorName());
         goto DONE;
@@ -940,17 +944,20 @@ String sdFirmwareUpdateTarget(const String &path) {
     String lowerPath = path;
     lowerPath.toLowerCase();
     if (!lowerPath.endsWith(".bin")) return "";
-    uint32_t partitionSize = 0;
-    String label = launcherInstallUpdateTarget(installedAppNameFromPath(path), partitionSize);
-    if (label.isEmpty()) return "";
+    // Cheap name check first, so most files never get their image parsed.
+    String appName = installedAppNameFromPath(path);
+    LauncherPartitionTable table;
+    if (!launcherPartitionReadCurrent(table, nullptr)) return "";
+    const LauncherPartitionEntry *entry =
+        launcherPartitionFindByLabel(table, launcherPartitionSanitizedAppLabelBase(appName).c_str());
+    if (!entry || !launcherPartitionIsReplaceableApp(*entry)) return "";
     uint32_t app_size = 0;
     uint32_t app_offset = 0;
     std::vector<LauncherInstallDataPartition> dataPartitions;
     File file = SDM.open(path);
-    bool fits = file && readSdInstallImage(file, app_size, app_offset, dataPartitions) && app_size > 0 &&
-                app_size <= partitionSize;
+    bool parsed = file && readSdInstallImage(file, app_size, app_offset, dataPartitions) && app_size > 0;
     if (file) file.close();
-    return fits ? label : "";
+    return parsed ? launcherInstallUpdateTarget(appName, app_size, dataPartitions) : "";
 }
 
 /***************************************************************************************

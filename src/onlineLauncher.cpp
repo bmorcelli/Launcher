@@ -539,6 +539,10 @@ bool installFirmwareDynamic(
     pauseInputHandlerTask();
     bool success = false;
     prog_handler = 0;
+    if (!updateLabel.isEmpty() && !launcherApplyUpdateLayoutMoves(table, appEntry, error)) {
+        displayError(error.length() ? error : "Move failed");
+        goto DONE;
+    }
     progressHandler(0, updateSize);
     {
         String appError;
@@ -875,13 +879,14 @@ void installFirmwareFromManifest(const String &fid, const String &version, Strin
     String manifestName = detail["name"].as<String>();
     if (!manifestName.isEmpty()) installedName = manifestName;
 
-    // "Update <app>" when an app partition named like this install's exists and fits the image.
+    // "Update <app>" when an app partition named like this install's exists and the image
+    // fits in it, in free space next to it, or after compacting the flash.
     String updateLabel;
     {
-        uint32_t partitionSize = 0;
-        String label =
-            launcherInstallUpdateTarget(launcherInstallAppDisplayName(file, installedName), partitionSize);
-        if (!label.isEmpty() && appPartitionSize <= partitionSize) {
+        String label = launcherInstallUpdateTarget(
+            launcherInstallAppDisplayName(file, installedName), appPartitionSize, dataPartitions
+        );
+        if (!label.isEmpty()) {
             int choice = -1;
             std::vector<Option> opts = {
                 {"New Install",                                             [&]() { choice = 0; }},

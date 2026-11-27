@@ -30,13 +30,26 @@ bool launcherSelectInstallLayout(
 );
 
 // "Update <app>" target: the installed app partition carrying the label an install of
-// `displayName` would create. Returns its label (size in partitionSize), or "" if none.
-String launcherInstallUpdateTarget(const String &displayName, uint32_t &partitionSize);
+// `displayName` would create, when launcherSelectUpdateLayout can fit this image into it.
+// Returns its label, or "" if none.
+String launcherInstallUpdateTarget(
+    const String &displayName, size_t updateSize,
+    const std::vector<LauncherInstallDataPartition> &dataPartitions
+);
 
-// Layout for "Update <app>": flash the app into the existing `label` partition in place.
+// Layout for "Update <app>": the app goes back into its own `label` partition when it fits.
+// Otherwise that partition is dropped and, if growing into free space isn't enough, the
+// flash is compacted (other apps/data moved toward the start) to make room for it.
 bool launcherSelectUpdateLayout(
     LauncherPartitionTable &table, size_t updateSize, const String &label,
     std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
+);
+
+// Moves the partitions an update layout relocated toward the start of flash and writes the
+// new table right away, so the other apps stay bootable if flashing the update fails.
+// No-op when nothing moved. Must run before anything is flashed into `target`.
+bool launcherApplyUpdateLayoutMoves(
+    const LauncherPartitionTable &target, const LauncherPartitionEntry &appEntry, String &error
 );
 
 #endif

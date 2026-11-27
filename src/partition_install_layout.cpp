@@ -70,15 +70,44 @@ bool launcherPrepareInstallDataPartitions(
     return true;
 }
 
-String launcherInstallUpdateTarget(const String &displayName, uint32_t &partitionSize) {
-    partitionSize = 0;
+String launcherInstallUpdateTarget(
+    const String &displayName, size_t updateSize,
+    const std::vector<LauncherInstallDataPartition> &dataPartitions
+) {
     LauncherPartitionTable table;
     if (!launcherPartitionReadCurrent(table, nullptr)) return "";
     String label = launcherPartitionSanitizedAppLabelBase(displayName);
-    const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label.c_str());
-    if (!entry || !launcherPartitionIsReplaceableApp(*entry)) return "";
-    partitionSize = entry->size;
+    std::vector<LauncherInstallDataPartition> parts = dataPartitions;
+    LauncherPartitionEntry appEntry;
+    String error;
+    if (!launcherSelectUpdateLayout(table, updateSize, label, parts, appEntry, error)) return "";
     return label;
+}
+
+// The partition `entry` was before a layout change (same type + label), or nullptr if new.
+static const LauncherPartitionEntry *
+updateLayoutSource(const LauncherPartitionTable &current, const LauncherPartitionEntry &entry) {
+    const LauncherPartitionEntry *source = launcherPartitionFindByLabel(current, entry.label);
+    return source && source->type == entry.type ? source : nullptr;
+}
+
+// Only other firmwares and their FAT/SPIFFS/LittleFS data may be relocated: never the
+// running Launcher, NVS, otadata or other system data the IDF keeps using until reboot.
+static bool updateLayoutMovesOnlyMovable(
+    const LauncherPartitionTable &current, const LauncherPartitionTable &target, String &error
+) {
+    for (const LauncherPartitionEntry &entry : target.entries) {
+        const LauncherPartitionEntry *source = updateLayoutSource(current, entry);
+        if (!source || source->offset == entry.offset) continue;
+        const bool movable = entry.isData()
+                                 ? entry.subtype == 0x81 || entry.subtype == 0x82 || entry.subtype == 0x83
+                                 : launcherPartitionIsReplaceableApp(*source);
+        if (!movable) {
+            error = String("Can't move ") + entry.label;
+            return false;
+        }
+    }
+    return true;
 }
 
 bool launcherSelectUpdateLayout(
@@ -86,13 +115,65 @@ bool launcherSelectUpdateLayout(
     std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
 ) {
     const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label.c_str());
-    if (!entry || !launcherPartitionIsReplaceableApp(*entry) || entry->size < updateSize) {
+    if (!entry || !launcherPartitionIsReplaceableApp(*entry)) {
         error = label + " can't be updated";
         return false;
     }
-    appEntry = *entry;
-    return launcherPrepareInstallDataPartitions(table, dataPartitions, error) &&
-           launcherPartitionValidate(table, &error);
+
+    LauncherPartitionTable candidate = table;
+    std::vector<LauncherInstallDataPartition> parts = dataPartitions;
+    LauncherPartitionEntry candidateApp = *entry;
+    bool ok;
+    if (entry->size >= updateSize) {
+        ok = launcherPrepareInstallDataPartitions(candidate, parts, error) &&
+             launcherPartitionValidate(candidate, &error);
+    } else {
+        // Grow: drop the old slot, then try free space as-is before compacting the flash.
+        launcherPartitionRemoveEntryByOffset(candidate, entry->offset);
+        LauncherPartitionTable base = candidate;
+        ok = launcherPartitionCreateOtaApp(candidate, updateSize, label.c_str(), &candidateApp, &error) &&
+             launcherPrepareInstallDataPartitions(candidate, parts, error) &&
+             launcherPartitionValidate(candidate, &error);
+        if (!ok) {
+            candidate = base;
+            parts = dataPartitions;
+            ok = launcherPartitionCompact(candidate, &error) &&
+                 updateLayoutMovesOnlyMovable(table, candidate, error) &&
+                 launcherPartitionCreateOtaApp(candidate, updateSize, label.c_str(), &candidateApp, &error) &&
+                 launcherPrepareInstallDataPartitions(candidate, parts, error) &&
+                 launcherPartitionValidate(candidate, &error);
+        }
+    }
+    if (!ok) return false;
+    table = candidate;
+    dataPartitions = parts;
+    appEntry = candidateApp;
+    return true;
+}
+
+bool launcherApplyUpdateLayoutMoves(
+    const LauncherPartitionTable &target, const LauncherPartitionEntry &appEntry, String &error
+) {
+    LauncherPartitionTable current; // still the table on flash: nothing was written yet
+    if (!launcherPartitionReadCurrent(current, &error)) return false;
+    // Copy only partitions compacted toward the start: the app is flashed fresh, and data
+    // re-created further up (largest free range) is rewritten or starts empty, as on install.
+    LauncherPartitionTable moves = target;
+    bool anyMove = false;
+    moves.entries.clear();
+    for (const LauncherPartitionEntry &entry : target.entries) {
+        const LauncherPartitionEntry *source = updateLayoutSource(current, entry);
+        if (entry.offset == appEntry.offset) continue;
+        if (source && source->offset < entry.offset) continue;
+        if (source && source->offset > entry.offset) anyMove = true;
+        moves.entries.push_back(entry);
+    }
+    if (!anyMove) return true;
+
+    displayRedStripe("Optimizing flash");
+    if (!launcherPartitionMigrateMovedData(current, moves, &error)) return false;
+    displayRedStripe("Writing table");
+    return launcherPartitionWriteGeneratedTable(target, &error);
 }
 
 bool launcherSelectInstallLayout(

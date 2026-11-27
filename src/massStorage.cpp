@@ -36,7 +36,7 @@ bool s_usbMounted = false;
 
 // Temporary MSC I/O tracing to a log file for debugging the macOS mount failure
 // (https://github.com/bmorcelli/Launcher/issues/424). Disable once resolved.
-#define MSC_DEBUG_LOG 1
+#define MSC_DEBUG_LOG 0 // 1 for debug
 #if MSC_DEBUG_LOG
 constexpr const char *kMscLogPath = "/Launcher_error.log";
 
