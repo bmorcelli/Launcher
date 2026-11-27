@@ -101,6 +101,9 @@ Things that need to be done in future updates
 
 ## Latest Changelog
 * 3.1.0 (WIP):
+     * [x] **Fix:** Improve SD Card compatibility, bringing back Cards that used to work on previous versions of Launcher and stopped working after move to IDF 5.x based frameworks, special thanks to @Scrayil for pointing the solution
+     * [x] **Fix:** issue that cause Wifi password corruption, thanks to @fermintm
+     * [x] **Fix:** issue that causes SeeedStudio ReTerminal Sticky to no get back to Launcher, thanks to @Fede-26
      * [x] Port to [Waveshare ESP32-P4-WIFI5 5inch display](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm?&aff_id=179888) thanks to @fermintm
      * [x] Port to [Heltec WiFi Lora Expansion kit V2](https://heltec.org/project/v4-r8-ex/) thanks to @valleytechsolutions
      * [ ] Port to [LCDwiki ES3C35P](https://www.lcdwiki.com/3.5inch_ESP32-S3_Display) thanks to @EnygmaINC

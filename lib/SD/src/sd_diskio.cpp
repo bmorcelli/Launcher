@@ -529,9 +529,10 @@ DSTATUS ff_sd_initialize(uint8_t pdrv) {
   }
   delay(20);
 
-  // CMD8: SD v2 cards answer R1=idle + R7 echo; v1/MMC answer "illegal command" or nothing.
+  // CMD8: SD v2 cards answer R1 + R7 echo; v1/MMC answer "illegal command" or nothing.
+  // Like ESP-IDF, R1 is only checked for error bits (idle bit may be clear); the echo validates it.
   token = sdTransaction(pdrv, SEND_IF_COND, 0x1AA, &resp);
-  if (token == 1) {
+  if (token == 0 || token == 1) {
     if ((resp & 0xFF) != 0xAA) {
       log_w("SEND_IF_COND failed: %03" PRIX32, (uint32_t)(resp & 0xFFF));
       goto unknown_card;
@@ -545,7 +546,7 @@ DSTATUS ff_sd_initialize(uint8_t pdrv) {
   token = sdTransaction(pdrv, CRC_ON_OFF, 1, NULL);
   if (token == 0x5) {
     card->supports_crc = false; // old card without CRC support
-  } else if (token != 1) {
+  } else if (token != 0 && token != 1) {
     log_w("CRC_ON_OFF failed: %u", token);
     goto unknown_card;
   }
