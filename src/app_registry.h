@@ -23,6 +23,7 @@ String launcherAppSpiffsLabelForLabel(const char *label);
 void launcherShowAppLauncher();
 void launcherShowAppActions(const char *label);
 String launcherAppDisplayNameForLabel(const char *label);
+String launcherAppNumForLabel(const char *label);
 String launcherSelectedBootAppName();
 bool launcherBootCurrentApp();
 bool launcherBootInstalledAppOrShowMenu();

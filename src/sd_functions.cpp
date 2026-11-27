@@ -1,4 +1,5 @@
 #include "sd_functions.h"
+#include "app_registry.h"
 #include "backup_manager.h"
 #include "display.h"
 #include "esp_log.h"
@@ -450,6 +451,16 @@ RESTART:
             }
         }
 #endif
+        {
+            String updateLabel = sdFirmwareUpdateTarget(fileToUse);
+            if (!updateLabel.isEmpty()) {
+                opt.insert(
+                    opt.begin(), {"Update " + launcherAppDisplayNameForLabel(updateLabel.c_str()), [=]() {
+                                      updateFromSD(fileToUse, updateLabel);
+                                  }}
+                );
+            }
+        }
         if (fileToCopy != "") opt.push_back({"Paste", [=]() { pasteFile(Folder); }});
         opt.push_back({"Delete", [=]() { deleteFromSd(fileToUse); }});
         opt.push_back({"Main Menu", [=]() { returnToMenu = true; }});
@@ -639,7 +650,7 @@ static uint32_t effectiveSdAppSize(File &file, uint32_t appOffset, uint32_t fall
 
 static bool installFromSdDynamic(
     File &file, const String &path, uint32_t appSize, uint32_t appOffset,
-    std::vector<LauncherInstallDataPartition> &dataPartitions
+    std::vector<LauncherInstallDataPartition> &dataPartitions, const String &updateLabel
 ) {
     String error;
     LauncherPartitionTable table;
@@ -653,10 +664,20 @@ static bool installFromSdDynamic(
         return false;
     }
 
-    String appLabel = launcherPartitionNextAppLabel(table, installedAppNameFromPath(path));
     LauncherPartitionEntry appEntry;
+    // "Update <app>": the app being replaced may come from another file (other appNum).
+    String oldAppNum = updateLabel.isEmpty() ? "" : launcherAppNumForLabel(updateLabel.c_str());
 
-    if (!launcherSelectInstallLayout(table, appSize, appLabel, dataPartitions, appEntry, error)) {
+    if (updateLabel.isEmpty()
+            ? !launcherSelectInstallLayout(
+                  table,
+                  appSize,
+                  launcherPartitionNextAppLabel(table, installedAppNameFromPath(path)),
+                  dataPartitions,
+                  appEntry,
+                  error
+              )
+            : !launcherSelectUpdateLayout(table, appSize, updateLabel, dataPartitions, appEntry, error)) {
         launcherConsolePrintf("SD install layout failed: %s\n", error.c_str());
         displayError(error.length() ? error : "No install space");
         return false;
@@ -669,6 +690,8 @@ static bool installFromSdDynamic(
     String appNum = generateAppNum(path);
     bool shouldRestore = false;
     BackupInstallInfo prevInstall = loadInstalledFromConfig(appNum);
+    if (prevInstall.appNum.isEmpty() && !oldAppNum.isEmpty())
+        prevInstall = loadInstalledFromConfig(oldAppNum);
     if (!prevInstall.appNum.isEmpty()) {
         std::vector<String> restorable;
         for (const auto &bp : prevInstall.partitions) {
@@ -766,6 +789,9 @@ static bool installFromSdDynamic(
             table, appEntry, path, installedAppNameFromPath(path), fatLabels, registeredSpiffsLabel
         );
         saveIntoNVS();
+        // Backups of the replaced app now belong to this file: re-key them (paths move with the folder).
+        if (migrateInstalledAppNum(oldAppNum, appNum, path, installedAppNameFromPath(path)))
+            prevInstall = loadInstalledFromConfig(appNum);
 
         BackupInstallInfo bkInfo;
         bkInfo.appNum = appNum;
@@ -794,35 +820,25 @@ DONE:
     return success;
 }
 
-/***************************************************************************************
-** Function name: updateFromSD
-** Description:   this function analyse the .bin and calls installFromSdDynamic
-***************************************************************************************/
-void updateFromSD(const String &path) {
+// Reads the .bin layout (app size/offset and the data partitions it carries) without
+// touching flash or prompting, so the file browser can size an "Update" before installing.
+static bool readSdInstallImage(
+    File &file, uint32_t &app_size, uint32_t &app_offset,
+    std::vector<LauncherInstallDataPartition> &dataPartitions
+) {
     uint8_t partitionEntry[LAUNCHER_PARTITION_ENTRY_SIZE];
-    uint32_t app_size = 0;
-    uint32_t app_offset = 0;
-    std::vector<LauncherInstallDataPartition> dataPartitions;
-
-    File file = SDM.open(path);
-
-    if (!file) goto Exit;
-    if (!file.seek(0x8000)) goto Exit;
+    if (!file.seek(0x8000)) return false;
     file.read(partitionEntry, 16);
 
     if (partitionEntry[0] != 0xAA || partitionEntry[1] != 0x50 || partitionEntry[2] != 0x01) {
         app_size = effectiveSdAppSize(file, 0, file.size());
-        if (!installFromSdDynamic(file, path, app_size, 0, dataPartitions)) { goto Exit; }
-        file.close();
-        tft->fillScreen(BGCOLOR);
-
-        return (void)releaseHeapObjectsAndReboot();
-    } else {
-        if (!file.seek(0x8000)) goto Exit;
+        return true;
+    }
+    {
         for (int i = 0; i < LAUNCHER_PARTITION_TABLE_SIZE; i += LAUNCHER_PARTITION_ENTRY_SIZE) {
-            if (!file.seek(0x8000 + i)) goto Exit;
+            if (!file.seek(0x8000 + i)) return false;
             if (file.read(partitionEntry, LAUNCHER_PARTITION_ENTRY_SIZE) != LAUNCHER_PARTITION_ENTRY_SIZE)
-                goto Exit;
+                return false;
             if (partitionEntry[0] == 0xEB && partitionEntry[1] == 0xEB) break;
             if (partitionEntry[0] == 0xFF && partitionEntry[1] == 0xFF) break;
 
@@ -916,7 +932,41 @@ void updateFromSD(const String &path) {
                 );
             }
         }
+    }
+    return true;
+}
 
+String sdFirmwareUpdateTarget(const String &path) {
+    String lowerPath = path;
+    lowerPath.toLowerCase();
+    if (!lowerPath.endsWith(".bin")) return "";
+    uint32_t partitionSize = 0;
+    String label = launcherInstallUpdateTarget(installedAppNameFromPath(path), partitionSize);
+    if (label.isEmpty()) return "";
+    uint32_t app_size = 0;
+    uint32_t app_offset = 0;
+    std::vector<LauncherInstallDataPartition> dataPartitions;
+    File file = SDM.open(path);
+    bool fits = file && readSdInstallImage(file, app_size, app_offset, dataPartitions) && app_size > 0 &&
+                app_size <= partitionSize;
+    if (file) file.close();
+    return fits ? label : "";
+}
+
+/***************************************************************************************
+** Function name: updateFromSD
+** Description:   this function analyse the .bin and calls installFromSdDynamic
+***************************************************************************************/
+void updateFromSD(const String &path, const String &updateLabel) {
+    uint32_t app_size = 0;
+    uint32_t app_offset = 0;
+    std::vector<LauncherInstallDataPartition> dataPartitions;
+
+    File file = SDM.open(path);
+
+    if (!file) goto Exit;
+    if (!readSdInstallImage(file, app_size, app_offset, dataPartitions)) goto Exit;
+    {
         prog_handler = 0; // Install flash update
         {
             auto spiffsIt = std::find_if(
@@ -948,7 +998,10 @@ void updateFromSD(const String &path) {
         log_i("Appsize: %d", app_size);
         log_i("Data partitions: %d", dataPartitions.size());
 
-        if (!installFromSdDynamic(file, path, app_size, app_offset, dataPartitions)) { goto Exit; }
+        if (!installFromSdDynamic(file, path, app_size, app_offset, dataPartitions, updateLabel)) {
+            goto Exit;
+        }
+        file.close();
         displayMsg("Complete");
 
         return (void)releaseHeapObjectsAndReboot();

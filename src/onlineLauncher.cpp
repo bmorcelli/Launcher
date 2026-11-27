@@ -1,5 +1,6 @@
 #include "onlineLauncher.h"
 #include "app_registry.h"
+#include "backup_manager.h"
 #include "display.h"
 #include "idf/idf_http_client.h"
 #include "idf/idf_update.h"
@@ -483,7 +484,7 @@ bool flashRawRangeFromHttp(
 bool installFirmwareDynamic(
     const String &fileAddr, const String &file, uint32_t appSize, uint32_t appPartitionSize,
     uint32_t appOffset, bool nb, std::vector<LauncherInstallDataPartition> &dataPartitions,
-    const String &installedName
+    const String &installedName, const String &updateLabel = ""
 ) {
     String error;
     LauncherPartitionTable table;
@@ -516,10 +517,21 @@ bool installFirmwareDynamic(
     }
     if (appPartitionSize == 0 || appPartitionSize < updateSize) appPartitionSize = updateSize;
 
-    String appLabel = launcherInstallNextAppLabel(table, file, installedName);
     LauncherPartitionEntry appEntry;
+    // "Update <app>": the app being replaced may come from another file (other appNum).
+    String oldAppNum = updateLabel.isEmpty() ? "" : launcherAppNumForLabel(updateLabel.c_str());
 
-    if (!launcherSelectInstallLayout(table, appPartitionSize, appLabel, dataPartitions, appEntry, error)) {
+    if (updateLabel.isEmpty() ? !launcherSelectInstallLayout(
+                                    table,
+                                    appPartitionSize,
+                                    launcherInstallNextAppLabel(table, file, installedName),
+                                    dataPartitions,
+                                    appEntry,
+                                    error
+                                )
+                              : !launcherSelectUpdateLayout(
+                                    table, appPartitionSize, updateLabel, dataPartitions, appEntry, error
+                                )) {
         displayError(error.length() ? error : "No install space");
         return false;
     }
@@ -582,7 +594,11 @@ bool installFirmwareDynamic(
         );
         // OTA (http) installs are not registered in backupData.json and are not
         // backed up: the source is a URL, not an SD file, so there is nothing to
-        // tie a backup to when reinstalling.
+        // tie a backup to when reinstalling. An update keeps the replaced app's
+        // backups reachable under the new appNum.
+        migrateInstalledAppNum(
+            oldAppNum, generateAppNum(file), file, launcherInstallAppDisplayName(file, installedName)
+        );
     }
 
     saveIntoNVS();
@@ -859,8 +875,35 @@ void installFirmwareFromManifest(const String &fid, const String &version, Strin
     String manifestName = detail["name"].as<String>();
     if (!manifestName.isEmpty()) installedName = manifestName;
 
+    // "Update <app>" when an app partition named like this install's exists and fits the image.
+    String updateLabel;
+    {
+        uint32_t partitionSize = 0;
+        String label =
+            launcherInstallUpdateTarget(launcherInstallAppDisplayName(file, installedName), partitionSize);
+        if (!label.isEmpty() && appPartitionSize <= partitionSize) {
+            int choice = -1;
+            std::vector<Option> opts = {
+                {"New Install",                                             [&]() { choice = 0; }},
+                {"Update " + launcherAppDisplayNameForLabel(label.c_str()), [&]() { choice = 1; }},
+                {"Cancel",                                                  [&]() { choice = 2; }},
+            };
+            loopOptions(opts);
+            if (choice < 0 || choice == 2) return;
+            if (choice == 1) updateLabel = label;
+        }
+    }
+
     if (!installFirmwareDynamic(
-            fileAddr, file, appCopySize, appPartitionSize, appOffset, nb, dataPartitions, installedName
+            fileAddr,
+            file,
+            appCopySize,
+            appPartitionSize,
+            appOffset,
+            nb,
+            dataPartitions,
+            installedName,
+            updateLabel
         )) {
         launcherDelayMs(2500);
     }

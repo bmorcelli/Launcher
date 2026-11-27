@@ -31,7 +31,9 @@ bool sortList(const Option &a, const Option &b);
 
 String loopSD(bool filePicker = false);
 
-void updateFromSD(const String &path);
+void updateFromSD(const String &path, const String &updateLabel = "");
+// Label of the installed app partition `path` can be updated into ("" if none fits).
+String sdFirmwareUpdateTarget(const String &path);
 
 bool performDATAUpdate(Stream &updateSource, size_t updateSize, const char *label);
 

@@ -271,6 +271,8 @@ std::vector<String> launcherAppFatLabelsForLabel(const char *label) { return loa
 
 String launcherAppSpiffsLabelForLabel(const char *label) { return loadSpiffsLabelForLabel(label); }
 
+String launcherAppNumForLabel(const char *label) { return loadAppNumForLabel(label); }
+
 String launcherAppDisplayNameForLabel(const char *label) {
     if (!label) return "";
     String name = loadAppNameForLabel(label);

@@ -24,6 +24,12 @@ bool updateInstalledAppName(const String &appNum, const String &newName);
 bool updateInstalledBackupPath(const String &appNum, const String &label, const String &backupPath);
 bool removeInstalledFromConfig(const String &appNum);
 BackupInstallInfo loadInstalledFromConfig(const String &appNum);
+// "Update <app>" installed a new file into an app's partition: re-key its entry from
+// oldAppNum to newAppNum (new filepath/name) and rename its backup folder to match.
+// Does nothing when newAppNum already has an entry of its own.
+bool migrateInstalledAppNum(
+    const String &oldAppNum, const String &newAppNum, const String &sdFilepath, const String &appName
+);
 
 // Search helpers
 String findAppNumByFilepath(const String &sdFilepath);

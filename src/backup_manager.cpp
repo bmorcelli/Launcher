@@ -261,6 +261,35 @@ String backupDirForApp(const String &appNum) {
     return "/bkp/" + appNum + "-" + suffix;
 }
 
+bool migrateInstalledAppNum(
+    const String &oldAppNum, const String &newAppNum, const String &sdFilepath, const String &appName
+) {
+    if (oldAppNum.isEmpty() || newAppNum.isEmpty() || oldAppNum == newAppNum) return false;
+    String oldDir = backupDirForApp(oldAppNum);
+    JsonDocument doc;
+    if (!readBackupDoc(doc)) return false;
+    JsonObject entry = findInstalledEntry(doc, oldAppNum);
+    if (entry.isNull() || !findInstalledEntry(doc, newAppNum).isNull()) return false;
+
+    entry["appNum"] = newAppNum;
+    entry["filepath"] = sdFilepath;
+    entry["appName"] = appName;
+
+    if (SDM.exists(oldDir)) {
+        String suffix = sanitizeForPath(appName);
+        String newDir = "/bkp/" + newAppNum + (suffix.isEmpty() ? "" : "-" + suffix);
+        if (SDM.rename(oldDir, newDir)) {
+            JsonArray dataArr = entry["data"].as<JsonArray>();
+            for (JsonObject dataEntry : dataArr) {
+                String path = dataEntry["filepath"].as<String>();
+                if (path.startsWith(oldDir + "/"))
+                    dataEntry["filepath"] = newDir + path.substring(oldDir.length());
+            }
+        }
+    }
+    return writeBackupDoc(doc);
+}
+
 static int nextBackupIndexInDir(const String &dir, const char *type, const char *label) {
     int idx = 0;
     File root = SDM.open(dir);

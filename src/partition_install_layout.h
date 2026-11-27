@@ -29,4 +29,14 @@ bool launcherSelectInstallLayout(
     std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
 );
 
+// "Update <app>" target: the installed app partition carrying the label an install of
+// `displayName` would create. Returns its label (size in partitionSize), or "" if none.
+String launcherInstallUpdateTarget(const String &displayName, uint32_t &partitionSize);
+
+// Layout for "Update <app>": flash the app into the existing `label` partition in place.
+bool launcherSelectUpdateLayout(
+    LauncherPartitionTable &table, size_t updateSize, const String &label,
+    std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
+);
+
 #endif

@@ -70,6 +70,31 @@ bool launcherPrepareInstallDataPartitions(
     return true;
 }
 
+String launcherInstallUpdateTarget(const String &displayName, uint32_t &partitionSize) {
+    partitionSize = 0;
+    LauncherPartitionTable table;
+    if (!launcherPartitionReadCurrent(table, nullptr)) return "";
+    String label = launcherPartitionSanitizedAppLabelBase(displayName);
+    const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label.c_str());
+    if (!entry || !launcherPartitionIsReplaceableApp(*entry)) return "";
+    partitionSize = entry->size;
+    return label;
+}
+
+bool launcherSelectUpdateLayout(
+    LauncherPartitionTable &table, size_t updateSize, const String &label,
+    std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
+) {
+    const LauncherPartitionEntry *entry = launcherPartitionFindByLabel(table, label.c_str());
+    if (!entry || !launcherPartitionIsReplaceableApp(*entry) || entry->size < updateSize) {
+        error = label + " can't be updated";
+        return false;
+    }
+    appEntry = *entry;
+    return launcherPrepareInstallDataPartitions(table, dataPartitions, error) &&
+           launcherPartitionValidate(table, &error);
+}
+
 bool launcherSelectInstallLayout(
     LauncherPartitionTable &table, size_t updateSize, const String &defaultLabel,
     std::vector<LauncherInstallDataPartition> &dataPartitions, LauncherPartitionEntry &appEntry, String &error
